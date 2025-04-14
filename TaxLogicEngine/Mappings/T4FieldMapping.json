@@ -1,0 +1,218 @@
+{
+  "14": {
+    "line": "10100",
+    "description": "Employment income",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "16": {
+    "line": "30800",
+    "description": "Employee's CPP contributions",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "16A": {
+    "line": "22215",
+    "description": "Employee's second CPP contributions",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "17": {
+    "line": "30800",
+    "description": "Employee's QPP contributions",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "17A": {
+    "line": "22215",
+    "description": "Employee's second QPP contributions",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "18": {
+    "line": "31200",
+    "description": "Employee's EI premiums",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "20": {
+    "line": "20700",
+    "description": "Registered pension plan (RPP) contributions",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "22": {
+    "line": "43700",
+    "description": "Income tax deducted",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "24": {
+    "line": "10100",
+    "description": "EI insurable earnings",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "26": {
+    "line": "10100",
+    "description": "CPP/QPP pensionable earnings",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "27": {
+    "line": "10100",
+    "description": "Employment income for Quebec",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "30": {
+    "line": "10100",
+    "description": "Board and lodging",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "31": {
+    "line": "25500",
+    "description": "Special work site",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "32": {
+    "line": "25500",
+    "description": "Travel in a prescribed zone",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "33": {
+    "line": "25500",
+    "description": "Medical travel assistance",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "34": {
+    "line": "10100",
+    "description": "Personal use of employer's automobile",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "36": {
+    "line": "10100",
+    "description": "Interest-free and low-interest loans",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "38": {
+    "line": "10100",
+    "description": "Security options benefits",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "39": {
+    "line": "24900",
+    "description": "Security options deduction 110(1)(d)",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "40": {
+    "line": "10100",
+    "description": "Other taxable allowances and benefits",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "41": {
+    "line": "24900",
+    "description": "Security options deduction 110(1)(d.1)",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "42": {
+    "line": "10120",
+    "description": "Employment commissions",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "43": {
+    "line": "24400",
+    "description": "Canadian Forces personnel and police deduction",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "44": {
+    "line": "10100",
+    "description": "Union dues",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "46": {
+    "line": "10100",
+    "description": "Charitable donations",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "52": {
+    "line": "20600",
+    "description": "Pension adjustment",
+    "isFederal": true,
+    "isProvincial": false
+  },
+  "54": {
+    "line": "10100",
+    "description": "Employer's account number",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "56": {
+    "line": "10100",
+    "description": "PPIP insurable earnings",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "58": {
+    "line": "31200",
+    "description": "PPIP premiums",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "60": {
+    "line": "10100",
+    "description": "Medical premium benefits",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "66": {
+    "line": "13000",
+    "description": "Eligible retiring allowances",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "67": {
+    "line": "13000",
+    "description": "Non-eligible retiring allowances",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "69": {
+    "line": "13000",
+    "description": "Tax-exempt non-eligible retiring allowances",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "71": {
+    "line": "10100",
+    "description": "Indian (exempt income) \u2013 Employment",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "72": {
+    "line": "10100",
+    "description": "Indian (exempt income) \u2013 Self-employment",
+    "isFederal": true,
+    "isProvincial": true
+  },
+  "73": {
+    "line": "10100",
+    "description": "Indian (exempt income) \u2013 Other income",
+    "isFederal": true,
+    "isProvincial": true
+  }
+}
