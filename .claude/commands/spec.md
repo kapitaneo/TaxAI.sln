@@ -14,8 +14,8 @@ Do NOT write any code. Your only output is a spec document.
 
 2. If the feature description is ambiguous, ask me up to 3 clarifying questions
    BEFORE writing. Common gaps: who the user is, what data is involved,
-   edge cases, what "done" means. Do not guess on domain rules — clinical
-   trials have compliance constraints.
+   edge cases, what "done" means. Do not guess on domain rules — Canadian tax
+   filing has CRA compliance constraints; defer to the domain rules in CLAUDE.md.
 
 3. Write the PRD using exactly this structure:
 

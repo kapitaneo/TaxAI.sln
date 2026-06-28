@@ -14,26 +14,27 @@ Do NOT write production code. Output two documents.
 # Architecture: <Feature Name>
 
 ## Approach
-The chosen design in prose. Which layers are touched (Domain / Application /
-Infrastructure / API), which CQRS commands and queries are introduced.
+The chosen design in prose. Which parts of the class library are touched
+(Models / Mappings / Services / Prompts), and how the pieces fit together.
 
 ## Data model
-New/changed entities, EF Core mappings, MSSQL schema changes (tables, columns,
-indexes). Note any migration needed.
+New/changed models and DTOs (T4Slip, TaxReturn, TaxLineEntry, etc.). Any new
+or changed JSON mapping config in Mappings/ (box → CRA line). Note that mappings
+are data-driven — never hardcode CRA line numbers in C#.
 
-## Commands & queries
-For each: name, input DTO, output, the MediatR handler's responsibility,
-validation rules.
-
-## API surface
-Endpoints: method, route under /api/v1, request/response shape, status codes.
+## Services & public API
+For each service (Mapper / Calculator / Validator / …): the public methods,
+their inputs and outputs, and the responsibility of each. Note validation rules
+and which domain rules from CLAUDE.md apply (per-tax-year, decimal/half-up
+currency math, SIN masking).
 
 ## Trade-offs
 At least 2 alternatives you considered and why you rejected them. THIS IS
 REQUIRED — a Lead must justify decisions, not just make them.
 
 ## Risks
-Performance, security/PII, concurrency, compliance. How each is mitigated.
+Correctness (per-tax-year brackets, rounding), security/PII (SIN handling),
+CRA compliance. How each is mitigated.
 
 ## 2. tasks.md
 
@@ -43,8 +44,8 @@ to implement and test in one sitting. Format:
 - [ ] **T01** — <what> — files: <paths> — depends on: <none / T0x>
 - [ ] **T02** — ...
 
-Order matters: domain model → persistence → handlers → validation → endpoints
-→ wiring. Tests come WITH each task, not as a final lump.
+Order matters: models → mapping config → services (mapper/calculator/validator)
+→ validation rules → wiring. Tests come WITH each task, not as a final lump.
 
 After writing both, summarize the plan and the task count in chat, and ask me
 to review before I run `/implement`.

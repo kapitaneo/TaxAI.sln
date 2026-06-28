@@ -29,6 +29,20 @@ dotnet test TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
 - Field mappings are data-driven via JSON files in Mappings/, not hardcoded.
 - CRA line numbers are the canonical identifiers linking form boxes to tax return entries.
 
+## Feature development workflow
+
+Features are built through a three-stage slash-command pipeline (defined in `.claude/commands/`). Each stage stops for human review before the next:
+
+1. **`/spec <feature>`** — acting as PM/BA, writes a PRD to `specs/NNN-<slug>/prd.md`. No code. Functional requirements must reference the domain rules below.
+2. **`/plan <feature>`** — acting as architect, reads the PRD and writes `architecture.md` (design, data model, trade-offs, risks) plus `tasks.md` (an ordered, dependency-aware checklist). No production code.
+3. **`/implement <feature>`** — acting as senior dev, implements ONLY the first unchecked `[ ]` task in `tasks.md`, writes its tests in the same pass, checks the box, then stops. One task at a time — never batch.
+
+Spec/plan artifacts live under `specs/`. Find the next spec number from existing folders there.
+
+## Current state
+
+The source tree is a skeleton: only the two `.csproj` files and a placeholder `UnitTest1.cs` exist. The Models/Mappings/Services/Prompts layout in the README and Architecture section is the intended structure, not yet created.
+
 ## Domain rules (Canadian tax)
 
 - **Never log or echo a full SIN.** Mask to the last 3 digits in all logs, errors, and output.

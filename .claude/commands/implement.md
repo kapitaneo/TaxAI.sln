@@ -14,11 +14,12 @@ $ARGUMENTS
    which files you'll touch. If a task is unclear or its dependencies aren't
    done, stop and tell me.
 
-3. Follow every convention in CLAUDE.md (Clean Architecture, CQRS/MediatR,
-   Result<T>, async + CancellationToken, no magic strings).
+3. Follow every convention in CLAUDE.md: data-driven JSON mappings (never
+   hardcode a CRA line number), decimal currency math rounded half-up to cents,
+   per-tax-year calculations, SIN masking, no magic strings.
 
 4. Write the implementation AND its tests in the same pass. A task isn't done
-   without tests (xUnit + FluentAssertions).
+   without tests (xUnit).
 
 5. After implementing:
    - Check the box in `tasks.md`: `[x]`
