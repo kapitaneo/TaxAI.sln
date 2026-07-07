@@ -41,8 +41,11 @@ correctly and without leaking their SIN.
    typed property on `T5Slip`:
    - Identification: payer name/address, recipient name/address, **Box 22**
      recipient identification number (SIN or business number), **Box 23**
-     recipient type (`1` individual, `2` joint, `3` other), **Box 21** report code,
-     **Box 27** foreign currency code, **Box 28** transit, **Box 29** account number.
+     recipient type (`1` individual, `2` joint account, `3` corporation,
+     `4` association/trust/club/partnership, `5` government/international
+     organization — per CRA), **Box 21** report code (`O` original, `A` amended,
+     `C` cancelled), **Box 27** foreign currency code (ISO 4217, one currency per
+     slip), **Box 28** transit, **Box 29** account number.
    - Amounts: **10** other-than-eligible dividends (actual), **11** taxable amount,
      **12** dividend tax credit; **13** interest from Canadian sources;
      **14** other income from Canadian sources; **15** foreign income;
@@ -62,7 +65,7 @@ correctly and without leaking their SIN.
    masked to the **last 3 digits** (per CLAUDE.md SIN rule).
 7. The parser SHALL validate input and return **structured validation results**
    (field, problem) for: missing required fields (tax year, payer, recipient,
-   recipient type), recipient type outside `{1,2,3}`, non-numeric/garbled amount
+   recipient type), recipient type outside `{1,2,3,4,5}`, non-numeric/garbled amount
    strings, and amounts that violate sign expectations. Validation messages SHALL
    themselves obey the SIN masking rule.
 8. The parser SHALL **retain box numbers as the canonical identifiers** on the
@@ -121,7 +124,7 @@ correctly and without leaking their SIN.
    Given a recipient type of `9`,
    When the slip is parsed,
    Then a structured validation error flags the recipient type as out of range
-   `{1,2,3}`.
+   `{1,2,3,4,5}`.
 
 7. **Foreign currency preserved, not converted**
    Given Box 27 = `USD` with foreign-income amounts,
