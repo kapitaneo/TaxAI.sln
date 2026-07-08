@@ -12,7 +12,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
   files: `TaxLogicEngine/Models/ParseResult.cs`, `TaxLogicEngine/Models/ValidationError.cs`;
   tests: `TaxLogicEngine.Tests/Models/ParseResultTests.cs` — depends on: none
 
-- [ ] **T02** — `MoneyRounding.ToCents(decimal)` helper (`Math.Round(v, 2,
+- [x] **T02** — `MoneyRounding.ToCents(decimal)` helper (`Math.Round(v, 2,
   MidpointRounding.AwayFromZero)`) — files: `TaxLogicEngine/Services/MoneyRounding.cs`;
   tests: `TaxLogicEngine.Tests/Services/MoneyRoundingTests.cs` (incl. `100.005 → 100.01`,
   AC2) — depends on: none
