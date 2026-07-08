@@ -23,7 +23,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
   tests: `TaxLogicEngine.Tests/Models/RecipientIdentifierTests.cs` (masking, equality,
   full value never returned) — depends on: none
 
-- [ ] **T04** — `T5BoxCodes` constants (standard boxes 10–29 + named other-info
+- [x] **T04** — `T5BoxCodes` constants (standard boxes 10–29 + named other-info
   code 30 "Equity linked notes interest") + `T5OtherInformation` (Code, Amount) —
   files: `TaxLogicEngine/Models/T5BoxCodes.cs`, `TaxLogicEngine/Models/T5OtherInformation.cs`;
   tests: `TaxLogicEngine.Tests/Models/T5BoxCodesTests.cs` — depends on: none
