@@ -38,7 +38,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
   tests: `TaxLogicEngine.Tests/Models/T5SlipTests.cs` (construction, `ToString` never
   leaks Box 22) — depends on: T03, T04
 
-- [ ] **T06** — Raw input DTOs: `T5RawInput` (`TaxYear?`, payer/recipient
+- [x] **T06** — Raw input DTOs: `T5RawInput` (`TaxYear?`, payer/recipient
   name+address, `IReadOnlyList<T5RawBox> Boxes`) and `T5RawBox` (Code, Value) —
   files: `TaxLogicEngine/Models/T5RawInput.cs`;
   tests: `TaxLogicEngine.Tests/Models/T5RawInputTests.cs` (holds duplicate codes) —
