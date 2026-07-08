@@ -46,7 +46,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
 
 ## Parser service
 
-- [ ] **T07** — `T5SlipParser.Parse` happy path: map known boxes to typed
+- [x] **T07** — `T5SlipParser.Parse` happy path: map known boxes to typed
   properties, parse amounts as `decimal` via `MoneyRounding.ToCents`, passthrough
   unknown boxes to `OtherInformation`, preserve `CurrencyCode` without conversion,
   return `ParseResult.Success` — files: `TaxLogicEngine/Services/T5SlipParser.cs`;
