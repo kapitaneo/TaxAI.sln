@@ -64,7 +64,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
 
 ## Wiring / cross-cutting verification
 
-- [ ] **T09** — SIN-safety sweep + acceptance regression: assert no full Box 22
+- [x] **T09** — SIN-safety sweep + acceptance regression: assert no full Box 22
   value appears in `T5Slip.ToString()` or any `ValidationError.Message` (AC3), and a
   single test class exercises all seven acceptance criteria end-to-end —
   files: `TaxLogicEngine.Tests/Services/T5SlipAcceptanceTests.cs`;
