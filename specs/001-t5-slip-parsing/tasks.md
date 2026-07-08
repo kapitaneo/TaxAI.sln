@@ -54,7 +54,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
   rounding, AC4 other-info passthrough, AC7 foreign currency preserved) —
   depends on: T01, T02, T04, T05, T06
 
-- [ ] **T08** — `T5SlipParser` validation rules (fail-closed, errors only): required
+- [x] **T08** — `T5SlipParser` validation rules (fail-closed, errors only): required
   fields (tax year, payer name, recipient name, recipient type), `RecipientType ∈
   {1,2,3,4,5}` (CRA codes: individual/joint/corporation/association-trust/government),
   non-numeric amount, negative amount rejected, duplicate box code rejected;
