@@ -8,7 +8,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
 
 ## Models
 
-- [ ] **T01** — Output types: `TaxLineEntry` (LineNumber, Amount, SourceBoxCodes) and
+- [x] **T01** — Output types: `TaxLineEntry` (LineNumber, Amount, SourceBoxCodes) and
   `T5MappingResult` (Lines, UnmappedBoxCodes) —
   files: `TaxLogicEngine/Models/TaxLineEntry.cs`, `TaxLogicEngine/Models/T5MappingResult.cs`;
   tests: `TaxLogicEngine.Tests/Models/TaxLineEntryTests.cs` (construction, value
