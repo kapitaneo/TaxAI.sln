@@ -17,7 +17,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
   tests: `TaxLogicEngine.Tests/Services/MoneyRoundingTests.cs` (incl. `100.005 → 100.01`,
   AC2) — depends on: none
 
-- [ ] **T03** — `RecipientIdentifier` value object: stores raw digits privately,
+- [x] **T03** — `RecipientIdentifier` value object: stores raw digits privately,
   exposes `Masked` (`***-**-789`, last 3) and masking `ToString()`, value equality;
   always masks — files: `TaxLogicEngine/Models/RecipientIdentifier.cs`;
   tests: `TaxLogicEngine.Tests/Models/RecipientIdentifierTests.cs` (masking, equality,
