@@ -30,7 +30,7 @@ for review. Follow CLAUDE.md domain rules throughout (SIN masking, decimal half-
 
 ## Models
 
-- [ ] **T05** — `T5Slip` aggregate: `TaxYear`, identification fields,
+- [x] **T05** — `T5Slip` aggregate: `TaxYear`, identification fields,
   `RecipientIdentifier RecipientId`, `RecipientType`, `CurrencyCode` (default `"CAD"`),
   typed `decimal` properties for boxes 10–19/24–26, `OtherInformation` collection,
   and `ToString()` that masks the recipient id —
