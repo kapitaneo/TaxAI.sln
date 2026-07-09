@@ -44,7 +44,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
   tests: `TaxLogicEngine.Tests/Services/EmbeddedT5LineMapProviderTests.cs` (loads 2025,
   unknown year fails, resolved lookup matches config) — depends on: T02, T03
 
-- [ ] **T05** — `T5SlipBoxAmounts.Enumerate(T5Slip)` → `(BoxCode, Amount)` pairs: the 13
+- [x] **T05** — `T5SlipBoxAmounts.Enumerate(T5Slip)` → `(BoxCode, Amount)` pairs: the 13
   typed amount boxes with non-zero value + all `OtherInformation` entries —
   files: `TaxLogicEngine/Services/T5SlipBoxAmounts.cs`;
   tests: `TaxLogicEngine.Tests/Services/T5SlipBoxAmountsTests.cs` (yields populated typed
