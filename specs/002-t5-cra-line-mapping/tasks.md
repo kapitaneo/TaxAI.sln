@@ -68,7 +68,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
 
 ## Wiring / acceptance
 
-- [ ] **T08** — Acceptance suite AC1–AC8 end-to-end through `T5LineMapper` +
+- [x] **T08** — Acceptance suite AC1–AC8 end-to-end through `T5LineMapper` +
   `EmbeddedT5LineMapProvider`, plus provenance (SourceBoxCodes) and SIN-safety checks
   (no PII in entries/errors) —
   files: `TaxLogicEngine.Tests/Services/T5LineMappingAcceptanceTests.cs`;
