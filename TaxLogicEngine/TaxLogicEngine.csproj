@@ -6,4 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Per-tax-year box->CRA line mapping config, loaded by EmbeddedT5LineMapProvider. -->
+    <EmbeddedResource Include="Mappings\T5LineMap.2025.json">
+      <LogicalName>TaxLogicEngine.Mappings.T5LineMap.2025.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>

@@ -23,7 +23,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
 
 ## Mapping config (data)
 
-- [ ] **T03** — Author the **CRA-verified** 2025 config `T5LineMap.2025.json`, embedded
+- [x] **T03** — Author the **CRA-verified** 2025 config `T5LineMap.2025.json`, embedded
   as a resource. Verify **every** box→line entry against canada.ca (browser) and cite
   the source per line in a comment/README; map taxable dividend boxes (11→[12000,12010],
   25→[12000]), credits (12,26→[40425]), interest/other/foreign (13,14,15→[12100]),
