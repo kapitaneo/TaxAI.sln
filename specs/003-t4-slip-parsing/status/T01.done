@@ -1,0 +1,4 @@
+Task: T01 — T4 slip parsing public contract (Wave 0)
+PR: #23
+Commit: f4337d2
+Status: implemented; tests green (152 passed); awaiting human review + merge
