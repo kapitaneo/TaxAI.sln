@@ -14,7 +14,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
   tests: `TaxLogicEngine.Tests/Models/TaxLineEntryTests.cs` (construction, value
   equality/holding, empty defaults) — depends on: none
 
-- [ ] **T02** — Config types + resolved map: `BoxLineMapping` (BoxCode, LineNumbers),
+- [x] **T02** — Config types + resolved map: `BoxLineMapping` (BoxCode, LineNumbers),
   `T5LineMappingConfig` (TaxYear, Mappings), and `T5LineMap` (year + box→lines lookup
   built from config; rejects duplicate box codes / empty line lists) —
   files: `TaxLogicEngine/Models/T5LineMappingConfig.cs`, `TaxLogicEngine/Models/T5LineMap.cs`;
