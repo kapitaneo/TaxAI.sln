@@ -38,7 +38,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
 
 ## Services
 
-- [ ] **T04** — `IT5LineMapProvider` + `EmbeddedT5LineMapProvider`: resolve tax year →
+- [x] **T04** — `IT5LineMapProvider` + `EmbeddedT5LineMapProvider`: resolve tax year →
   `ParseResult<T5LineMap>` from the embedded JSON (missing/malformed year → Failure) —
   files: `TaxLogicEngine/Services/IT5LineMapProvider.cs`, `TaxLogicEngine/Services/EmbeddedT5LineMapProvider.cs`;
   tests: `TaxLogicEngine.Tests/Services/EmbeddedT5LineMapProviderTests.cs` (loads 2025,
