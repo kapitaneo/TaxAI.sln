@@ -50,7 +50,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
   tests: `TaxLogicEngine.Tests/Services/T5SlipBoxAmountsTests.cs` (yields populated typed
   boxes, includes other-info incl. box 30, skips zero typed boxes) — depends on: none
 
-- [ ] **T06** — `T5LineMapper.Map` core aggregation (happy path): enumerate amounts,
+- [x] **T06** — `T5LineMapper.Map` core aggregation (happy path): enumerate amounts,
   config lookup, aggregate by line (sum via `MoneyRounding.ToCents`), collect distinct
   source box codes, build `UnmappedBoxCodes`, return `ParseResult.Success` —
   files: `TaxLogicEngine/Services/T5LineMapper.cs`;
