@@ -13,10 +13,12 @@ public class T5LineMapperTests
         configure(a);
         return new T5Slip
         {
-            TaxYear = 2025,
+            TaxYear = a.Year,
             PayerName = "Payer",
             RecipientName = "Doe, Jane",
             RecipientType = 1,
+            RecipientId = new RecipientIdentifier("123456789"),
+            CurrencyCode = a.Currency,
             InterestFromCanadianSources = a.Interest,
             ForeignIncome = a.ForeignIncome,
             OtherThanEligibleDividendsTaxable = a.OtherThanEligibleTaxable,
@@ -110,8 +112,72 @@ public class T5LineMapperTests
         Assert.Throws<ArgumentNullException>(() => Mapper.Map(null!));
     }
 
+    // ----- T07: validation (fail-closed) -----
+
+    [Fact]
+    public void Map_ForeignCurrencySlip_Rejected() // AC6
+    {
+        var result = Mapper.Map(new[] { Slip(a => { a.Currency = "USD"; a.Interest = 100.00m; }) });
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.Value);
+        Assert.Contains(result.Errors, e => e.Field == "CurrencyCode");
+    }
+
+    [Fact]
+    public void Map_KnownYear_UsesThatYearsConfig() // AC7
+    {
+        var result = Mapper.Map(new[] { Slip(a => { a.Year = 2025; a.Interest = 100.00m; }) });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(100.00m, Line(result.Value!, "12100").Amount);
+    }
+
+    [Fact]
+    public void Map_YearWithNoConfig_FailsClosed()
+    {
+        var result = Mapper.Map(new[] { Slip(a => { a.Year = 1990; a.Interest = 100.00m; }) });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Errors, e => e.Field == "TaxYear");
+    }
+
+    [Fact]
+    public void Map_MixedTaxYears_Rejected()
+    {
+        var result = Mapper.Map(new[]
+        {
+            Slip(a => { a.Year = 2025; a.Interest = 100.00m; }),
+            Slip(a => { a.Year = 2024; a.Interest = 100.00m; }),
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Errors, e => e.Field == "TaxYear");
+    }
+
+    [Fact]
+    public void Map_EmptySlips_Rejected()
+    {
+        var result = Mapper.Map(Array.Empty<T5Slip>());
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Errors, e => e.Field == "Slips");
+    }
+
+    [Fact]
+    public void Map_FailedValidation_LeaksNoSin()
+    {
+        // invalid (foreign currency) but the slip carries a real SIN in box 22
+        var result = Mapper.Map(new[] { Slip(a => a.Currency = "USD") });
+
+        Assert.False(result.IsSuccess);
+        Assert.All(result.Errors, e => Assert.DoesNotContain("123456789", e.Field + " " + e.Message));
+    }
+
     private sealed class Amounts
     {
+        public int Year { get; set; } = 2025;
+        public string Currency { get; set; } = "CAD";
         public decimal Interest { get; set; }
         public decimal ForeignIncome { get; set; }
         public decimal OtherThanEligibleTaxable { get; set; }
