@@ -10,13 +10,16 @@ namespace TaxLogicEngine.Services;
 /// not map is surfaced in <see cref="T5MappingResult.UnmappedBoxCodes"/> rather than
 /// dropped.
 /// <para>
-/// This is the happy-path aggregation (T06): it resolves config and aggregates.
-/// The fail-closed slip validation (non-empty, single tax year, CAD only) is added
-/// in T07.
+/// Fail-closed: the slips are validated first (non-empty, all one tax year, every
+/// slip in CAD, and a config exists for the year); on any problem the mapper returns
+/// errors and no result. Error messages reference slips/year/currency only — never
+/// the recipient identification number.
 /// </para>
 /// </summary>
 public sealed class T5LineMapper
 {
+    private const string CanadianCurrency = "CAD";
+
     private readonly IT5LineMapProvider _provider;
 
     public T5LineMapper(IT5LineMapProvider provider)
@@ -28,6 +31,12 @@ public sealed class T5LineMapper
     public ParseResult<T5MappingResult> Map(IReadOnlyCollection<T5Slip> slips)
     {
         ArgumentNullException.ThrowIfNull(slips);
+
+        var errors = Validate(slips);
+        if (errors.Count > 0)
+        {
+            return ParseResult<T5MappingResult>.Failure(errors);
+        }
 
         var taxYear = slips.First().TaxYear;
 
@@ -80,6 +89,35 @@ public sealed class T5LineMapper
             .ToList();
 
         return ParseResult<T5MappingResult>.Success(new T5MappingResult(entries, unmapped));
+    }
+
+    private static List<ValidationError> Validate(IReadOnlyCollection<T5Slip> slips)
+    {
+        var errors = new List<ValidationError>();
+
+        if (slips.Count == 0)
+        {
+            errors.Add(new ValidationError("Slips", "At least one T5 slip is required."));
+            return errors; // nothing else to check
+        }
+
+        var years = slips.Select(s => s.TaxYear).Distinct().OrderBy(y => y).ToList();
+        if (years.Count > 1)
+        {
+            errors.Add(new ValidationError("TaxYear",
+                $"All slips must be for one tax year; got {string.Join(", ", years)}."));
+        }
+
+        foreach (var currency in slips
+                     .Select(s => s.CurrencyCode)
+                     .Where(c => !string.Equals(c, CanadianCurrency, StringComparison.OrdinalIgnoreCase))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            errors.Add(new ValidationError("CurrencyCode",
+                $"Slip amounts must be in {CanadianCurrency}; got {currency}. Foreign currency conversion is out of scope."));
+        }
+
+        return errors;
     }
 
     private sealed class LineAccumulator

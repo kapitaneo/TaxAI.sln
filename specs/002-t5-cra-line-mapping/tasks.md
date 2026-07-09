@@ -58,7 +58,7 @@ Follow CLAUDE.md: no hardcoded CRA line numbers (config only), decimal half-up
   AC2 multi-box→one line, AC3 multi-slip aggregation, AC4 credit line, AC5 unmapped
   preserved, AC8 rounding) — depends on: T01, T04, T05
 
-- [ ] **T07** — `T5LineMapper` validation (fail-closed): non-null/non-empty slips, all
+- [x] **T07** — `T5LineMapper` validation (fail-closed): non-null/non-empty slips, all
   one tax year, every slip `CurrencyCode == CAD`, config exists for the year; errors
   reference line/box/currency only (SIN-safe) —
   files: `TaxLogicEngine/Services/T5LineMapper.cs` (extend);
