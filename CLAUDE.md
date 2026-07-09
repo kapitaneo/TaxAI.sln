@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TaxLogicEngine is a .NET 8.0 class library for an AI-powered Canadian tax filing assistant. It handles CRA form parsing (T4, T5), field-to-line-number mapping via JSON config, draft tax return generation, rule-based validation, and GPT-assisted explanations.
 
+Real people file real returns from this output. A wrong box→line mapping is a filing error with financial and legal consequences for the taxpayer.
+
 ## Build and Test Commands
 
 ```bash
@@ -29,24 +31,79 @@ dotnet test TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
 - Field mappings are data-driven via JSON files in Mappings/, not hardcoded.
 - CRA line numbers are the canonical identifiers linking form boxes to tax return entries.
 
+## Domain rules (Canadian tax)
+
+- **Never log or echo a full SIN.** Mask to the last 3 digits in all logs, errors, and output. Note that C# records auto-generate a `ToString()` that prints every property — override it.
+- **Tax calculations are per tax-year.** Never mix brackets, rates, or limits across years. There is no "latest" or "current" year. If a slip's year has no config, fail closed — never fall back to an adjacent year.
+- **All currency math uses `decimal`,** rounded half-up to cents (`MidpointRounding.AwayFromZero`). Never `double` or `float`. Never a bare `Math.Round`.
+- **T4/T5 box values map to CRA line numbers via the JSON config only.** Never hardcode a line number in C#.
+- **CRA filing deadlines:** T1 — April 30; self-employed — June 15.
+- **Tax facts come from canada.ca only.** Not from a blog, not from a competitor's site, not from memory, and not from a prior PRD that lacks a citation. An unverified tax fact never enters a spec or the code.
+
 ## Feature development workflow
 
-Features are built through a three-stage slash-command pipeline (defined in `.claude/commands/`). Each stage stops for human review before the next:
+Features are built through a slash-command pipeline (`.claude/commands/`). Each stage stops for human review before the next. Spec artifacts live under `specs/NNN-<slug>/`. Find the next spec number from existing folders there.
 
-1. **`/spec <feature>`** — acting as PM/BA, writes a PRD to `specs/NNN-<slug>/prd.md`. No code. Functional requirements must reference the domain rules below.
-2. **`/plan <feature>`** — acting as architect, reads the PRD and writes `architecture.md` (design, data model, trade-offs, risks) plus `tasks.md` (an ordered, dependency-aware checklist). No production code.
-3. **`/implement <feature>`** — acting as senior dev, implements ONLY the first unchecked `[ ]` task in `tasks.md`, writes its tests in the same pass, checks the box, then stops. One task at a time — never batch.
+1. **`/spec <feature>`** — delegates to the **business-analyst** subagent, which verifies CRA facts against canada.ca and writes `specs/NNN-<slug>/prd.md`. No code.
 
-Spec/plan artifacts live under `specs/`. Find the next spec number from existing folders there.
+2. **`/plan <feature>`** — acting as architect, reads the PRD and writes `architecture.md` (design, data model, trade-offs, risks) plus `tasks.md`. No production code.
+
+3. **`/implement <spec> <TaskID>`** — acting as senior dev, implements ONE explicitly named task and its tests in the same pass, then stops. The task ID is always given explicitly; never pick one yourself.
+
+4. **`reviewer` subagent** — after a PR is open, mechanically verifies it against the domain rules above and the acceptance criteria the task claimed. Read-only. It prepares a human's review; it does not perform one, and it never merges.
+
+### Ambiguity: two classes, handled oppositely
+
+- **Class A — domain, CRA, tax, or PII rules.** Never assume. Stop and ask, however many questions it takes.
+- **Class B — everything else** (scope, naming, ordering, v1 vs v2). Never ask. Decide, document the decision, tag it `[ASSUMED]` for one-pass human override.
+
+If you are unsure which class something is, it is Class A. No request for speed or brevity moves an item from A to B.
+
+### tasks.md is organized into waves
+
+Wave 0 is always the **contract wave**: one task declaring every public signature (types, interfaces, method names, JSON schema shape) with `NotImplementedException` bodies. Everything downstream codes against the contract — that is what makes later waves parallel.
+
+Within a wave, tasks are independently implementable **in parallel** by separate agents that cannot see each other. Each wave merges to `master` before the next begins. Within a wave:
+
+- No task references a type or file *created* by a sibling task.
+- **No two tasks list the same file path.** This is the rule that prevents merge conflicts.
+- Each task's tests pass against `master` + W0 + that task alone.
+
+Parallel tasks are run in separate git worktrees, one Claude Code session each:
+
+```bash
+git worktree add ../TaxAI-w1t01 -b feat/002-w1-t01 master
+```
+
+Parallelism widens how many tasks run at once. It must never widen what a single task contains. One task, one branch, one PR, one review.
+
+### Task status: marker files, not checkboxes
+
+**`tasks.md` is a read-only plan. Never edit it. Never check a box in it.**
+
+Completion is recorded by creating `specs/NNN-<slug>/status/<TaskID>.done`, containing the PR number and commit SHA. Each agent writes only its own marker, so parallel branches never conflict on a shared status file.
+
+A task is unblocked when every task in every earlier wave has a `.done` marker.
+
+### Never automated
+
+- **Merging.** `git merge` and `gh pr merge` always require a human. Merge is the moment tax logic enters `master`.
+- **Opening a non-draft PR with unverified tests.** If tests cannot run, open the PR as a draft and say so in the title.
+- **Approving your own work.** No agent merges its own PR.
 
 ## Current state
 
-The source tree is a skeleton: only the two `.csproj` files and a placeholder `UnitTest1.cs` exist. The Models/Mappings/Services/Prompts layout in the README and Architecture section is the intended structure, not yet created.
+Spec 001 (T5 slip parsing) and spec 002 (T5 box→CRA line mapping) are implemented and merged. The following already exist — **check before creating anything; do not re-specify or re-implement them:**
 
-## Domain rules (Canadian tax)
+- `ParseResult<T>`, `ValidationError`
+- `MoneyRounding.ToCents` (half-up currency helper)
+- `RecipientIdentifier` (SIN masking value object)
+- `T5BoxCodes`, `T5OtherInformation`, `T5Slip`
+- `T5RawInput`, `T5RawBox`, `T5SlipParser`
+- `TaxLineEntry`, `T5MappingResult`
+- `BoxLineMapping`, `T5LineMappingConfig`, `T5LineMap`
+- `T5SlipBoxAmounts`, `T5LineMapper`
 
-- **Never log or echo a full SIN.** Mask to the last 3 digits in all logs, errors, and output.
-- **Tax calculations are per tax-year.** Never mix brackets, rates, or limits across years.
-- **All currency math uses `decimal`,** rounded half-up to cents (`MidpointRounding.AwayFromZero`).
-- **T4/T5 box values map to CRA line numbers via the JSON config only.** Never hardcode a line number in C#.
-- **CRA filing deadlines:** T1 — April 30; self-employed — June 15.
+Before specifying or implementing anything, grep `specs/*/prd.md` and the source tree. Re-specifying an existing type is how a codebase ends up with two rounding helpers with different midpoint behaviour.
+
+**Keep this section current.** A stale "current state" causes agents to rebuild what already exists.
