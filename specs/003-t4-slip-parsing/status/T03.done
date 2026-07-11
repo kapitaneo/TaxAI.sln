@@ -1,0 +1,4 @@
+Task: T03 — T4 PII / SIN-masking acceptance suite (Wave 2)
+PR: #25
+Commit: 6398c12
+Status: implemented; tests green (181 passed); awaiting human review + merge
