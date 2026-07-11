@@ -1,0 +1,4 @@
+Task: T04 — T4 tax-year isolation + no-hardcoded-line suite (Wave 2)
+PR: #26
+Commit: 95f10b4
+Status: implemented; tests green; awaiting human review + merge
