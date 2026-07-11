@@ -1,0 +1,4 @@
+Task: T05 — T4 rounding/boundary/passthrough/determinism suite (Wave 2)
+PR: #27
+Commit: 7339104
+Status: implemented; tests green (190 on branch); awaiting human review + merge
