@@ -71,9 +71,7 @@ public sealed class T4Slip
     /// <summary>Non-standard "Other information" code/amount pairs, preserved verbatim.</summary>
     public IReadOnlyList<T4OtherInformation> OtherInformation { get; init; } = Array.Empty<T4OtherInformation>();
 
-    /// <summary>
-    /// SIN-safe summary. Not yet implemented at the Wave 0 contract stage — the
-    /// masking-backed override is completed with the parser.
-    /// </summary>
-    public override string ToString() => throw new NotImplementedException();
+    /// <summary>SIN-safe summary: the Box 12 SIN is masked (or "n/a" when absent).</summary>
+    public override string ToString() =>
+        $"T4Slip {Year} employee={Sin?.Masked ?? "n/a"} province={ProvinceOfEmployment ?? "n/a"}";
 }

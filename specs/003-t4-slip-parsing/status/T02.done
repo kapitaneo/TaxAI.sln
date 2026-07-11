@@ -1,0 +1,4 @@
+Task: T02 — T4SlipParser core parse + validation (Wave 1)
+PR: #24
+Commit: 8598499
+Status: implemented; tests green (174 passed); awaiting human review + merge
