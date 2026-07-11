@@ -93,7 +93,7 @@ A task is unblocked when every task in every earlier wave has a `.done` marker.
 
 ## Current state
 
-Spec 001 (T5 slip parsing) and spec 002 (T5 box→CRA line mapping) are implemented and merged. The following already exist — **check before creating anything; do not re-specify or re-implement them:**
+Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), and spec 003 (T4 slip parsing) are implemented and merged. The following already exist — **check before creating anything; do not re-specify or re-implement them:**
 
 - `ParseResult<T>`, `ValidationError`
 - `MoneyRounding.ToCents` (half-up currency helper)
@@ -103,6 +103,10 @@ Spec 001 (T5 slip parsing) and spec 002 (T5 box→CRA line mapping) are implemen
 - `TaxLineEntry`, `T5MappingResult`
 - `BoxLineMapping`, `T5LineMappingConfig`, `T5LineMap`
 - `T5SlipBoxAmounts`, `T5LineMapper`
+- `T4BoxCodes`, `T4OtherInformation`, `T4Slip`
+- `T4RawInput`, `T4RawBox`, `T4SlipParser`
+
+Spec 003 covers T4 **parsing only** — the T4 box→CRA line mapping (`TaxLineEntry` generation for T4) is the still-unbuilt **spec 004**. Two T4 required-field decisions are recorded in `specs/003-t4-slip-parsing/architecture.md` and flagged `[CONFIRM]`: Box 54 is required (so the parser presumes the employer/filing-side copy, not the employee copy), and Box 10 (province) is validated only when present.
 
 Before specifying or implementing anything, grep `specs/*/prd.md` and the source tree. Re-specifying an existing type is how a codebase ends up with two rounding helpers with different midpoint behaviour.
 
