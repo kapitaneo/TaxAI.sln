@@ -1,25 +1,16 @@
 using TaxLogicEngine.Models;
-using TaxLogicEngine.Services;
 
 namespace TaxLogicEngine.Tests.Services;
 
 /// <summary>
-/// Wave 0 contract tests for spec 003 (T4 slip parsing). They pin the public
-/// shape the later waves code against: the parser signature exists but is not yet
-/// implemented, the loose-input default is an empty box list, and the two
-/// letter-suffixed box codes (16A/17A) are spelled correctly. Behavioural rules
-/// are covered by T02+.
+/// Contract tests for spec 003 (T4 slip parsing): they pin the public shape the
+/// waves code against — the loose-input default is an empty box list, the
+/// passthrough pair round-trips, and the box-code constants (incl. the
+/// letter-suffixed 16A/17A) are spelled to match the CRA-printed box numbers.
+/// Behavioural rules are covered by T4SlipParserTests and the T03–T05 suites.
 /// </summary>
 public class T4ContractTests
 {
-    [Fact]
-    public void Parse_AtContractStage_ThrowsNotImplemented()
-    {
-        var parser = new T4SlipParser();
-
-        Assert.Throws<NotImplementedException>(() => parser.Parse(new T4RawInput()));
-    }
-
     [Fact]
     public void T4RawInput_Boxes_DefaultsToEmptyNotNull()
     {
