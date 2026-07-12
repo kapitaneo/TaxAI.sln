@@ -1,12 +1,18 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides repository-level guidance to Claude Code (claude.ai/code) when working in this repository. Project-specific rules for the tax engine live in [src/TaxLogicEngine/CLAUDE.md](src/TaxLogicEngine/CLAUDE.md) — read that file whenever you touch TaxLogicEngine code.
 
-## Project Overview
+## Product framing
 
-TaxLogicEngine is a .NET 8.0 class library for an AI-powered Canadian tax filing assistant. It handles CRA form parsing (T4, T5), field-to-line-number mapping via JSON config, draft tax return generation, rule-based validation, and GPT-assisted explanations.
+TaxAI is an AI-powered Canadian tax filing assistant. Its deterministic core is **TaxLogicEngine**, a .NET 8.0 class library that today implements CRA slip parsing (T4, T5) and box→CRA-line mapping via JSON config; future business modules (clients, firms, documents, intake, review, tax cases) will grow around it.
 
 Real people file real returns from this output. A wrong box→line mapping is a filing error with financial and legal consequences for the taxpayer.
+
+## The modular monolith decision
+
+TaxAI is, by decision, a **structured modular monolith**: one repository, one .NET solution, one initially-deployable application, in-process module communication, with explicit module ownership and dependency boundaries, and module extraction deferred until demonstrated need.
+
+The future-module *pattern* is documented here; it is **not scaffolded**. Do not create empty projects for future modules (Clients, Firms, Documents, Intake, Review, TaxCases) — a real module's boundary is discovered from its contract, and empty shells acquire gravity.
 
 ## Build and Test Commands
 
@@ -18,27 +24,41 @@ dotnet build TaxAI.sln
 dotnet test TaxAI.sln
 
 # Run a single test
-dotnet test TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
+dotnet test tests/TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
 ```
 
-## Architecture
+## Repository layout
 
-- **TaxLogicEngine/** — Core class library (net8.0, nullable enabled). Contains Models (T4Slip, TaxReturn, TaxLineEntry), Mappings (JSON config for box→CRA line), Services (Mapper, Calculator, Validator), and Prompts (GPT templates).
-- **TaxLogicEngine.Tests/** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
+- **`src/TaxLogicEngine/`** — the production tax engine (net8.0, nullable enabled). Has its own `CLAUDE.md` with the tax-domain rules and type inventory.
+- **`tests/TaxLogicEngine.Tests/`** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
+- **`specs/NNN-<slug>/`** — spec artifacts (`prd.md`, `architecture.md`, `tasks.md`, `status/`).
+- **`.claude/`** — commands, agents, settings for the feature workflow.
 
-## Key Design Decisions
+Future modules get `src/<Module>/` homes when they are actually built.
 
-- Field mappings are data-driven via JSON files in Mappings/, not hardcoded.
-- CRA line numbers are the canonical identifiers linking form boxes to tax return entries.
+## Module boundary and dependency rules (bind every current and future module)
 
-## Domain rules (Canadian tax)
+- **TaxLogicEngine is deterministic, provider-independent tax logic.** No I/O that makes a tax result non-deterministic belongs in it.
+- **Modules communicate only through declared contracts.** No module reaches into another module's internal implementation.
+- **No module reads another module's database tables.**
+- **UI must not compute tax or implement CRA mappings.**
+- **OCR and LLM output are untrusted input** — input to be validated, never a source of tax truth.
+- **Dependencies point inward.** Infrastructure (EF, OCR, LLM, email, cloud) may depend on application/domain contracts; never the reverse:
 
-- **Never log or echo a full SIN.** Mask to the last 3 digits in all logs, errors, and output. Note that C# records auto-generate a `ToString()` that prints every property — override it.
-- **Tax calculations are per tax-year.** Never mix brackets, rates, or limits across years. There is no "latest" or "current" year. If a slip's year has no config, fail closed — never fall back to an adjacent year.
-- **All currency math uses `decimal`,** rounded half-up to cents (`MidpointRounding.AwayFromZero`). Never `double` or `float`. Never a bare `Math.Round`.
-- **T4/T5 box values map to CRA line numbers via the JSON config only.** Never hardcode a line number in C#.
-- **CRA filing deadlines:** T1 — April 30; self-employed — June 15.
+```
+UI / API host ──► application/module contracts ──► TaxLogicEngine (domain)
+Infrastructure (EF, OCR, LLM, email, cloud) ──► application/domain contracts
+```
+
+- **Tax-domain code must not depend on** ASP.NET Core, EF Core, SQL, cloud SDKs, OCR providers, LLM providers, email providers, or frontend frameworks.
+
+Today there is one project, so these are documented invariants rather than compiled constraints — but they bind the first business module before it exists.
+
+## Global security / PII rules
+
+- **Never log or echo a full SIN — anywhere in any module.** Mask to the last 3 digits in all logs, errors, and output. (TaxLogicEngine's implementation specifics are in its `CLAUDE.md`.)
 - **Tax facts come from canada.ca only.** Not from a blog, not from a competitor's site, not from memory, and not from a prior PRD that lacks a citation. An unverified tax fact never enters a spec or the code.
+- No secrets, `*.user` files, or `.claude/settings.local.json` may become tracked.
 
 ## Feature development workflow
 
@@ -93,24 +113,9 @@ A task is unblocked when every task in every earlier wave has a `.done` marker.
 
 ## Current state
 
-Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), spec 003 (T4 slip parsing), and spec 004 (T4 box→CRA line mapping) are implemented and merged. The following already exist — **check before creating anything; do not re-specify or re-implement them:**
+Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), spec 003 (T4 slip parsing), and spec 004 (T4 box→CRA line mapping) are implemented and merged. Spec 005 (modular monolith foundation — this repository migration) is in progress.
 
-- `ParseResult<T>`, `ValidationError`
-- `MoneyRounding.ToCents` (half-up currency helper)
-- `RecipientIdentifier` (SIN masking value object)
-- `T5BoxCodes`, `T5OtherInformation`, `T5Slip`
-- `T5RawInput`, `T5RawBox`, `T5SlipParser`
-- `TaxLineEntry`, `T5MappingResult`
-- `BoxLineMapping`, `T5LineMappingConfig`, `T5LineMap`
-- `T5SlipBoxAmounts`, `T5LineMapper`
-- `T4BoxCodes`, `T4OtherInformation`, `T4Slip`
-- `T4RawInput`, `T4RawBox`, `T4SlipParser`
-- `T4MappingResult`, `T4BoxLineMapping`, `T4LineMappingConfig`, `T4LineMap`
-- `T4OtherInformationCodes`, `IT4LineMapProvider`, `EmbeddedT4LineMapProvider`
-- `T4SlipBoxAmounts`, `T4LineMapper`
-- `Mappings/T4LineMap.2025.json` (T4 box→line config, 2025 only)
-
-Spec 003 covers T4 **parsing only**; spec 004 adds the T4 box→CRA line mapping (`TaxLineEntry` generation for T4) — both are merged. Two T4 required-field decisions are recorded in `specs/003-t4-slip-parsing/architecture.md` and flagged `[CONFIRM]`: Box 54 is required (so the parser presumes the employer/filing-side copy, not the employee copy), and Box 10 (province) is validated only when present. Spec 004 ships **2025 only**; several T4 boxes are deliberately deferred to `UnmappedBoxCodes` (calculation/schedule/residence-dependent) with per-box rationale in `TaxLogicEngine/Mappings/README.md`.
+The full inventory of existing public types, embedded mapping configs, and the recorded per-spec decisions live in [src/TaxLogicEngine/CLAUDE.md](src/TaxLogicEngine/CLAUDE.md) — **check there before creating anything; do not re-specify or re-implement an existing type.**
 
 Before specifying or implementing anything, grep `specs/*/prd.md` and the source tree. Re-specifying an existing type is how a codebase ends up with two rounding helpers with different midpoint behaviour.
 
