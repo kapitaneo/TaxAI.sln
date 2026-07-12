@@ -48,12 +48,6 @@ public class T4MappingContractTests
     }
 
     [Fact]
-    public void SlipBoxAmounts_Enumerate_AtContractStage_ThrowsNotImplemented()
-    {
-        Assert.Throws<NotImplementedException>(() => T4SlipBoxAmounts.Enumerate(MinimalSlip()));
-    }
-
-    [Fact]
     public void MappingResult_Empty_IsEmpty()
     {
         Assert.Empty(T4MappingResult.Empty.Lines);
