@@ -1,0 +1,13 @@
+Task: T07 — Honest README rewrite (spec 005, Wave 6; no project-state change)
+PR: #48 (https://github.com/kapitaneo/TaxAI.sln/pull/48)
+Commit: 7fbe53e29e2578d85ecbcc63053355a5f8277091
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: Removed claims of PDF generation, a complete tax-return builder, GPT
+integration, and a full rule-based validation engine (AC-27 grep -> zero
+matches). Documents src/ tests/ layout, dotnet build/test TaxAI.sln, and the
+tests/TaxLogicEngine.Tests single-test example (AC-28). Lists only
+capabilities verified present in the tree: T4/T5 parsing, JSON-driven
+box->CRA line mapping 2025, MoneyRounding, RecipientIdentifier SIN masking,
+per-year fail-closed isolation (AC-29). NEXT.md untouched; no spec-005
+completion claim (T08 owns both per [ASSUMED-STATE-AT-T08]).
