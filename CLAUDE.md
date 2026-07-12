@@ -93,7 +93,7 @@ A task is unblocked when every task in every earlier wave has a `.done` marker.
 
 ## Current state
 
-Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), and spec 003 (T4 slip parsing) are implemented and merged. The following already exist — **check before creating anything; do not re-specify or re-implement them:**
+Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), spec 003 (T4 slip parsing), and spec 004 (T4 box→CRA line mapping) are implemented and merged. The following already exist — **check before creating anything; do not re-specify or re-implement them:**
 
 - `ParseResult<T>`, `ValidationError`
 - `MoneyRounding.ToCents` (half-up currency helper)
@@ -105,8 +105,12 @@ Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), and spec 003 (
 - `T5SlipBoxAmounts`, `T5LineMapper`
 - `T4BoxCodes`, `T4OtherInformation`, `T4Slip`
 - `T4RawInput`, `T4RawBox`, `T4SlipParser`
+- `T4MappingResult`, `T4BoxLineMapping`, `T4LineMappingConfig`, `T4LineMap`
+- `T4OtherInformationCodes`, `IT4LineMapProvider`, `EmbeddedT4LineMapProvider`
+- `T4SlipBoxAmounts`, `T4LineMapper`
+- `Mappings/T4LineMap.2025.json` (T4 box→line config, 2025 only)
 
-Spec 003 covers T4 **parsing only** — the T4 box→CRA line mapping (`TaxLineEntry` generation for T4) is the still-unbuilt **spec 004**. Two T4 required-field decisions are recorded in `specs/003-t4-slip-parsing/architecture.md` and flagged `[CONFIRM]`: Box 54 is required (so the parser presumes the employer/filing-side copy, not the employee copy), and Box 10 (province) is validated only when present.
+Spec 003 covers T4 **parsing only**; spec 004 adds the T4 box→CRA line mapping (`TaxLineEntry` generation for T4) — both are merged. Two T4 required-field decisions are recorded in `specs/003-t4-slip-parsing/architecture.md` and flagged `[CONFIRM]`: Box 54 is required (so the parser presumes the employer/filing-side copy, not the employee copy), and Box 10 (province) is validated only when present. Spec 004 ships **2025 only**; several T4 boxes are deliberately deferred to `UnmappedBoxCodes` (calculation/schedule/residence-dependent) with per-box rationale in `TaxLogicEngine/Mappings/README.md`.
 
 Before specifying or implementing anything, grep `specs/*/prd.md` and the source tree. Re-specifying an existing type is how a codebase ends up with two rounding helpers with different midpoint behaviour.
 
