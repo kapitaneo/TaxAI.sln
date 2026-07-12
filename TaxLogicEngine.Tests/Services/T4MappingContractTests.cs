@@ -4,45 +4,20 @@ using TaxLogicEngine.Services;
 namespace TaxLogicEngine.Tests.Services;
 
 /// <summary>
-/// Wave 0 contract tests for spec 004 (T4 box→CRA line mapping). They pin the
-/// public shape the later waves code against: the mapper/provider/resolver/flattener
-/// signatures exist but are not yet implemented, and the result type's Empty value is
-/// genuinely empty. Behavioural rules are covered by T02+.
+/// Contract tests for spec 004 (T4 box→CRA line mapping): they pin the stable
+/// public shape the waves code against — the mapper ctor guards its dependency, the
+/// result type's Empty value is genuinely empty, and the config-rule record
+/// round-trips. Per-method "throws NotImplementedException" checks were intentionally
+/// dropped: they are transient (each becomes false as its method is implemented in a
+/// later wave) and, spread across parallel tasks editing one file, caused a stale
+/// assertion to survive a merge. Behavioural rules live in each task's own suite.
 /// </summary>
 public class T4MappingContractTests
 {
-    private static T4Slip MinimalSlip() => new()
-    {
-        Year = 2025,
-        EmployerName = "ACME CORP",
-        EmployeeName = "DOE, JANE",
-        DentalBenefitCode = "1",
-    };
-
-    [Fact]
-    public void Mapper_Map_AtContractStage_ThrowsNotImplemented()
-    {
-        var mapper = new T4LineMapper(new EmbeddedT4LineMapProvider());
-
-        Assert.Throws<NotImplementedException>(() => mapper.Map(Array.Empty<T4Slip>()));
-    }
-
     [Fact]
     public void Mapper_Ctor_RejectsNullProvider()
     {
         Assert.Throws<ArgumentNullException>(() => new T4LineMapper(null!));
-    }
-
-    [Fact]
-    public void Provider_TryGetForYear_AtContractStage_ThrowsNotImplemented()
-    {
-        Assert.Throws<NotImplementedException>(() => new EmbeddedT4LineMapProvider().TryGetForYear(2025));
-    }
-
-    [Fact]
-    public void SlipBoxAmounts_Enumerate_AtContractStage_ThrowsNotImplemented()
-    {
-        Assert.Throws<NotImplementedException>(() => T4SlipBoxAmounts.Enumerate(MinimalSlip()));
     }
 
     [Fact]
