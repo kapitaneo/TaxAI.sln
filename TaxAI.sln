@@ -5,7 +5,7 @@ VisualStudioVersion = 17.9.34607.119
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaxLogicEngine", "src\TaxLogicEngine\TaxLogicEngine.csproj", "{0390423C-6E2F-426F-B33B-4E2ABB34A5C5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaxLogicEngine.Tests", "TaxLogicEngine.Tests\TaxLogicEngine.Tests.csproj", "{2F692EB7-E9FA-4A1C-85E6-6A33110E0076}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaxLogicEngine.Tests", "tests\TaxLogicEngine.Tests\TaxLogicEngine.Tests.csproj", "{2F692EB7-E9FA-4A1C-85E6-6A33110E0076}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
