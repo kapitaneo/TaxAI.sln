@@ -1,0 +1,11 @@
+Task: T04 — Test project directory migration TaxLogicEngine.Tests/ -> tests/TaxLogicEngine.Tests/ (spec 005, Wave 3)
+PR: #45 (https://github.com/kapitaneo/TaxAI.sln/pull/45)
+Commit: da220eab9071faa8085acb4c45c09cfae532f14d
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: git mv as a unit — 30 test files R100 + .csproj R89 (rename plus its
+one-line reference edit). TaxAI.sln test path ->
+tests\TaxLogicEngine.Tests\TaxLogicEngine.Tests.csproj (GUIDs/config blocks
+untouched); ProjectReference finalized from interim ..\src\ to
+..\..\src\TaxLogicEngine\TaxLogicEngine.csproj. Exactly two tracked .csproj;
+no root TaxLogicEngine/ or TaxLogicEngine.Tests/; no build output tracked.
