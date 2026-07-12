@@ -6,27 +6,23 @@
 - Spec 002 — T5 CRA line mapping
 - Spec 003 — T4 parsing
 - Spec 004 — T4 CRA line mapping
+- Spec 005 — Modular monolith foundation (repository restructuring only):
+  - solution normalized to `TaxAI.sln`;
+  - projects moved to `src/TaxLogicEngine/` and `tests/TaxLogicEngine.Tests/`;
+  - all existing TaxLogicEngine behavior preserved (same 261 tests green);
+  - agent instructions split: root `CLAUDE.md` (repository-level) +
+    `src/TaxLogicEngine/CLAUDE.md` (project-level);
+  - Codex `AGENTS.md` bridge added (root + minimal local pointer);
+  - `README.md` rewritten to describe only implemented software;
+  - full AC-1…AC-30 verification recorded in
+    `specs/005-modular-monolith-foundation/verification.md`.
 
 ## Next
 
-Create spec 005:
+Create spec 006 — **Tax Case Core** (the next approved product feature).
 
-`005-modular-monolith-foundation`
+## After spec 006
 
-Its purpose will be repository restructuring only:
-
-- migrate to a structured modular monolith;
-- preserve all existing TaxLogicEngine behavior;
-- introduce no new tax functionality;
-- keep all existing tests passing;
-- normalize the solution filename to `TaxAI.sln`;
-- establish repository-level and project-level instruction boundaries.
-
-## After spec 005
-
-- split repository and TaxLogicEngine agent instructions;
-- create the Codex `AGENTS.md` bridge;
-- create spec 006 — Tax Case Core;
 - then Document Extraction Contract;
 - then T4 Case Processor;
 - then Accountant Review Package;
