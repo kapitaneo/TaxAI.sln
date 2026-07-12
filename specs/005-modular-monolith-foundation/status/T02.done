@@ -1,0 +1,11 @@
+Task: T02 — Solution filename normalization TaxAI.sln.sln -> TaxAI.sln (spec 005, Wave 1)
+PR: #43 (https://github.com/kapitaneo/TaxAI.sln/pull/43)
+Commit: 6c33929173a2fe5a654eed30de8b162be361e279
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: git mv rename (R100, history preserved); solution GUIDs and
+configuration blocks untouched. All six TaxAI.sln.sln literals across the
+five operational files from baseline.md #7 updated (CLAUDE.md x2,
+.claude/settings.json hook, .claude/commands/implement.md,
+.claude/agents/reviewer.md reworded, NEXT.md pending-work line).
+git grep --fixed-strings "TaxAI.sln.sln" -- ":!specs" -> zero matches (AC-3).
