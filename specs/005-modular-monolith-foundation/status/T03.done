@@ -1,0 +1,12 @@
+Task: T03 — Production project directory migration TaxLogicEngine/ -> src/TaxLogicEngine/ (spec 005, Wave 2)
+PR: #44 (https://github.com/kapitaneo/TaxAI.sln/pull/44)
+Commit: facaf5a6acbaa8c420d1f3f441c5fbd91468ed81
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: git mv as a unit — 34 files, all R100 renames. TaxAI.sln production
+path -> src\TaxLogicEngine\TaxLogicEngine.csproj (GUIDs/config blocks
+untouched); test ProjectReference -> interim ..\src\ path (T04 finalizes).
+Verify-first: reflection over the DLL at its new path (baseline.md #5
+procedure) shows AssemblyName TaxLogicEngine, the identical 34-type exported
+list, and both manifest resource names unchanged — so no EmbeddedResource
+Include edit was needed; LogicalName never touched. No bin/obj/.vs tracked.
