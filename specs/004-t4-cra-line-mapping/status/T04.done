@@ -1,0 +1,4 @@
+Task: T04 — CRA-verified 2025 T4 box-to-line config (Wave 2)
+PR: #34
+Commit: 611e6a5
+Status: implemented; tests green (235 on branch); awaiting human review + merge

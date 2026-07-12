@@ -1,0 +1,16 @@
+{
+  "taxYear": 2025,
+  "mappings": [
+    { "boxCode": "14", "lineNumbers": ["10100"] },
+    { "boxCode": "18", "lineNumbers": ["31200"] },
+    { "boxCode": "20", "lineNumbers": ["20700"] },
+    { "boxCode": "22", "lineNumbers": ["43700"] },
+    { "boxCode": "44", "lineNumbers": ["21200"] },
+    { "boxCode": "52", "lineNumbers": ["20600"] },
+    { "boxCode": "39", "lineNumbers": ["24900"] },
+    { "boxCode": "41", "lineNumbers": ["24900"] },
+    { "boxCode": "42", "lineNumbers": ["10120"] },
+    { "boxCode": "43", "lineNumbers": ["24400"] },
+    { "boxCode": "77", "lineNumbers": ["22900"] }
+  ]
+}
