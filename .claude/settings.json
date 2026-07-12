@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dotnet test TaxAI.sln.sln --nologo -v q"
+            "command": "dotnet test TaxAI.sln --nologo -v q"
           }
         ]
       }

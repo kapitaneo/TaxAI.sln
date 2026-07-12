@@ -12,10 +12,10 @@ Real people file real returns from this output. A wrong box→line mapping is a 
 
 ```bash
 # Build
-dotnet build TaxAI.sln.sln
+dotnet build TaxAI.sln
 
 # Run all tests
-dotnet test TaxAI.sln.sln
+dotnet test TaxAI.sln
 
 # Run a single test
 dotnet test TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"

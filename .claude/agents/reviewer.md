@@ -27,7 +27,7 @@ class, report that as a FAIL — an unclassified feature should not have reached
 you — and review under `tax-domain` rules (the stricter set) meanwhile.
 
 ## Determine the solution and test command (do NOT hardcode)
-Do **not** assume `TaxAI.sln.sln`. Read the solution/test command from the task's
+Do **not** hardcode or assume the solution filename. Read the solution/test command from the task's
 approved `architecture.md` and the current repository instructions (CLAUDE.md /
 README). Verify the referenced solution file actually exists on disk before
 running anything; if the declared command names a file that is not present,
