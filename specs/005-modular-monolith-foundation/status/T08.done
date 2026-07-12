@@ -1,0 +1,14 @@
+Task: T08 — Final end-to-end verification against the Wave 0 baseline; spec 005 marked complete (spec 005, Wave 7)
+PR: #49 (https://github.com/kapitaneo/TaxAI.sln/pull/49)
+Commit: a3253a1019098ca146773e24889a21f58e66206d
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: verification.md records PASS for all 30 ACs with command/file
+evidence, including: identical Wave 0 reflection procedure re-run (assembly
+TaxLogicEngine, 34-type exported set diff empty vs baseline.md #5); both
+embedded logical names unchanged; AC-17 diff review from pre-migration
+6a1f5a8 (only two solution path lines + one ProjectReference line changed in
+pre-existing files; all else R100 renames); instruction split, AGENTS.md
+bridges, README honesty, and hygiene checks. With 30/30 green, applied the
+[ASSUMED-STATE-AT-T08] updates: NEXT.md marks spec 005 complete with spec
+006 Tax Case Core next; CLAUDE.md current state marks spec 005 complete.
