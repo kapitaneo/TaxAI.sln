@@ -1,0 +1,4 @@
+Task: T03 — T4LineMap resolution + 2025 Other-info codes (Wave 1)
+PR: #32
+Commit: da2303b
+Status: implemented; tests green (212 on branch); awaiting human review + merge
