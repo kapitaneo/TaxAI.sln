@@ -1,0 +1,12 @@
+Task: T06 — Codex bridge: root AGENTS.md + minimal src/TaxLogicEngine/AGENTS.md pointer (spec 005, Wave 5)
+PR: #47 (https://github.com/kapitaneo/TaxAI.sln/pull/47)
+Commit: 9c4e9a60a45541332f368dacc3f941f29be1c9c0
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: Root AGENTS.md names the four instruction sources in the required
+order (root CLAUDE.md; NEXT.md; nearest project-level CLAUDE.md; requested
+spec prd/architecture/tasks) and restates all eight FR-6 workflow rules
+(AC-24/25/26). src/TaxLogicEngine/AGENTS.md is the required minimal pointer
+per [ASSUMED-LOCAL-BRIDGE] - points to root AGENTS.md, root CLAUDE.md, local
+CLAUDE.md; no duplicated architecture, workflow, or tax rules. Doc-only
+change; build/test unaffected.
