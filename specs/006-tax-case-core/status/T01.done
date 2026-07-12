@@ -1,0 +1,4 @@
+Task: T01 — Tax Case Core compiling public contract (Wave 0)
+PR: #52
+Commit: dcf5212d558bdcf571b2656a2d85a48c82abf147
+Status: implemented; tests green (49 TaxCases + 261 TaxLogicEngine); merged
