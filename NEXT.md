@@ -19,7 +19,7 @@ Its purpose will be repository restructuring only:
 - preserve all existing TaxLogicEngine behavior;
 - introduce no new tax functionality;
 - keep all existing tests passing;
-- rename `TaxAI.sln.sln` to `TaxAI.sln`;
+- normalize the solution filename to `TaxAI.sln`;
 - establish repository-level and project-level instruction boundaries.
 
 ## After spec 005

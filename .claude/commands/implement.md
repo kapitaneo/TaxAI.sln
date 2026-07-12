@@ -58,7 +58,7 @@ $ARGUMENTS
 9. **The complete solution test suite must pass before completion.** Run:
 
    ```
-   dotnet test TaxAI.sln.sln
+   dotnet test TaxAI.sln
    ```
 
    Do not create the completion marker until the full suite is green.
