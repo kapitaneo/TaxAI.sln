@@ -1,0 +1,4 @@
+Task: T06 — EmbeddedT4LineMapProvider (Wave 3)
+PR: #36
+Commit: f39a39c
+Status: implemented; tests green (256 full suite); awaiting human review + merge
