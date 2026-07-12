@@ -1,0 +1,4 @@
+Task: T05 — T4LineMapper core aggregation (Wave 2)
+PR: #35
+Commit: 1f097fc
+Status: implemented; tests green (231 on branch); awaiting human review + merge
