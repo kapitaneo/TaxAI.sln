@@ -1,0 +1,4 @@
+Task: T07 — T4 line-mapping end-to-end acceptance suite (Wave 4)
+PR: #37
+Commit: cfdb5d4
+Status: implemented; tests green (261 full suite); awaiting human review + merge
