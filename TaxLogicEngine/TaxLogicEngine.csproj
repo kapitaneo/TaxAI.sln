@@ -11,6 +11,10 @@
     <EmbeddedResource Include="Mappings\T5LineMap.2025.json">
       <LogicalName>TaxLogicEngine.Mappings.T5LineMap.2025.json</LogicalName>
     </EmbeddedResource>
+    <!-- Per-tax-year box->CRA line mapping config, loaded by EmbeddedT4LineMapProvider. -->
+    <EmbeddedResource Include="Mappings\T4LineMap.2025.json">
+      <LogicalName>TaxLogicEngine.Mappings.T4LineMap.2025.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>
