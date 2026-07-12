@@ -1,0 +1,14 @@
+Task: T05 — Instruction split: CLAUDE.md -> root (repository-level) + src/TaxLogicEngine/CLAUDE.md (project-level) (spec 005, Wave 4)
+PR: #46 (https://github.com/kapitaneo/TaxAI.sln/pull/46)
+Commit: c6c4c6914cb83ced9c52c1e02112e6ebfbda2e55
+Test command: dotnet test TaxAI.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0); dotnet build TaxAI.sln exit 0
+Notes: Root file now carries product framing, the modular-monolith decision,
+all FR-4 boundary/dependency rules (AC-18/21), global security/PII rules,
+the full workflow (two-class ambiguity, waves, .done markers, never-
+automated), current state (no spec-005 completion claim - that is T08), and
+TaxAI.sln build/test commands. Project file carries responsibilities, tax
+domain rules, logical resource names, forbidden dependencies (referenced,
+not cloned), the type inventory, and completed specs 001-004 (AC-20/22).
+AC-23 checked mechanically: zero substantive lines duplicated verbatim
+between the two files. Scope-split only; no rule lost, weakened, or invented.
