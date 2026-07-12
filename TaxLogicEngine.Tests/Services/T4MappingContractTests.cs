@@ -40,14 +40,6 @@ public class T4MappingContractTests
     }
 
     [Fact]
-    public void LineMap_Create_AtContractStage_ThrowsNotImplemented()
-    {
-        var config = new T4LineMappingConfig(2025, Array.Empty<T4BoxLineMapping>());
-
-        Assert.Throws<NotImplementedException>(() => T4LineMap.Create(config));
-    }
-
-    [Fact]
     public void SlipBoxAmounts_Enumerate_AtContractStage_ThrowsNotImplemented()
     {
         Assert.Throws<NotImplementedException>(() => T4SlipBoxAmounts.Enumerate(MinimalSlip()));

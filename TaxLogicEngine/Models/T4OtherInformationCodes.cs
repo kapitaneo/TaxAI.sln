@@ -8,12 +8,19 @@ namespace TaxLogicEngine.Models;
 /// box nor one of these fails closed (FR8), so a config typo cannot silently
 /// misroute real dollars.
 /// <para>
-/// Wave 0 contract stage: <see cref="All"/> is an empty placeholder; the
-/// CRA-verified 2025 code set is filled in the implementation task.
+/// The set is the CRA-verified <b>2025</b> "Other information" code set (see the
+/// CRA-sources table in <c>specs/003-t4-slip-parsing/prd.md</c>). Codes 90/91/92
+/// are valid for 2024 and after; the whole set is year-scoped, consistent with the
+/// per-tax-year rule.
 /// </para>
 /// </summary>
 public static class T4OtherInformationCodes
 {
-    /// <summary>The recognized "Other information" codes (2025). Empty until implemented.</summary>
-    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal);
+    /// <summary>The recognized "Other information" codes for the 2025 tax year.</summary>
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "30", "31", "32", "33", "34", "36", "38", "39", "40", "41", "42", "43",
+        "66", "67", "69", "71", "74", "75", "77", "78", "79", "80", "81", "82",
+        "83", "85", "86", "87", "88", "90", "91", "92", "94", "95",
+    };
 }
