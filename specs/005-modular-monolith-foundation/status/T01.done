@@ -1,0 +1,12 @@
+Task: T01 — Migration contract & pre-migration baseline (spec 005, Wave 0)
+PR: #42 (https://github.com/kapitaneo/TaxAI.sln/pull/42)
+Commit: e597c97e985107731b04c458b304b178b381894c
+Test command: dotnet test TaxAI.sln.sln --nologo --no-build
+Result: Passed! - Failed: 0, Passed: 261, Skipped: 0, Total: 261 (net8.0)
+Notes: baseline.md records the old->new path table, 261-test inventory with
+per-file breakdown (30 files), assembly name TaxLogicEngine, both namespaces,
+the authoritative reflection-based sorted 34-type public-API list with its
+exact reproducible procedure, both embedded-resource logical names, the six
+TaxAI.sln.sln literals (five files), the seven-stage sequence, and the
+verification commands. No file outside specs/005-modular-monolith-foundation/
+was created or modified.
