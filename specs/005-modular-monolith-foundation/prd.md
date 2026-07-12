@@ -26,9 +26,10 @@ module is built, the repository itself must be put on a sound, honest, and
 convention-following foundation. Today it is not:
 
 1. **The solution file is mis-named `TaxAI.sln.sln`** (a literal double
-   `.sln`). Five tracked files hardcode that name, including the build/test
-   commands agents run and a `PostToolUse` hook. Every new contributor and
-   every agent inherits the typo.
+   `.sln`). Six tracked references across five files hardcode that name (the
+   root `CLAUDE.md` carries two of them), including the build/test commands
+   agents run and a `PostToolUse` hook. Every new contributor and every agent
+   inherits the typo.
 2. **Both projects sit at the repository root** (`TaxLogicEngine/` and
    `TaxLogicEngine.Tests/`) with no `src/` or `tests/` separation, so there is
    no structural place to hang future modules or a future host without
@@ -176,7 +177,10 @@ The following are invariants. Any deviation is a defect, not a scope decision.
 7. **Embedded-resource logical names** — `TaxLogicEngine.Mappings.T5LineMap.2025.json`
    and `TaxLogicEngine.Mappings.T4LineMap.2025.json` remain **exactly** those
    strings. (Provider code and tests hardcode them; the migration keeps the
-   explicit `<LogicalName>` values while only the `Include` path may change.)
+   explicit `<LogicalName>` values untouched. Because the whole project
+   directory moves as a unit, `Mappings/` stays beside the `.csproj`, so the
+   project-relative `Include` paths are expected to still resolve unchanged;
+   they are changed only if the move actually makes that necessary.)
 8. **Monetary rounding** — `MoneyRounding.ToCents` half-up
    (`MidpointRounding.AwayFromZero`) behaviour unchanged.
 9. **SIN masking** — `RecipientIdentifier` masking (last 3 digits only)
@@ -196,8 +200,10 @@ The following are invariants. Any deviation is a defect, not a scope decision.
 - **Reference integrity.** After every move, the solution must list each
   project at its new path, and `TaxLogicEngine.Tests` must reference
   `TaxLogicEngine` at its new relative path. No dangling or absolute paths.
-- **Embedded-resource `Include` paths** are updated to the project-relative
-  location; **`<LogicalName>` values are not touched.**
+- **Embedded-resource `Include` paths** are verified to still resolve after the
+  move (the whole project directory relocates as a unit, so `Mappings/` remains
+  beside the `.csproj`) and are changed **only if** the move actually makes that
+  necessary; **`<LogicalName>` values are never touched.**
 - **Stage-by-stage verification.** After each migration stage, a full
   `dotnet build` and `dotnet test` against the (new) solution must succeed
   before the next stage begins.
@@ -213,12 +219,13 @@ The following are invariants. Any deviation is a defect, not a scope decision.
   pattern may be *documented*; it must not be *scaffolded*.
 - **Ordering `[ASSUMED]`** (single reasonable sequence; each stage independently
   green):
-  1. Rename `TaxAI.sln.sln` → `TaxAI.sln`; update the six referencing tracked
-     files; verify build/test.
+  1. Rename `TaxAI.sln.sln` → `TaxAI.sln`; update all six references across the
+     five referencing tracked files; verify build/test.
   2. `git mv` `TaxLogicEngine/` → `src/TaxLogicEngine/` and
      `TaxLogicEngine.Tests/` → `tests/TaxLogicEngine.Tests/`; update solution
-     project paths, the test `ProjectReference`, and embedded-resource `Include`
-     paths; verify build/test.
+     project paths and the test `ProjectReference`; verify the embedded-resource
+     `Include` paths still resolve and change them only if the move makes that
+     necessary (leave `<LogicalName>` values untouched); verify build/test.
   3. Split root `CLAUDE.md` into repository-level (root) + project-level
      (`src/TaxLogicEngine/CLAUDE.md`); verify no rule is lost or duplicated in
      full.
@@ -396,10 +403,15 @@ Each criterion is a single mechanically-checkable condition.
   boundary, PII, and year-isolation test suites run, Then all pass — confirming
   no parsing, mapping, rounding, SIN-masking, or tax-year failure behaviour
   changed.
-- **AC-17** — Given the migrated repo, When the diff of every file under the
-  production and test projects is reviewed, Then the only content changes are
-  path/reference updates (project paths, `ProjectReference`, embedded-resource
-  `Include`) — no change to any tax mapping, calculation, or parser logic.
+- **AC-17** — Given the migrated repo, When the diff of every **pre-existing**
+  production code file, test, project-configuration file (`.csproj`), mapping,
+  and tax resource is reviewed, Then the only content changes are
+  path/reference updates (project paths, `ProjectReference`, and — only if the
+  move made it necessary — embedded-resource `Include`), with **no** change to
+  any parser, mapper, tax model, JSON mapping, monetary-rounding, PII/SIN, or
+  tax-year behaviour. New instruction files added by this spec (the
+  project-level `CLAUDE.md` and any minimal `AGENTS.md` bridge) are expected
+  additions and are **not** treated as forbidden production-content changes.
 
 ### Module boundaries (FR-4)
 
