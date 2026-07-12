@@ -1,0 +1,4 @@
+Task: T02 — T4SlipBoxAmounts flattener (Wave 1)
+PR: #31
+Commit: bbf9172
+Status: implemented; tests green (7 in suite); awaiting human review + merge
