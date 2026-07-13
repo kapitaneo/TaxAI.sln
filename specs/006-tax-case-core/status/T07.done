@@ -1,0 +1,5 @@
+Task: T07 — Implement lifecycle transitions, Completed restrictions, and Reopen (Wave 4)
+PR: #58
+Commit: 71cc174595b1e234d333fce39ca8e6ee6324c91e
+Test command: dotnet test TaxAI.sln
+Result: pass — 539 total (261 TaxLogicEngine + 278 TaxCases; 50 new TaxCaseLifecycleTests), 0 failed, 0 skipped
