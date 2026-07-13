@@ -1,0 +1,5 @@
+Task: T02 — Implement case creation, ownership, 2025 policy, and initial PII (Wave 1)
+PR: #53
+Commit: a06695ee70b976d7ef3f764164ee3d288fcf5313
+Test command: dotnet test TaxAI.sln
+Result: pass — 342 total (261 TaxLogicEngine + 81 TaxCases; 32 new TaxCaseCreateTests), 0 failed, 0 skipped
