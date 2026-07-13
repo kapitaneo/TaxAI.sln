@@ -1,0 +1,5 @@
+Task: T06 — Implement fail-closed readiness derivation (Wave 3)
+PR: #57
+Commit: b9279308feb2b1a29ea396585a183c9961ab6c2e
+Test command: dotnet test TaxAI.sln
+Result: pass — 489 total (261 TaxLogicEngine + 228 TaxCases; 24 new ReadinessCalculatorTests), 0 failed, 0 skipped
