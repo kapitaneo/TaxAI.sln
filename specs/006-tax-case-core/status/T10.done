@@ -1,0 +1,7 @@
+TaskID: T10
+PR: #61
+Implementation commit: cffa870dd1076094164bba7b2ba780451c344a83
+Build: pass - dotnet build TaxAI.sln (0 warnings, 0 errors)
+Tests: pass - 598 passed, 0 failed, 0 skipped
+Acceptance criteria: AC-1 through AC-43 passed
+Scope: confirmed only T10-listed files changed: tests/TaxCases.Tests/EndToEnd/RepositoryVerificationTests.cs, specs/006-tax-case-core/verification.md, NEXT.md, CLAUDE.md, specs/006-tax-case-core/status/T10.done
