@@ -1,0 +1,5 @@
+Task: T03 — Implement participant membership, separation, and PII rules (Wave 2)
+PR: #54
+Commit: f32a72cc04cb910d1d7a4370aa4e43208429f47a
+Test command: dotnet test TaxAI.sln
+Result: pass — 368 total (261 TaxLogicEngine + 107 TaxCases; 26 new TaxCaseParticipantTests), 0 failed, 0 skipped
