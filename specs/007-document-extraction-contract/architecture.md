@@ -37,14 +37,15 @@ The module has three parts, mirroring the repo's Models/Services layout plus a
    (2025 only, module-local so no `TaxCases` coupling is created).
 
 Dataflow: *provider adapter (future, out of scope)* → builds an
-`ExtractionEnvelope` → calls `IDocumentExtractionIngress.Submit` →
+`ExtractionEnvelope` → awaits `IDocumentExtractionIngress.SubmitAsync` →
 *application implementation (future, out of scope)* invokes
 `ExtractionEnvelopeValidator.Validate` → `ParseResult<ValidatedExtraction>` →
 *T4 Case Processor (future)* takes the raw payload from a success and performs
 the actual parse (`T4SlipParser`, including Box 12 → `RecipientIdentifier`)
 and box→line mapping. Nothing in this module parses, types, normalizes,
 redacts, converts, maps, rounds, or calculates; the payload passes through
-byte-identical. The module is deterministic: no clock, I/O, network,
+**reference-identical and value-unchanged** (`T4RawInput` is an object graph,
+not file bytes). The module is deterministic: no clock, I/O, network,
 persistence, environment, or provider SDK.
 
 TaxLogicEngine and TaxCases are **not modified** in any way; the full existing
@@ -205,16 +206,30 @@ namespace DocumentExtraction.Ports;
 
 public interface IDocumentExtractionIngress
 {
-    ParseResult<ValidatedExtraction> Submit(ExtractionEnvelope envelope);
+    Task<ParseResult<ValidatedExtraction>> SubmitAsync(
+        ExtractionEnvelope envelope,
+        CancellationToken cancellationToken = default);
 }
 ```
 
 - The **inward application boundary** (PRD Fix 2): a provider adapter depends
-  on this contract and **calls** `Submit`; the interface is **implemented by a
-  future application layer** (which will also verify case-belongs-to-firm,
-  participant-belongs-to-case, and caller authorization — none of which is
-  this module). **No implementation ships in spec 007.** The module never
-  depends on provider infrastructure.
+  on this contract and **awaits** `SubmitAsync`; the interface is
+  **implemented by a future application layer** (which will also verify
+  case-belongs-to-firm, participant-belongs-to-case, and caller authorization —
+  none of which is this module). **No implementation ships in spec 007** and
+  provider adapters remain out of scope. The module never depends on provider
+  infrastructure.
+- **Why asynchronous:** the future application implementation performs
+  authorization and firm/case/participant membership checks and may use
+  persistence — naturally asynchronous operations. Declaring the port
+  synchronous today would force sync-over-async in that implementation or a
+  breaking public-signature change later; `Task` + `CancellationToken`
+  (BCL-only types) cost nothing now and avoid both.
+- **Determinism is not weakened:** the interface itself performs no I/O —
+  `Task` and `CancellationToken` are signature shape, not behaviour, and do
+  not violate the deterministic domain boundary. All deterministic guarantees
+  attach to `ExtractionEnvelopeValidator.Validate`, which remains
+  **synchronous, static, pure, and deterministic**.
 
 ### `ExtractionEnvelopeValidator` (`Services/ExtractionEnvelopeValidator.cs`)
 

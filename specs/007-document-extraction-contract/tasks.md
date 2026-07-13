@@ -66,7 +66,11 @@ through `Validate`; T03 repeats it end-to-end through the public API.
   `ExtractedDocumentKind` (T4Slip = 1, GenericEvidence = 2; **no T5 value**),
   `ExtractionProvenance`, `ExtractionEnvelope`, `ValidatedExtraction`
   (internal constructor), `ExtractionFields`, `IDocumentExtractionIngress`
-  (interface only — **no implementation ships in spec 007**), and
+  (interface only — **no implementation ships in spec 007** — declaring
+  exactly `Task<ParseResult<ValidatedExtraction>> SubmitAsync(
+  ExtractionEnvelope envelope, CancellationToken cancellationToken = default)`;
+  the async shape is signature-only — the interface performs no I/O, and
+  `Task`/`CancellationToken` do not violate the deterministic boundary), and
   `ExtractionEnvelopeValidator` whose `Validate` compiles with a
   `NotImplementedException` body. Implement the value plumbing now: init-only
   properties, `[JsonIgnore]` on the payload and every caller-controlled
@@ -104,7 +108,11 @@ through `Validate`; T03 repeats it end-to-end through the public API.
   `SupportedExtractionTaxYears` supports exactly 2025, prove
   `ExtractedDocumentKind` defines exactly `T4Slip` and `GenericEvidence` (no
   `T5Slip` — by proving no such value exists), prove `ValidatedExtraction` has
-  no public constructor, prove `IDocumentExtractionIngress` has no
+  no public constructor, prove `IDocumentExtractionIngress` declares exactly
+  one method `SubmitAsync` whose return type is
+  `Task<ParseResult<ValidatedExtraction>>`, whose first parameter is an
+  `ExtractionEnvelope`, and whose second parameter is a `CancellationToken`
+  with a default value, prove `IDocumentExtractionIngress` has no
   implementation in the production assembly, and prove the payload and every
   caller-controlled string property carry `[JsonIgnore]` while remaining
   readable in memory. Run the mandatory PII-omission matrix at the
@@ -145,8 +153,9 @@ through `Validate`; T03 repeats it end-to-end through the public API.
   fields blank); confidence absent or in `[0m, 1m]` inclusive, out-of-range
   fails closed, **no low-confidence threshold**. On success construct the
   `ValidatedExtraction` carrying the references exactly as supplied and the
-  payload reference-identical (never cloned, collapsed, or reordered). Error
-  `Field`s use `ExtractionFields` constants; messages are fixed templates.
+  payload **reference-identical and value-unchanged** (the same `T4RawInput`
+  object graph — never cloned, collapsed, or reordered). Error `Field`s use
+  `ExtractionFields` constants; messages are fixed templates.
 
   **Allowed files:**
   - modified: `src/DocumentExtraction/Services/ExtractionEnvelopeValidator.cs`
@@ -219,7 +228,11 @@ type created by a sibling.
   field asserted absent from every `Field`, `Message`, `ToString()`, and
   supported direct JSON serialization. `ExtractionDeterminismTests` — AC-28
   replay equality over accepted and rejected envelopes, including equal error
-  ordering.
+  ordering. If exercising the `IDocumentExtractionIngress` shape end-to-end is
+  needed, a **minimal test-only implementation inside the test files** (e.g. a
+  trivial `SubmitAsync` wrapping `ExtractionEnvelopeValidator.Validate` in
+  `Task.FromResult`) may be used — **no production implementation is added**,
+  and the production assembly must still contain no implementor of the port.
 
   **Mechanical acceptance:** AC-20, AC-22, AC-23, AC-25, and AC-28 pass
   through the public API; task tests and `dotnet test TaxAI.sln` pass. Only
