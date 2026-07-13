@@ -1,0 +1,5 @@
+Task: T04 — Implement evidence identity, category, attribution, and year rules (Wave 2)
+PR: #55
+Commit: af264291cc99a908bf74eadc393afd3562f10846
+Test command: dotnet test TaxAI.sln
+Result: pass — 403 total (261 TaxLogicEngine + 142 TaxCases; 35 new TaxCaseEvidenceTests), 0 failed, 0 skipped
