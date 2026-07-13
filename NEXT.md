@@ -17,13 +17,21 @@
   - full AC-1…AC-30 verification recorded in
     `specs/005-modular-monolith-foundation/verification.md`.
 
+- Spec 006 — Tax Case Core:
+  - deterministic, immutable 2025 tax-case aggregate implemented in
+    `src/TaxCases/`;
+  - participants, evidence receipt metadata, participant-scoped checklist and
+    intake, derived readiness, lifecycle, and deterministic change records;
+  - firm/year/participant isolation and exhaustive SIN-safe diagnostics;
+  - AC-1…AC-43 verification recorded in
+    `specs/006-tax-case-core/verification.md`.
+
 ## Next
 
-Create spec 006 — **Tax Case Core** (the next approved product feature).
+Create the **Document Extraction Contract** spec.
 
-## After spec 006
+## After Document Extraction Contract
 
-- then Document Extraction Contract;
 - then T4 Case Processor;
 - then Accountant Review Package;
 - then Portal Foundation.

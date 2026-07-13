@@ -30,7 +30,12 @@ dotnet test tests/TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodNa
 ## Repository layout
 
 - **`src/TaxLogicEngine/`** — the production tax engine (net8.0, nullable enabled). Has its own `CLAUDE.md` with the tax-domain rules and type inventory.
+- **`src/TaxCases/`** — the implemented deterministic Tax Case Core module
+  (net8.0, nullable enabled). Its local `CLAUDE.md` owns the approved module
+  boundary and public-contract inventory.
 - **`tests/TaxLogicEngine.Tests/`** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
+- **`tests/TaxCases.Tests/`** — xUnit contract, model, service, boundary, and
+  end-to-end verification for Tax Case Core.
 - **`specs/NNN-<slug>/`** — spec artifacts (`prd.md`, `architecture.md`, `tasks.md`, `status/`).
 - **`.claude/`** — commands, agents, settings for the feature workflow.
 
@@ -114,6 +119,14 @@ A task is unblocked when every task in every earlier wave has a `.done` marker.
 ## Current state
 
 Spec 001 (T5 slip parsing), spec 002 (T5 box→CRA line mapping), spec 003 (T4 slip parsing), and spec 004 (T4 box→CRA line mapping) are implemented and merged. Spec 005 (modular monolith foundation) is complete: the solution is `TaxAI.sln`, projects live under `src/` and `tests/`, instructions are scope-split (this file + `src/TaxLogicEngine/CLAUDE.md`), the `AGENTS.md` bridges exist, and the migration's AC-by-AC verification is recorded in `specs/005-modular-monolith-foundation/verification.md`.
+
+Spec 006 (Tax Case Core) is complete. `src/TaxCases/` implements the immutable,
+provider-independent 2025 engagement aggregate with firm/year/participant
+isolation, participant-scoped evidence and intake, derived readiness, lifecycle
+guards, deterministic change records, and SIN-safe diagnostics. AC-1 through
+AC-43 and the module/repository boundaries are recorded in
+`specs/006-tax-case-core/verification.md`. The next feature is the Document
+Extraction Contract.
 
 The full inventory of existing public types, embedded mapping configs, and the recorded per-spec decisions live in [src/TaxLogicEngine/CLAUDE.md](src/TaxLogicEngine/CLAUDE.md) — **check there before creating anything; do not re-specify or re-implement an existing type.**
 
