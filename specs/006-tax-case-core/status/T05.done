@@ -1,0 +1,5 @@
+Task: T05 — Implement participant-scoped requirements and intake answers (Wave 2)
+PR: #56
+Commit: f69160fc3246f9951fba4a660c2835e17d093f82
+Test command: dotnet test TaxAI.sln
+Result: pass — 465 total (261 TaxLogicEngine + 204 TaxCases; 62 new TaxCaseIntakeTests), 0 failed, 0 skipped
