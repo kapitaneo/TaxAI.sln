@@ -29,12 +29,27 @@ public sealed class TaxCasesBoundaryTests
         Assert.True(File.Exists(taxCasesTestsProject));
         Assert.True(File.Exists(engineTestsProject));
 
-        var solution = File.ReadAllText(solutionPath);
-        Assert.Contains("\"TaxCases\", \"src\\TaxCases\\TaxCases.csproj\"", solution, StringComparison.Ordinal);
-        Assert.Contains("\"TaxLogicEngine\", \"src\\TaxLogicEngine\\TaxLogicEngine.csproj\"", solution, StringComparison.Ordinal);
-        Assert.Contains("\"TaxCases.Tests\", \"tests\\TaxCases.Tests\\TaxCases.Tests.csproj\"", solution, StringComparison.Ordinal);
-        Assert.Contains("\"TaxLogicEngine.Tests\", \"tests\\TaxLogicEngine.Tests\\TaxLogicEngine.Tests.csproj\"", solution, StringComparison.Ordinal);
-        Assert.Equal(4, solution.SplitLines().Count(line => line.StartsWith("Project(\"", StringComparison.Ordinal)));
+        var solutionLines = File.ReadAllText(solutionPath).SplitLines().ToArray();
+        string[] spec006Declarations =
+        [
+            "\"TaxCases\", \"src\\TaxCases\\TaxCases.csproj\"",
+            "\"TaxLogicEngine\", \"src\\TaxLogicEngine\\TaxLogicEngine.csproj\"",
+            "\"TaxCases.Tests\", \"tests\\TaxCases.Tests\\TaxCases.Tests.csproj\"",
+            "\"TaxLogicEngine.Tests\", \"tests\\TaxLogicEngine.Tests\\TaxLogicEngine.Tests.csproj\""
+        ];
+
+        // Each spec 006 project is declared exactly once at its approved path. The
+        // solution may also declare later modules' projects, so this deliberately
+        // asserts presence-and-uniqueness rather than a total project count: spec 006's
+        // boundary is that *its* four projects are correct, not that no others exist.
+        foreach (var declaration in spec006Declarations)
+        {
+            Assert.Equal(
+                1,
+                solutionLines.Count(line =>
+                    line.StartsWith("Project(\"", StringComparison.Ordinal) &&
+                    line.Contains(declaration, StringComparison.Ordinal)));
+        }
 
         Assert.Equal(
             ["../TaxLogicEngine/TaxLogicEngine.csproj"],

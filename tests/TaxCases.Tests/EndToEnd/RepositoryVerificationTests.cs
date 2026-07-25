@@ -18,7 +18,7 @@ public sealed class RepositoryVerificationTests
     private static readonly Type OutcomeResult = typeof(ParseResult<CaseOperationOutcome>);
 
     [Fact]
-    public void SolutionContainsExactlyFourExpectedProjectsAndAllReferencesResolve()
+    public void SolutionContainsTheFourSpec006ProjectsAndAllReferencesResolve()
     {
         var solution = File.ReadAllText(Path.Combine(RepositoryRoot, "TaxAI.sln"));
         var projectPattern = new Regex(
@@ -42,8 +42,15 @@ public sealed class RepositoryVerificationTests
             (Name: "TaxLogicEngine.Tests", Path: "tests/TaxLogicEngine.Tests/TaxLogicEngine.Tests.csproj")
         };
 
-        Assert.Equal(expected.Select(item => item.Name), projects.Select(project => project.Name));
-        Assert.Equal(expected.Select(item => item.Path), projects.Select(project => project.Path));
+        // Presence-and-uniqueness, not exclusivity: each spec 006 project must be
+        // declared exactly once at its approved path, while the solution stays free to
+        // declare later modules' projects. Every declared project — including newer
+        // ones — must still resolve, which the loop below enforces.
+        foreach (var (name, path) in expected)
+        {
+            var declared = Assert.Single(projects.Where(project => project.Name == name));
+            Assert.Equal(path, declared.Path);
+        }
 
         foreach (var project in projects)
         {
@@ -301,7 +308,10 @@ public sealed class RepositoryVerificationTests
 
         var verificationPath = Path.Combine(RepositoryRoot, "specs", "006-tax-case-core", "verification.md");
         Assert.True(File.Exists(verificationPath));
-        var verification = File.ReadAllText(verificationPath);
+        // `.gitattributes` sets `* text=auto`, so this file is checked out with CRLF on
+        // Windows. In .NET multiline mode `$` matches only before `\n`, never before `\r\n`,
+        // so the row pattern below is matched against LF-normalised text.
+        var verification = File.ReadAllText(verificationPath).Replace("\r\n", "\n");
         var rows = Regex.Matches(
             verification,
             @"^\| AC-(?<number>\d+) \| \*\*PASS\*\* \| (?<evidence>.+) \|$",
