@@ -1,0 +1,52 @@
+TaskID: T02
+PR: #67
+Implementation commit: (see PR head; marker committed in the same branch feat/007-w1-t02)
+Base: master @ 2f157ee (Wave 0 / T01 merged)
+Test command: dotnet test TaxAI.sln
+Build: pass - dotnet build TaxAI.sln (0 errors, 0 warnings)
+Tests: pass - 905 passed, 0 failed, 0 skipped
+  (307 DocumentExtraction + 261 TaxLogicEngine + 337 TaxCases)
+  DocumentExtraction.Tests grew from 148 to 307; 159 new tests in
+  ExtractionEnvelopeValidatorTests.
+Acceptance criteria claimed and covered:
+  AC-1  valid T4 envelope accepted, payload reference-identical
+  AC-2  valid generic-evidence envelope accepted, no payload
+  AC-3  blank DocumentId (null/empty/whitespace/tab/CRLF)
+  AC-4  absent and undefined kind, incl. (ExtractedDocumentKind)0, 3 (T5 stand-in), 99, -1
+  AC-5  blank FirmId
+  AC-6  blank CaseId
+  AC-7  blank ParticipantId
+  AC-8  blank SourceReference for BOTH kinds, plus absent Provenance
+  AC-9  absent envelope tax year, never coerced
+  AC-10 2024 / 2026 / 1999 unsupported, no adjacent-year fallback
+  AC-11 absent T4Payload.Year
+  AC-12 envelope 2025 / payload 2024 mismatch, neither value coerced
+  AC-13 T4Slip without payload; GenericEvidence carrying a payload
+  AC-14 empty extraction (no boxes AND all four identity fields blank),
+        incl. null Boxes; plus the negative case that one box or one
+        identity field clears the rule
+  AC-15 confidence -0.1m, 1.1m, -1m, 2m rejected
+  AC-16 confidence 0m, 1m, 0.5m, and absent accepted (no low-confidence threshold)
+  AC-17 whitespace-only in each of the five references
+  AC-18 duplicate box codes survive in order, uncollapsed and unreordered
+  AC-19 empty envelope: one error per missing required field, no exception
+  AC-21 an engine-rejectable box value still passes the envelope gate
+  AC-23 (validator arm) mandatory PII-omission matrix through Validate:
+        3 SIN-like strings x 10 plant slots, on an accepted envelope and
+        5 rejection families; no planted value and no 9-consecutive-digit
+        run in any Field, Message, ToString(), or JSON output
+  AC-28 replay determinism over accepted and every rejected family,
+        incl. equal error ordering and the same payload reference
+Also asserted: every rejection yields no value and uses only the closed
+  ExtractionFields set; accepted references pass through untrimmed and
+  unnormalized; multiple independent defects are all reported in one pass.
+Mutation check: disabling the two year-isolation rules (unsupported envelope
+  year, envelope/payload year coherence) fails 66 tests, confirming the
+  year-isolation coverage is not vacuous. Reverted before commit.
+Scope: confirmed only T02-listed files changed vs master:
+  src/DocumentExtraction/Services/ExtractionEnvelopeValidator.cs (modified),
+  tests/DocumentExtraction.Tests/Services/ExtractionEnvelopeValidatorTests.cs (created),
+  specs/007-document-extraction-contract/status/T02.done (created).
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/, and
+  tests/TaxCases.Tests/ are unchanged.
+Status: implemented; full solution suite green; not merged (awaiting human review)
