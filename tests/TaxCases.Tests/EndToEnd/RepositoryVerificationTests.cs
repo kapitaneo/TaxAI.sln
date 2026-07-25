@@ -301,7 +301,10 @@ public sealed class RepositoryVerificationTests
 
         var verificationPath = Path.Combine(RepositoryRoot, "specs", "006-tax-case-core", "verification.md");
         Assert.True(File.Exists(verificationPath));
-        var verification = File.ReadAllText(verificationPath);
+        // `.gitattributes` sets `* text=auto`, so this file is checked out with CRLF on
+        // Windows. In .NET multiline mode `$` matches only before `\n`, never before `\r\n`,
+        // so the row pattern below is matched against LF-normalised text.
+        var verification = File.ReadAllText(verificationPath).Replace("\r\n", "\n");
         var rows = Regex.Matches(
             verification,
             @"^\| AC-(?<number>\d+) \| \*\*PASS\*\* \| (?<evidence>.+) \|$",
