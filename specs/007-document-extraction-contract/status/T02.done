@@ -1,6 +1,6 @@
 TaskID: T02
 PR: #67
-Implementation commit: (see PR head; marker committed in the same branch feat/007-w1-t02)
+Implementation commit: cf0f5eb2cf6a1b03c1fd2dc3641e28db6347507f (branch feat/007-w1-t02)
 Base: master @ 2f157ee (Wave 0 / T01 merged)
 Test command: dotnet test TaxAI.sln
 Build: pass - dotnet build TaxAI.sln (0 errors, 0 warnings)
