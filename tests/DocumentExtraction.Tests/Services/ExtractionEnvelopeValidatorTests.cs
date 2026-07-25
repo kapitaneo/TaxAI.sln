@@ -117,8 +117,10 @@ public sealed class ExtractionEnvelopeValidatorTests
 
         AssertAccepted(result);
         Assert.Same(payload, result.Value!.T4Payload);
+        // T4RawBox.Value is nullable, so the expected tuples must be too — otherwise
+        // the comparison is against (string, string) and warns CS8620.
         Assert.Equal(
-            new[] { ("14", "first"), ("14", "second"), ("16", "third") },
+            new (string Code, string? Value)[] { ("14", "first"), ("14", "second"), ("16", "third") },
             result.Value.T4Payload!.Boxes.Select(box => (box.Code, box.Value)));
     }
 
