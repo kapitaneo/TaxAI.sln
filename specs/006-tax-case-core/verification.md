@@ -79,8 +79,9 @@ green.
 
 ## Repository-level evidence
 
-- Four-project solution, resolvable project references, dependency direction:
-  `RepositoryVerificationTests.SolutionContainsExactlyFourExpectedProjectsAndAllReferencesResolve`.
+- The four spec 006 projects present at their approved paths, resolvable project
+  references, dependency direction:
+  `RepositoryVerificationTests.SolutionContainsTheFourSpec006ProjectsAndAllReferencesResolve`.
 - Architecture public manifest and unsupported public values/mutators:
   `RepositoryVerificationTests.PublicContractMatchesArchitectureManifestExactly` and
   `UnsupportedValuesOwnershipAndReadinessMutatorsAreAbsent`.
