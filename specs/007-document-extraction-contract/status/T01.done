@@ -1,0 +1,27 @@
+TaskID: T01
+PR: #64
+Implementation commit: 98c3e08e38cc430fe4da4b59bda0728f66edf228
+Integration commit: d2c36fa41e7514a96f720f764b542b38cf5281e5 (merge of master @ 9222d12)
+Build: pass - dotnet build TaxAI.sln (0 errors; 4 pre-existing TaxLogicEngine.Tests warnings, none from this task)
+Tests: pass - 746 passed, 0 failed, 0 skipped (148 DocumentExtraction + 261 TaxLogicEngine + 337 TaxCases)
+Acceptance criteria: T01 mechanical acceptance met - solution gains exactly the two
+  new projects (6 total); DocumentExtraction.csproj references only
+  TaxLogicEngine.csproj and carries no PackageReference; TaxLogicEngine.csproj and
+  TaxCases.csproj unchanged; contract reflection matches architecture.md exactly;
+  PII-omission matrix passes at the constructed-value level.
+Scope: confirmed only T01-listed files changed vs master: TaxAI.sln,
+  src/DocumentExtraction/{DocumentExtraction.csproj, CLAUDE.md, AGENTS.md,
+  Models/ExtractedDocumentKind.cs, Models/ExtractionProvenance.cs,
+  Models/ExtractionEnvelope.cs, Models/ValidatedExtraction.cs,
+  Models/ExtractionFields.cs, Ports/IDocumentExtractionIngress.cs,
+  Services/ExtractionEnvelopeValidator.cs, Services/SupportedExtractionTaxYears.cs},
+  tests/DocumentExtraction.Tests/{DocumentExtraction.Tests.csproj, ContractTests.cs,
+  Models/PayloadOmissionTests.cs, Services/SupportedExtractionTaxYearsTests.cs},
+  specs/007-document-extraction-contract/status/T01.done.
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/, and
+  tests/TaxCases.Tests/ are unchanged vs master.
+Note: the two blockers recorded in PR #64's draft description are resolved on master
+  - PR #65 (CRLF line-ending bug in a spec 006 test regex) and PR #66 (spec 006
+  solution assertions changed from exclusivity to presence-and-uniqueness). Neither
+  was fixed inside this task; tests/TaxCases.Tests/ remains untouched here.
+Status: implemented; full solution suite green; not merged (awaiting human review)
