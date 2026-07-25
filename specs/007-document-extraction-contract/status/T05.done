@@ -1,0 +1,56 @@
+TaskID: T05
+PR: #71
+Implementation commit: 1dbfc1fc750176893cb2d063cb39a6590f27d35f (branch feat/007-w3-t05)
+Base: master @ ae0a2ad (Wave 2 merged; T01-T04 markers all present)
+Test command: dotnet test TaxAI.sln
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors, 4 warnings)
+  All 4 warnings are pre-existing in tests/TaxLogicEngine.Tests (2x CS0649,
+  2x xUnit2008) and predate spec 007. The DocumentExtraction module and its
+  test project build warning-free. Non-incremental on purpose: an incremental
+  build is what hid a CS8620 during T02 (fixed separately in PR #70).
+Tests: pass - 1271 passed, 0 failed, 0 skipped
+  (673 DocumentExtraction + 261 TaxLogicEngine + 337 TaxCases)
+  15 new repository-verification tests.
+Acceptance criteria: AC-1 through AC-30 ALL PASS, 0 fail. Every criterion has a
+  pass row with exact test-name evidence in
+  specs/007-document-extraction-contract/verification.md.
+Repository-level review performed:
+  - declared-file ownership: every task changed only its declared files,
+    verified per task with git diff --name-only origin/master..HEAD and
+    recorded in each status marker
+  - project direction: one-way inward, DocumentExtraction -> TaxLogicEngine;
+    no TaxCases reference in either direction; no reverse reference to this
+    module from TaxLogicEngine, TaxCases, or their test trees
+  - deterministic boundaries: no clock, filesystem, network, database,
+    environment, OCR/LLM/cloud/email token, or generated identifier
+  - PII omission: no caller or payload value in any ToString(),
+    ValidationError, diagnostic, or JSON output
+  - hygiene: no tracked bin/, obj/, .vs/, *.user, secret, or
+    .claude/settings.local.json
+  - unchanged behaviour: src/TaxLogicEngine/ and src/TaxCases/ unchanged since
+    spec 007 began; all 261 TaxLogicEngine and 337 TaxCases tests green
+Deviation [ASSUMED] - project-count exclusivity deliberately NOT asserted:
+  tasks.md T05 says "no unexpected project/reference". Reference exclusivity IS
+  asserted strictly. A total project-count assertion is not, because (1) no AC
+  requires it - AC-29 is about references and dependency direction, AC-30 about
+  reused types, and presence-and-uniqueness satisfies both in full; and (2) a
+  total count is a known repository defect rather than a safeguard - spec 006
+  shipped one, it blocked this spec's own Wave 0 outright, and PR #66 had to
+  unpick it. Re-adding it would block spec 008 identically. Flagged to the
+  human before implementation; tagged for one-pass override.
+State files updated (permitted only because every AC passed):
+  - NEXT.md: spec 007 recorded complete; next feature named as T4 Case Processor
+  - CLAUDE.md: spec 007 recorded complete in Current state, next feature named,
+    and a standing rule added forbidding total-project-count assertions
+Out-of-task repository fixes merged separately during spec 007, none folded
+  into any task: PR #65 (CRLF regex bug in a spec 006 test, pre-existing),
+  PR #66 (spec 006 exactly-four-projects assertions relaxed), PR #70 (CS8620
+  introduced by T02). Recorded with rationale in verification.md.
+Scope: confirmed only T05-listed files changed vs master:
+  tests/DocumentExtraction.Tests/EndToEnd/RepositoryVerificationTests.cs (created),
+  specs/007-document-extraction-contract/verification.md (created),
+  NEXT.md (modified), CLAUDE.md (modified),
+  specs/007-document-extraction-contract/status/T05.done (created).
+  No production file under src/ changed by this task.
+Status: implemented; full solution suite green; spec 007 complete pending human
+  review and merge. Not merged - no agent merges its own work.
