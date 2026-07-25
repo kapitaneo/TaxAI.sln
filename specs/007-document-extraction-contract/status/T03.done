@@ -1,0 +1,56 @@
+TaskID: T03
+PR: #68
+Implementation commit: e431d6a215ae1fce23a08031cee3c6195b4c4d7f (branch feat/007-w2-t03)
+Base: master @ c3e67da (Wave 1 / T02 merged; T01.done and T02.done both present)
+Test command: dotnet test TaxAI.sln
+Build: pass - dotnet build TaxAI.sln (0 errors, 0 warnings)
+Tests: pass - 1231 passed, 0 failed, 0 skipped
+  (633 DocumentExtraction + 261 TaxLogicEngine + 337 TaxCases)
+  DocumentExtraction.Tests grew from 307 to 633; 326 new tests across the
+  three EndToEnd suites.
+Acceptance criteria claimed and covered (all through the public API only):
+  AC-20 no tax truth produced, proved three ways:
+        - the accepted result is not an instance of T4Slip, T4MappingResult,
+          or TaxLineEntry
+        - a reflection walk proves no public property of ValidatedExtraction
+          is assignable to any of those types
+        - the payload is reference-identical down to its Boxes list, with box
+          values surviving byte-for-byte (untrimmed whitespace, thousands
+          separator, null value), which a parsed/normalized/rounded payload
+          could not be
+  AC-21 a payload the engine would reject four ways (duplicate code,
+        non-numeric amount, unknown code, null value) still clears the gate
+  AC-22 accepted envelope with Box 12 = 123456789 and populated identity
+        fields: retained unmasked in memory, absent from every ToString()
+        and every supported direct JSON serialization
+  AC-23 mandatory omission matrix end-to-end: 10 plant slots x (3 SIN forms
+        + 2 non-numeric markers) over an accepted envelope and 11 rejection
+        families; absent from Field, Message, every ToString(), and JSON.
+        Includes an all-at-once case with a SIN in Box 12 and distinct
+        markers in all ten caller-controlled fields simultaneously.
+  AC-25 exhaustive 4x4 envelope-year x payload-year matrix (null/2024/2025/
+        2026): accepted iff both are 2025, neither value coerced in any of
+        the sixteen cases; plus the three cases the criterion names and a
+        generic-evidence year-isolation check
+  AC-28 replay determinism over 4 accepted and 11 rejected cases, 5 replays
+        each, asserting equal error ORDERING (not merely set equality),
+        agreement between distinct-but-equivalent envelopes, and that
+        validation mutates neither envelope nor payload
+Anti-vacuity measures:
+  - a reachability test asserts every plant slot is readable back off the
+    accepted result, so a mis-wired slot fails loudly instead of letting the
+    omission assertions pass vacuously
+  - non-numeric markers supplement the SIN forms, because a nine-digit regex
+    cannot catch an echoed document id or source reference
+Ingress port: exercised via a minimal test-only adapter declared inside
+  ExtractionAcceptanceTests, as T03 permits. The same test re-asserts the
+  production assembly contains no implementor of IDocumentExtractionIngress.
+  No production implementation was added.
+Scope: confirmed only T03-listed files changed vs master:
+  tests/DocumentExtraction.Tests/EndToEnd/ExtractionAcceptanceTests.cs (created),
+  tests/DocumentExtraction.Tests/EndToEnd/ExtractionPiiTests.cs (created),
+  tests/DocumentExtraction.Tests/EndToEnd/ExtractionDeterminismTests.cs (created),
+  specs/007-document-extraction-contract/status/T03.done (created).
+  No production file changed anywhere under src/; tests/TaxLogicEngine.Tests/
+  and tests/TaxCases.Tests/ are unchanged. Shares no file with sibling T04.
+Status: implemented; full solution suite green; not merged (awaiting human review)
