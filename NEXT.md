@@ -26,13 +26,30 @@
   - AC-1…AC-43 verification recorded in
     `specs/006-tax-case-core/verification.md`.
 
+- Spec 007 — Document Extraction Contract:
+  - deterministic, provider-independent ingestion contract implemented in
+    `src/DocumentExtraction/`;
+  - untrusted `ExtractionEnvelope` + `ExtractionProvenance`, the internal-only
+    `ValidatedExtraction`, the closed `ExtractionFields` set, and the
+    signature-only `IDocumentExtractionIngress` port (no implementation ships
+    in spec 007);
+  - `ExtractionEnvelopeValidator.Validate` — the single fail-closed gate:
+    attribution presence only, 2025-only year isolation, payload/kind
+    coherence, and a mechanical empty-extraction rule;
+  - the raw `T4RawInput` payload passes through reference-identical and
+    value-unchanged — no parsing, typing, normalization, mapping, or rounding,
+    so extraction output never becomes tax truth;
+  - PII by **omission, not masking**: no caller or payload value appears in any
+    `ToString()`, `ValidationError`, diagnostic, or JSON output;
+  - AC-1…AC-30 verification recorded in
+    `specs/007-document-extraction-contract/verification.md`.
+
 ## Next
 
-Create the **Document Extraction Contract** spec.
+Create the **T4 Case Processor** spec.
 
-## After Document Extraction Contract
+## After T4 Case Processor
 
-- then T4 Case Processor;
 - then Accountant Review Package;
 - then Portal Foundation.
 

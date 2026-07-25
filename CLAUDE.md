@@ -125,8 +125,26 @@ provider-independent 2025 engagement aggregate with firm/year/participant
 isolation, participant-scoped evidence and intake, derived readiness, lifecycle
 guards, deterministic change records, and SIN-safe diagnostics. AC-1 through
 AC-43 and the module/repository boundaries are recorded in
-`specs/006-tax-case-core/verification.md`. The next feature is the Document
-Extraction Contract.
+`specs/006-tax-case-core/verification.md`.
+
+Spec 007 (Document Extraction Contract) is complete. `src/DocumentExtraction/`
+implements the deterministic, provider-independent ingestion contract between
+future OCR/LLM adapters and the tax domain: an untrusted `ExtractionEnvelope`,
+the internal-only `ValidatedExtraction`, the closed `ExtractionFields` set, the
+signature-only `IDocumentExtractionIngress` port (**no implementation ships in
+spec 007**), and `ExtractionEnvelopeValidator.Validate` — the single fail-closed
+gate doing attribution **presence** checks only, with 2025-only year isolation.
+The raw `T4RawInput` payload passes through reference-identical and
+value-unchanged, so extraction output never becomes tax truth, and PII is
+handled by **omission, not masking**. AC-1 through AC-30 are recorded in
+`specs/007-document-extraction-contract/verification.md`. The next feature is
+the T4 Case Processor.
+
+**Never assert a total project count for `TaxAI.sln`.** Repository-level tests
+must assert that a spec's own projects are each declared exactly once at their
+approved path, never that they are the only projects in the solution. A total
+count freezes the solution against every future module: spec 006 shipped one
+and it blocked spec 007's Wave 0 outright, requiring PR #66 to unpick.
 
 The full inventory of existing public types, embedded mapping configs, and the recorded per-spec decisions live in [src/TaxLogicEngine/CLAUDE.md](src/TaxLogicEngine/CLAUDE.md) — **check there before creating anything; do not re-specify or re-implement an existing type.**
 
