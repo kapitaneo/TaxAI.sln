@@ -1,0 +1,61 @@
+TaskID: T04
+PR: #69
+Implementation commit: 1ccd32c3da8a73527cd87ef7ec1f68295a084dfe (branch feat/007-w2-t04)
+Base: master @ c3e67da (Wave 1 / T02 merged; T01.done and T02.done both present)
+Test command: dotnet test TaxAI.sln
+Build: succeeds. 5 warnings, none from this task's file:
+  - 4 pre-existing in tests/TaxLogicEngine.Tests (CS0649 x2, xUnit2008 x2)
+  - 1 CS8620 at tests/DocumentExtraction.Tests/Services/
+    ExtractionEnvelopeValidatorTests.cs:122, introduced by T02 (already merged).
+    Cosmetic nullability mismatch in the AC-18 tuple assertion; the assertion
+    is correct and passes. NOT fixed here: that file is T02's declared file and
+    is outside T04's allowed list. Raised for a separate repo-hygiene PR.
+Tests: pass - 930 passed, 0 failed, 0 skipped
+  (332 DocumentExtraction + 261 TaxLogicEngine + 337 TaxCases)
+  25 new boundary tests. Count excludes sibling T03's 326 tests, which are on
+  a separate branch by design.
+Acceptance criteria claimed and covered:
+  AC-24 no RecipientIdentifier construction or population anywhere in the
+        module source; no SIN property, SIN type, or RecipientIdentifier-typed
+        member on the public surface
+  AC-26 no T4SlipParser/T4LineMapper/T5SlipParser/T5LineMapper/MoneyRounding
+        usage; no CRA line-number literal (any 5-digit run in executable code);
+        no box->line mapping type; no TaxLogicEngine.Mappings resource read;
+        no Math.Round/MidpointRounding/double/float
+  AC-27 no DateTime.Now/UtcNow/Stopwatch/TimeProvider; no filesystem, network,
+        or database access; no environment/current-user read; no OCR, LLM,
+        cloud, or email token; no ASP.NET Core; no generated identifier
+        (Guid.NewGuid/Random)
+  AC-29 reference arm, both directions: the module references only
+        TaxLogicEngine (project file and compiled assembly references), no
+        TaxCases reference exists, and neither TaxLogicEngine nor TaxCases
+        references DocumentExtraction in project file or source
+  AC-30 no-T5 arm: no T5 token in module source; ExtractedDocumentKind is
+        exactly T4Slip and GenericEvidence; default(ExtractedDocumentKind) is
+        undefined so an unset kind fails closed
+Positive structural checks: both project declarations present exactly once at
+  their approved solution paths; no PackageReference/FrameworkReference/
+  EmbeddedResource/Content in the production project; the 2025 policy exists
+  only in SupportedExtractionTaxYears (no other production file hardcodes the
+  year in executable code); Wave-0 CLAUDE.md content and pointer-only AGENTS.md.
+Deliberate design choices:
+  - Solution assertions are presence-and-uniqueness, never a total project
+    count. A total count is what blocked this spec's own Wave 0 (see PR #66)
+    and would block spec 008; this task does not re-lay that trap.
+  - Comment lines are excluded from token scans. Documentation legitimately
+    names forbidden concepts while explaining why they are forbidden; scanning
+    raw text would make honest comments unwritable.
+Anti-vacuity measures:
+  - a guard test asserts the scanner sees all 8 production files and that a
+    known-present pattern matches, so a broken file walk fails loudly rather
+    than making every forbidden-pattern assertion pass for free
+  - mutation-checked: injecting DateTime.UtcNow, RecipientIdentifier, the CRA
+    line number 10100, a double, and a T5 type name into a production file
+    fails exactly 5 boundary tests. Reverted before commit.
+Scope: confirmed only T04-listed files changed vs master:
+  tests/DocumentExtraction.Tests/Boundaries/DocumentExtractionBoundaryTests.cs (created),
+  specs/007-document-extraction-contract/status/T04.done (created).
+  No production file changed anywhere under src/. No instruction file, root
+  CLAUDE.md, or NEXT.md was modified. Spec 007 is NOT claimed complete - that
+  is T05's job. Shares no file with sibling T03.
+Status: implemented; full solution suite green; not merged (awaiting human review)
