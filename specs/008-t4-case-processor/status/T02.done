@@ -1,0 +1,62 @@
+TaskID: T02
+PR: #74
+Implementation commit: c9f0e7c
+Branch: feat/008-w1-t02 (branched from master @ d85eba2, the merge of PR #73)
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors; warning-free for
+  both CaseProcessing projects; the 4 remaining warnings are pre-existing in
+  tests/TaxLogicEngine.Tests/, which this spec declares untouchable)
+Tests: pass - dotnet test TaxAI.sln - 1611 passed, 0 failed, 0 skipped
+  (340 CaseProcessing + 673 DocumentExtraction + 337 TaxCases + 261 TaxLogicEngine)
+  CaseProcessing.Tests rose from 312 to 340: 28 new PayloadStructureGuardTests.
+Acceptance criteria: T02 mechanical acceptance met.
+  - AC-11 (null Boxes), AC-12 (a null element), AC-13 (null, empty, and
+    whitespace-only Code) each pass at unit level against
+    PayloadStructureGuard.Inspect.
+  - The guard provably reads no T4RawBox.Value: values do not change the result
+    (identical structure with planted values yields equal errors), planted values
+    reach no Field or Message, and an executable-line source scan finds no
+    `.Value` read - with a scanner guard so a wrong path or an over-eager comment
+    filter cannot make the scan pass for free.
+  - One error per structural defect, in fixed order; a null Boxes collection
+    short-circuits, so only one error is possible there.
+  - Never throws and never returns null for any payload shape, including a null
+    payload and a null Boxes collection.
+  - Every emitted Field is a T4ProcessingFields constant, and only the two
+    structural ones (PayloadBoxes, PayloadBoxCode) are ever used.
+  - Messages are non-interpolated constants: six defective boxes with six
+    different values still yield exactly one distinct message per rule.
+  - The payload is unmutated and reference-identical afterwards - same collection
+    reference, same element references in the same order, untrimmed codes, all
+    identity fields unchanged. Repeated calls are equal in order.
+  - Structural only: well-formed, empty, duplicate-code, unknown-code,
+    blank-valued, and garbage-valued payloads all yield zero errors, so
+    duplicates preserved by spec 007 still reach the parser and the parser's own
+    duplicate rejection fires.
+Decision flagged for one-pass human override:
+  [ASSUMED] Error order is rule-major then positional - every null-element defect
+  first, then every blank-code defect. architecture.md fixes the rule order but
+  not whether the two per-box rules interleave positionally. Recorded in the XML
+  doc on Inspect and asserted by
+  Inspect_SeveralDefectsAtOnce_YieldsOneErrorEachInFixedOrder.
+Mutation evidence (the new arms are not vacuous):
+  - Append box.Value to the blank-code message -> 4 tests fail
+    (Inspect_ValuesDoNotAffectTheResult, GuardSource_ReadsNoBoxValue,
+    Inspect_PlantedValuesEverywhere_AppearInNoErrorFieldOrMessage,
+    Inspect_MessagesAreNonInterpolatedConstants).
+  - Remove the null-element rule -> 4 tests fail.
+  - Remove the null-Boxes short-circuit -> 7 tests fail, including both
+    never-throws arms.
+  - Silently dedupe/trim/drop boxes before reporting -> 4 tests fail.
+  - T4RawInput.Boxes is init-only, so a mutation that reassigns the caller's
+    collection does not compile (CS8852): payload immutability is partly
+    compiler-enforced, not only test-enforced.
+Scope: confirmed only T02-listed files changed vs master:
+  src/CaseProcessing/Services/PayloadStructureGuard.cs,
+  tests/CaseProcessing.Tests/Services/PayloadStructureGuardTests.cs,
+  specs/008-t4-case-processor/status/T02.done.
+  tasks.md was not edited. No sibling- or later-task file was touched.
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/,
+  tests/TaxCases.Tests/, src/DocumentExtraction/, and
+  tests/DocumentExtraction.Tests/ are unchanged vs master. No bin/, obj/, .vs/,
+  *.user, secret, or .claude/settings.local.json is tracked.
+Status: implemented; full solution suite green; not merged (awaiting human review)
