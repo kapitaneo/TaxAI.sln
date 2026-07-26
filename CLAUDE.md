@@ -137,8 +137,26 @@ gate doing attribution **presence** checks only, with 2025-only year isolation.
 The raw `T4RawInput` payload passes through reference-identical and
 value-unchanged, so extraction output never becomes tax truth, and PII is
 handled by **omission, not masking**. AC-1 through AC-30 are recorded in
-`specs/007-document-extraction-contract/verification.md`. The next feature is
-the T4 Case Processor.
+`specs/007-document-extraction-contract/verification.md`.
+
+Spec 008 (T4 Case Processor) is complete. `src/CaseProcessing/` implements the
+deterministic coordinator that drives one already-validated T4 extraction
+through the existing engine: `T4CaseProcessor.Process` runs eight fixed stages
+(null extraction; kind/payload; supported year and payload structure, which
+accumulate together; parse; slip/extraction year coherence; map; construct) and
+returns `ParseResult<ProcessedT4Extraction>`. The internal
+`PayloadStructureGuard` closes the seam where a payload that cleared spec 007's
+gate could still make `T4SlipParser.Parse` throw. **No tax truth is invented
+here** — the slip comes only from `T4SlipParser`, the CRA line entries only from
+`T4LineMapper` plus the injected `IT4LineMapProvider`, engine errors are
+surfaced verbatim and in order, and the module contains no CRA line number, no
+box→line table, no arithmetic, and no `decimal` token. The provider is asked for
+exactly the slip's year, once, with no adjacent-year retry. PII crosses the
+**omission → masking** seam: the raw `T4RawInput` never reaches the result, and
+the parsed Box 12 exists only as the engine's masked `RecipientIdentifier` on
+`T4Slip.Sin`. AC-1 through AC-43 are recorded in
+`specs/008-t4-case-processor/verification.md`. The next feature is the
+Accountant Review Package.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their
