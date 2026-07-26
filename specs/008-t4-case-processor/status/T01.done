@@ -1,0 +1,49 @@
+TaskID: T01
+PR: #73
+Implementation commit: e72dfa53bf6d9831cad8cc94b187f56a12ff3b9b
+Branch: feat/008-w0-t01 (branched from master @ 71c9fcc, the merge of PR #72)
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors; warning-free for
+  both new projects; the 4 remaining warnings are pre-existing in
+  tests/TaxLogicEngine.Tests/, which this spec declares untouchable)
+Tests: pass - dotnet test TaxAI.sln - 1583 passed, 0 failed, 0 skipped
+  (312 CaseProcessing + 673 DocumentExtraction + 337 TaxCases + 261 TaxLogicEngine)
+Acceptance criteria: T01 mechanical acceptance met.
+  - Solution gains exactly the two new projects, asserted by
+    presence-and-uniqueness, never a total project count.
+  - CaseProcessing.csproj references only DocumentExtraction.csproj and
+    TaxLogicEngine.csproj, and declares
+    InternalsVisibleTo("CaseProcessing.Tests") for the T02 seam guard.
+  - No existing project file changed.
+  - Contract reflection matches architecture.md exactly: ProcessedT4Extraction
+    (sealed class, internal constructor, no public constructor, 8 get-only
+    properties), T4ProcessingFields (7 constants), SupportedProcessingTaxYears
+    (implemented, 2025 only), PayloadStructureGuard.Inspect (internal static) and
+    T4CaseProcessor.Process (nullable parameter) compiling with
+    NotImplementedException bodies. No public type is a record.
+  - Value plumbing implemented: [JsonIgnore] on every caller string and on Slip
+    and Mapping; TaxYear is the only serializable property; ToString() is
+    hand-written and structural.
+  - PII matrix passes at the constructed-value level: 11 slots x 5 plants
+    (123456789, 123-456-789, 123 456 789, ZZMARKERZZ, <<leak-me>>) with a
+    reachability guard; no plant, no 9-consecutive-digit run, and no masked form
+    appears in ToString() or JSON. The JSON arm pins the exact shape
+    {"TaxYear":2025} so escaping cannot make it pass vacuously.
+  - Instruction tests prove local CLAUDE.md content and pointer-only AGENTS.md.
+Mutation evidence (PII arms are not vacuous):
+  - Leaking DocumentId and Slip.EmployerName into ToString() -> 11 tests fail.
+  - Removing one [JsonIgnore] from a caller string -> 57 tests fail.
+Scope: confirmed only T01-listed files changed vs master: TaxAI.sln,
+  src/CaseProcessing/{CaseProcessing.csproj, CLAUDE.md, AGENTS.md,
+  Models/ProcessedT4Extraction.cs, Models/T4ProcessingFields.cs,
+  Services/SupportedProcessingTaxYears.cs, Services/PayloadStructureGuard.cs,
+  Services/T4CaseProcessor.cs},
+  tests/CaseProcessing.Tests/{CaseProcessing.Tests.csproj, ContractTests.cs,
+  Models/ResultOmissionTests.cs, Services/SupportedProcessingTaxYearsTests.cs},
+  specs/008-t4-case-processor/status/T01.done.
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/,
+  tests/TaxCases.Tests/, src/DocumentExtraction/, and
+  tests/DocumentExtraction.Tests/ are unchanged vs master. No bin/, obj/, .vs/,
+  *.user, secret, or .claude/settings.local.json is tracked.
+Note: no test asserts the Wave-0 unimplemented state of Inspect or Process, so
+  T02 and T03 can implement them without editing ContractTests.cs.
+Status: implemented; full solution suite green; not merged (awaiting human review)
