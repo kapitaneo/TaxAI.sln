@@ -163,13 +163,22 @@ public sealed class T4ProcessingDeterminismTests
         // Guards the sweep itself: if Pipelines shrank, or a "rejection" family
         // stopped rejecting, every theory above would still pass while covering
         // less.
-        Assert.Equal(11, T4ProcessingFixture.Pipelines.Length);
+        Assert.Equal(13, T4ProcessingFixture.Pipelines.Length);
 
         var outcomes = T4ProcessingFixture.Pipelines
             .ToDictionary(pipeline => pipeline, pipeline => T4ProcessingFixture.Run(pipeline).Result.IsSuccess);
 
         Assert.True(outcomes["Accepted"]);
-        Assert.Equal(10, outcomes.Count(outcome => !outcome.Value));
+        Assert.Equal(12, outcomes.Count(outcome => !outcome.Value));
+
+        // Ordering is only a real claim when some family emits more than one
+        // error. Without this, every "same errors in the same order" assertion
+        // above would be comparing one-element sequences.
+        var multiErrorFamilies = T4ProcessingFixture.Pipelines
+            .Select(pipeline => T4ProcessingFixture.Run(pipeline).Result)
+            .Count(result => result.Errors.Count > 1);
+
+        Assert.True(multiErrorFamilies >= 2, $"Only {multiErrorFamilies} family emits multiple errors.");
     }
 
     /// <summary>

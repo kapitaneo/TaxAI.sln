@@ -298,6 +298,11 @@ internal static class T4ProcessingFixture
         "NegativeAmount",
         "UnsupportedYear",
         "ProviderFailure",
+        // The last two exist to make ordering a real claim: every family above
+        // rejects with a single error, and a single-element sequence is in order
+        // no matter what the module does to it.
+        "MultipleParserDefects",
+        "YearAndStructureDefects",
     };
 
     internal static EmbeddedT4LineMapProvider Embedded { get; } = new();
@@ -344,6 +349,18 @@ internal static class T4ProcessingFixture
                 break;
             case "NegativeAmount":
                 boxes.Add(new T4RawBox(T4BoxCodes.UnionDues, "-1.00"));
+                break;
+            case "MultipleParserDefects":
+                // All three required boxes absent plus a malformed amount, so the
+                // parser emits several errors whose relative order must survive.
+                var required = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    T4BoxCodes.SocialInsuranceNumber,
+                    T4BoxCodes.EmployerAccountNumber,
+                    T4BoxCodes.DentalBenefits,
+                };
+                boxes.RemoveAll(box => box is not null && required.Contains(box.Code));
+                boxes.Add(new T4RawBox(T4BoxCodes.UnionDues, "not-a-number"));
                 break;
         }
 
@@ -395,11 +412,19 @@ internal static class T4ProcessingFixture
         string slot = "",
         string plant = "")
     {
+        // Spec 007 will not mint an off-year extraction (AC-37), so these two are
+        // reached only through the internal constructor. The second deliberately
+        // carries a structural defect as well, so stages 3 and 4 accumulate and
+        // the module emits two errors whose order is then a testable claim.
         if (string.Equals(pipeline, "UnsupportedYear", StringComparison.Ordinal))
         {
-            // Spec 007 will not mint an off-year extraction (AC-37), so this stage
-            // is reached only through the internal constructor.
             var offYear = ExtractionWithYear(2024, Payload(slot, plant), slot, plant);
+            return (offYear, new T4CaseProcessor(Embedded).Process(offYear));
+        }
+
+        if (string.Equals(pipeline, "YearAndStructureDefects", StringComparison.Ordinal))
+        {
+            var offYear = ExtractionWithYear(2024, Payload(slot, plant, "NullBoxElement"), slot, plant);
             return (offYear, new T4CaseProcessor(Embedded).Process(offYear));
         }
 

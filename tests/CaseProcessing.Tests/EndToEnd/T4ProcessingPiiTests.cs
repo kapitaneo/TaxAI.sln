@@ -122,7 +122,7 @@ public sealed class T4ProcessingPiiTests
         Assert.Equal(11, T4ProcessingFixture.PlantSlots.Length);
         Assert.Equal(5, T4ProcessingFixture.Plants.Length);
         Assert.Equal(55, PlantMatrix().Count());
-        Assert.Equal(11, T4ProcessingFixture.Pipelines.Length);
+        Assert.Equal(13, T4ProcessingFixture.Pipelines.Length);
 
         Assert.Contains("123456789", T4ProcessingFixture.Plants);
         Assert.Contains("ZZMARKERZZ", T4ProcessingFixture.Plants);
@@ -281,8 +281,6 @@ public sealed class T4ProcessingPiiTests
     [Fact]
     public void ResultPublicSurface_ExposesNoRawPayloadType() // AC-32
     {
-        var forbidden = new[] { typeof(T4RawInput), typeof(T4RawBox), typeof(T4RawInput[]), typeof(IReadOnlyList<T4RawBox>) };
-
         var members = typeof(ProcessedT4Extraction)
             .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
 
@@ -301,12 +299,49 @@ public sealed class T4ProcessingPiiTests
 
             foreach (var type in exposed)
             {
-                Assert.DoesNotContain(type, forbidden);
                 Assert.False(
-                    type.IsGenericType && type.GetGenericArguments().Intersect(forbidden).Any(),
+                    InvolvesRawPayload(type),
                     $"{member.Name} exposes the raw payload through {type}.");
             }
         }
+    }
+
+    [Fact]
+    public void RawPayloadTypeDetector_CatchesEveryWayOfSpellingIt()
+    {
+        // Guards the detector above: a check that only knew about the bare types
+        // would wave through an array, a list, or a nullable wrapper, and then
+        // "no member exposes the raw payload" would be a claim about spelling.
+        Assert.True(InvolvesRawPayload(typeof(T4RawInput)));
+        Assert.True(InvolvesRawPayload(typeof(T4RawBox)));
+        Assert.True(InvolvesRawPayload(typeof(T4RawBox[])));
+        Assert.True(InvolvesRawPayload(typeof(IReadOnlyList<T4RawBox>)));
+        Assert.True(InvolvesRawPayload(typeof(Dictionary<string, T4RawInput>)));
+        Assert.True(InvolvesRawPayload(typeof(IReadOnlyList<T4RawInput>[])));
+
+        Assert.False(InvolvesRawPayload(typeof(string)));
+        Assert.False(InvolvesRawPayload(typeof(int)));
+        Assert.False(InvolvesRawPayload(typeof(T4Slip)));
+        Assert.False(InvolvesRawPayload(typeof(IReadOnlyList<TaxLineEntry>)));
+    }
+
+    /// <summary>
+    /// True when <paramref name="type"/> is a raw-payload type or contains one at
+    /// any depth — as an array element, a generic argument, or both.
+    /// </summary>
+    private static bool InvolvesRawPayload(Type type)
+    {
+        if (type == typeof(T4RawInput) || type == typeof(T4RawBox))
+        {
+            return true;
+        }
+
+        if (type.HasElementType)
+        {
+            return InvolvesRawPayload(type.GetElementType()!);
+        }
+
+        return type.IsGenericType && type.GetGenericArguments().Any(InvolvesRawPayload);
     }
 
     [Fact]
