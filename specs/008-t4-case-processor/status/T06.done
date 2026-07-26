@@ -1,0 +1,76 @@
+TaskID: T06
+PR: #78
+Implementation commit: bae1d4e
+Branch: feat/008-w4-t06 (branched from master @ 4c69437, the merge of PR #77)
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors; warning-free for
+  both CaseProcessing projects; the 4 remaining warnings are pre-existing in
+  tests/TaxLogicEngine.Tests/, which this spec declares untouchable)
+Tests: pass - dotnet test TaxAI.sln - 1865 passed, 0 failed, 0 skipped
+  (594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases + 261 TaxLogicEngine)
+  CaseProcessing.Tests rose from 570 to 594: 24 new RepositoryVerificationTests.
+Acceptance criteria: AC-1 through AC-43 ALL PASS. Every criterion is mapped to
+  exact test names with command evidence in
+  specs/008-t4-case-processor/verification.md, which carries one table row per
+  criterion and no unresolved entry.
+  - Positive: all eight expected projects declared exactly once at their approved
+    solution paths (presence-and-uniqueness; no total project count appears
+    anywhere in this task's tests); every declared project and reference
+    resolvable; exact reference sets; dependencies inward with no reverse edge;
+    the public contract reflected against architecture.md; one representative
+    extraction still running end to end with line entries equal to the engine's.
+  - Negative: no unexpected project reference; no TaxCases coupling in either
+    direction; no T5 consumption; no unsupported year accepted by either the
+    upstream gate or this module; no public ProcessedT4Extraction constructor;
+    no forbidden boundary token; AC-43.
+AC-43, verified in two halves so neither is overclaimed:
+  - "every existing test remains green" is behavioural: the solution run reports
+    TaxLogicEngine.Tests 261, TaxCases.Tests 337, DocumentExtraction.Tests 673 -
+    identical to the counts recorded in
+    specs/007-document-extraction-contract/verification.md. No test was removed,
+    skipped, or rewritten.
+  - "no existing public type has been added, renamed, or changed" is structural:
+    git diff 71c9fcc..HEAD shows no file changed under src/TaxLogicEngine/,
+    tests/TaxLogicEngine.Tests/, src/TaxCases/, tests/TaxCases.Tests/,
+    src/DocumentExtraction/, or tests/DocumentExtraction.Tests/. No parser rule,
+    mapper behaviour, or mapping-config entry was touched.
+Declared-file ownership: git diff --name-only 71c9fcc..HEAD lists exactly the
+  files T01-T05 declared and nothing else. No two tasks shared a file. tasks.md
+  was never edited and no checkbox in it was ticked; completion is recorded only
+  by the status/*.done markers.
+Repository hygiene: git ls-files matches no bin/, obj/, .vs/, *.user, secret, or
+  .claude/settings.local.json. .gitignore covers all of them.
+Guards (most assertions here are absence claims a broken walk would satisfy):
+  - TheScanner_SeesTheRealTreesAndStillMatchesAKnownPattern pins the module's
+    five production files, requires every pre-existing tree to yield sources, and
+    requires known-present patterns to still match.
+  - TheVerificationRecord_CarriesARowForEveryAcceptanceCriterion asserts
+    verification.md has a row for each of AC-1..AC-43 and contains no TODO - the
+    record's completeness is a test, not a promise.
+Mutation evidence:
+  - Drop AC-27's row from verification.md -> 1 test fails (the record guard).
+  - A DocumentExtraction source file names CaseProcessing -> 3 tests fail
+    (NoOtherModuleReferencesCaseProcessing, DependenciesPointInwardWithNoReverseEdge,
+    ThePreExistingModuleTrees_AreUntouchedBySpec008).
+Known limitation carried forward (recorded in verification.md, not hidden):
+  Stage 6 (slip/extraction year mismatch) is implemented but unreachable while
+  SupportedProcessingTaxYears is [2025] and T4SlipParser yields 2025 only. There
+  is no live rejection test for it; an invariant test pins the property that
+  makes it unreachable and fails the moment either policy widens.
+Open question left unresolved (unchanged by this spec):
+  Whether T4SlipParser itself should be hardened against a null Boxes collection,
+  rather than only guarded at this seam. Spec 008 deliberately did not change
+  spec 003's shipped parser.
+State files updated, and only because all 43 criteria pass:
+  - NEXT.md records spec 008 complete and names the Accountant Review Package as
+    the next feature.
+  - Root CLAUDE.md records spec 008 complete in its Current state section, with
+    the module's boundary, the eight stages, the no-tax-truth rule, the year
+    policy, and the omission -> masking PII seam.
+Scope: confirmed only T06-listed files changed vs master:
+  tests/CaseProcessing.Tests/EndToEnd/RepositoryVerificationTests.cs,
+  specs/008-t4-case-processor/verification.md, NEXT.md, CLAUDE.md,
+  specs/008-t4-case-processor/status/T06.done.
+  No production file under src/ changed. tasks.md was not edited. The six
+  pre-existing module trees are unchanged.
+Status: implemented; spec 008 complete; full solution suite green; not merged
+  (awaiting human review - merging is a human-only step)

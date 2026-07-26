@@ -44,13 +44,36 @@
   - AC-1…AC-30 verification recorded in
     `specs/007-document-extraction-contract/verification.md`.
 
+- Spec 008 — T4 Case Processor:
+  - the deterministic coordinator implemented in `src/CaseProcessing/`, driving
+    one already-validated T4 extraction through the existing engine;
+  - `T4CaseProcessor.Process` — the module's single behaviour — runs eight fixed
+    stages: null extraction, kind/payload, supported year and payload structure
+    (these two accumulate), parse, slip/extraction year coherence, map, and
+    construct;
+  - the internal `PayloadStructureGuard` closes the seam where a payload that
+    cleared spec 007's gate could still make `T4SlipParser.Parse` throw on a null
+    `Boxes` collection — an escaping exception is not fail-closed behaviour;
+  - **no tax truth is invented here**: the slip comes only from `T4SlipParser`,
+    the line entries only from `T4LineMapper` plus the injected
+    `IT4LineMapProvider`, and engine errors are surfaced verbatim and in order.
+    The module contains no CRA line number, no box→line table, no arithmetic, and
+    no `decimal` token;
+  - the provider is asked for exactly the slip's year, once, with no
+    adjacent-year retry; the 2025 policy lives only in
+    `SupportedProcessingTaxYears`;
+  - PII crosses an **omission → masking** seam: the raw `T4RawInput` never
+    reaches the result, and the parsed Box 12 exists only as the engine's masked
+    `RecipientIdentifier` on `T4Slip.Sin`;
+  - AC-1…AC-43 verification recorded in
+    `specs/008-t4-case-processor/verification.md`.
+
 ## Next
 
-Create the **T4 Case Processor** spec.
+Create the **Accountant Review Package** spec.
 
-## After T4 Case Processor
+## After Accountant Review Package
 
-- then Accountant Review Package;
 - then Portal Foundation.
 
 ## Explicitly not now
