@@ -1,11 +1,12 @@
 # PRD 009 — Accountant Review Package
 
-> **STATUS: NOT READY FOR `/plan`.**
-> One **blocking Class A question (A1)** is unresolved — see
-> [Open questions](#open-questions). Functional requirement **FR-31 is
-> deliberately left unspecified** because answering it would be a new tax
-> judgement this agent is not entitled to make. `/plan` must not build
-> architecture on this document until A1 is answered by a human.
+> **STATUS: READY FOR `/plan`.**
+> Class A question **A1 was answered by the human on 2026-07-26**: a package
+> containing any populated-but-unmapped T4 box requires one package-level
+> acknowledgement before *approved* may be recorded; the acknowledgement is not
+> per box, and it does not apply to disputes about mapped box amounts. FR-31 and
+> AC-26 plus AC-50 through AC-54 specify the resulting behaviour. No blocking Class A
+> question remains.
 
 ## Feature classification
 
@@ -26,11 +27,11 @@ It is `tax-domain`, not `platform`, because:
 - it enforces **tax-year isolation** (2025 only) and **firm / case / participant
   isolation** at a new seam — a package that merged two participants' slips
   would merge two people's returns;
-- it must decide what a preparer is shown, and (FR-31, blocked) what a preparer
-  may sign off on, when a populated T4 box has no CRA line mapping — which spec
-  008 explicitly recorded as **"a new tax judgement … deferred, in full, to the
+- it must decide what a preparer is shown, and (FR-31) what a preparer may sign
+  off on, when a populated T4 box has no CRA line mapping — which spec 008
+  explicitly recorded as **"a new tax judgement … deferred, in full, to the
   Accountant Review Package"** (`specs/008-t4-case-processor/prd.md`, Open
-  questions).
+  questions). The human resolved that judgement on 2026-07-26.
 
 Even the parts that look like plumbing (module home, type names, immutability
 shape) mix with tax semantics, and the classification rule is explicit: a mixed
@@ -82,19 +83,17 @@ Nothing consumes it. Concretely, today:
    slip and *these* exact line entries. Without it, an approval is a claim about
    nothing in particular, and a later change is undetectable.
 
-4. **Populated boxes with no CRA line mapping have no owner.** Spec 004
+4. **Populated boxes with no CRA line mapping need an explicit review gate.** Spec 004
    deliberately leaves a set of T4 box codes out of
    `Mappings/T4LineMap.2025.json`, and `T4LineMapper` surfaces them in
    `T4MappingResult.UnmappedBoxCodes` rather than dropping them. Spec 008 passed
    that list through unchanged, took no position, and named this feature as where
-   the position gets taken. **That position is FR-31, and it is blocked on a
-   human — see Class A question A1.** It is not a cosmetic question: the recorded
-   deferral list in `src/TaxLogicEngine/Mappings/README.md` mixes box codes whose
-   documented rationale is "nothing to report" with box codes whose documented
-   rationale is "reported, but via a schedule or a calculation this engine does
-   not yet do." Treating the whole list as informational and treating the whole
-   list as blocking are both wrong, and picking either would be this agent
-   inventing preparer duty.
+   the position gets taken. The human decision is a uniform v1 rule: **if any
+   reviewed slip contains an unmapped box code, *approved* may be recorded only
+   with one affirmative acknowledgement covering the package as a whole.** The
+   codes remain verbatim and unclassified; there is no per-box disposition or
+   new CRA fact. A dispute about a mapped box amount does not use this
+   acknowledgement mechanism and remains outside v1.
 
 **Tax-year scope.** Every collaborating component is 2025-only and says so in
 exactly one module-local place: `SupportedTaxYears` (spec 006),
@@ -110,15 +109,15 @@ tax years, and a year with no policy entry is rejected, never approximated.
 
 ## Current state and reuse analysis
 
-Grounded in the actual tree at `D:\Projects\TaxAI` on `master`, read directly
-during this analysis — not memory, and not a prior PRD taken as a source.
+Grounded in the actual repository working tree on branch
+`spec/009-accountant-review-package`, read directly during this analysis — not
+memory, and not a prior PRD taken as a source.
 
 A grep of `src/**/*.cs` for `ReviewPackage`, `SignOff`, `Attestation`,
-`Approval`, `Approve`, and `Reviewer` returns **exactly one match**, an unrelated
-comment in `src/DocumentExtraction/Models/ExtractedDocumentKind.cs`. No review,
-sign-off, approval, or presentation type exists in any module. A grep of
-`specs/*/prd.md` shows "Accountant Review Package" named as *future work* in
-`NEXT.md`, root `CLAUDE.md`, and specs 006 and 008, and **implemented nowhere**.
+`Approval`, `Approve`, and `Reviewer` returns **no matches**. No review, sign-off,
+approval, or presentation type exists in any module. A repository grep shows
+"Accountant Review Package" named as *future work* in `NEXT.md`, root
+`CLAUDE.md`, and specs 006 and 008, and **implemented nowhere**.
 
 `TaxAI.sln` today declares eight projects: `TaxLogicEngine`, `TaxCases`,
 `DocumentExtraction`, `CaseProcessing`, and their four test projects. (Per root
@@ -286,7 +285,7 @@ CLAUDE.md. **No requirement below asserts a CRA fact.**
 14. **[reuse]** Each reviewed slip SHALL carry the element's `UnmappedBoxCodes`
     **verbatim, in order, unfiltered, and unclassified**. This module SHALL NOT
     rank, group, prioritise, annotate, or explain them. *(What, if anything,
-    follows from their presence at sign-off is **FR-31**, which is blocked.)*
+    follows from their presence at sign-off is specified by **FR-31**.)*
 15. **[reuse]** Each reviewed slip SHALL carry the flattened populated box
     amounts obtained **only** by calling `T4SlipBoxAmounts.Enumerate` on the
     element's `T4Slip`, in that method's own order. This module SHALL NOT
@@ -350,16 +349,19 @@ CLAUDE.md. **No requirement below asserts a CRA fact.**
 
 ### Unmapped-box disposition
 
-31. **OPEN — BLOCKED ON CLASS A QUESTION A1. No behaviour is specified here.**
-    Whether the presence of a populated-but-unmapped box code in a reviewed slip
-    (a) is purely informational, (b) must be individually acknowledged by the
-    reviewer before *approved* may be recorded, (c) blocks *approved* outright, or
-    (d) is classified per box code, is a **new tax judgement about preparer duty**.
-    Spec 008 explicitly reserved it for this feature and this agent will not
-    invent it. Until A1 is answered, **no gating, classification, acknowledgement,
-    or advisory behaviour of any kind is in scope**; FR-14 (carry through verbatim
-    and unclassified) is the entirety of the specified behaviour. `/plan` MUST NOT
-    design around this gap.
+31. **[human Class A decision]** If any reviewed slip carries one or more
+    `UnmappedBoxCodes`, recording *approved* SHALL require one explicit affirmative
+    acknowledgement covering **the package as a whole**. Missing or negative
+    acknowledgement SHALL fail closed with a structured error and no replacement
+    package. A successful approved sign-off SHALL record the affirmative
+    acknowledgement so the gate is auditable. The acknowledgement is **not per
+    slip and not per box code**: this module SHALL NOT classify, annotate, explain,
+    or assign a disposition to an individual code. *Changes requested* and
+    *rejected* SHALL remain available without the acknowledgement, subject to their
+    existing note rules, and a package with no unmapped box code SHALL require no
+    acknowledgement. This mechanism applies only to the presence of
+    `UnmappedBoxCodes`; it SHALL NOT represent or resolve a dispute about a mapped
+    box amount, which remains outside v1.
 
 ### PII
 
@@ -421,9 +423,12 @@ CLAUDE.md. **No requirement below asserts a CRA fact.**
 
 Each item is explicitly excluded:
 
-- **Deciding what a preparer must do about an unmapped box** — blocked (A1/FR-31).
-  No review flag, no severity, no classification, no advice, no gating ships until
-  a human answers.
+- **Per-box disposition, severity, classification, or advice for an unmapped
+  box** — v1 has only the uniform package-level acknowledgement in FR-31. It does
+  not say what any individual code means or what action follows from it.
+- **A dedicated dispute or acknowledgement mechanism for a mapped box amount** —
+  the FR-31 acknowledgement applies only to the presence of unmapped codes.
+  Correcting a value remains outside v1.
 - **Cross-slip, participant-level, or case-level CRA line totals** — return
   assembly, not review. `T4LineMapper`'s existing multi-slip aggregation is
   unchanged and simply not invoked here.
@@ -614,10 +619,11 @@ embedded 2025 mapping provider — never a fabricated instance.
 ### Sign-off — positive behaviour
 
 26. **Approved is recorded on a replacement package.**
-    Given an assembled package and a valid *approved* decision with no note, When
-    recording runs, Then it succeeds, the returned package carries the decision, the
-    reviewer reference, and the decided-at reference ordinally identical to those
-    supplied, and the **original package instance still carries no decision**.
+    Given an assembled package with no unmapped box code and a valid *approved*
+    decision with no note and no unmapped-box acknowledgement, When recording runs,
+    Then it succeeds, the returned package carries the decision, the reviewer
+    reference, and the decided-at reference ordinally identical to those supplied,
+    and the **original package instance still carries no decision**.
 
 27. **Rejected and changes-requested are recorded with their notes.**
     Given an assembled package and, separately, a valid *rejected* and a valid
@@ -775,56 +781,63 @@ embedded 2025 mapping provider — never a fabricated instance.
     projects are each declared exactly once at their approved paths. *(Per root
     `CLAUDE.md`, no test may assert a total project count for the solution.)*
 
+### Unmapped-box acknowledgement
+
+50. **Approval fails closed when a required acknowledgement is absent.**
+    Given an assembled package in which at least one reviewed slip carries at least
+    one unmapped box code, and an otherwise-valid *approved* decision whose
+    package-level acknowledgement is absent, When recording runs, Then it fails
+    closed with a structured error naming the acknowledgement field, returns no
+    value, and leaves the original package unsigned.
+
+51. **Approval fails closed when a required acknowledgement is negative.**
+    Given an assembled package in which at least one reviewed slip carries at least
+    one unmapped box code, and an otherwise-valid *approved* decision whose
+    package-level acknowledgement is explicitly negative, When recording runs, Then
+    it fails closed with a structured error naming the acknowledgement field,
+    returns no value, and leaves the original package unsigned.
+
+52. **One package-level acknowledgement permits approval.**
+    Given an assembled package in which several reviewed slips carry several
+    unmapped box codes, and an otherwise-valid *approved* decision with one
+    affirmative package-level acknowledgement, When recording runs, Then it
+    succeeds and the replacement package's sign-off records that single affirmative
+    acknowledgement.
+
+53. **Non-approval decisions are not gated by unmapped-box acknowledgement.**
+    Given an assembled package carrying an unmapped box code and, separately, valid
+    *changes requested* and *rejected* decisions with their required notes but no
+    unmapped-box acknowledgement, When recording runs, Then each succeeds.
+
+54. **The acknowledgement has no per-code or mapped-dispute semantics.**
+    Given the module's public contract and a signed-off package, When inspected,
+    Then it exposes at most one unmapped-box acknowledgement for the package, no
+    acknowledgement or disposition per slip or per box code, and no field or
+    operation representing a dispute about a mapped box amount.
+
 ---
 
 ## Open questions
 
-### Blocking Class A questions
+### Resolved Class A question — no blockers remain
 
 **A1 — When a populated T4 box has no CRA line mapping, what may an accountant
 sign off on?**
 
-This is the question spec 008 explicitly deferred here, in its own words: *"Deciding
-that an unmapped box must raise a review flag, block a draft, or trigger a schedule
-would be a new tax judgement; it is deferred, in full, to the Accountant Review
-Package."* It is Class A — a statement about preparer duty with direct filing
-consequences — and this agent will not answer it.
+Resolved by the human on **2026-07-26**:
 
-Why it is material rather than cosmetic: `src/TaxLogicEngine/Mappings/README.md`
-records, per box code, why spec 004 left it out of `T4LineMap.2025.json`, and those
-recorded rationales are **not uniform**. The T4 codes that file lists as
-intentionally not mapped are 16, 16A, 17, 17A, 24, 26, 30, 31, 32, 33, 34, 36, 38,
-40, 45, 46, 55, 56, 66, 67, 69, 71, 74, 75, 78–83, 85, 86, 87, and 88 — a list whose
-recorded reasons range from "not reported on a return at all", through "already
-included in another box", to "reported, but only via a schedule or a calculation
-this engine does not yet perform". A single blanket policy is therefore wrong in one
-direction or the other:
+- **A1a — Must acknowledge.** An approved decision is gated when the package
+  contains any populated-but-unmapped box code.
+- **A1b — Moot.** v1 uses one uniform rule and does not classify codes per box, so
+  no per-code CRA verification scope is added.
+- **A1c — Once per package.** One affirmative acknowledgement covers all unmapped
+  codes in all reviewed slips in that package.
+- **A1d — No.** The acknowledgement does not apply to a mapped box whose amount the
+  reviewer disputes; a dedicated dispute/correction mechanism remains outside v1.
 
-- treating them all as **informational** risks a reviewer approving a package while
-  an amount the taxpayer is entitled to claim goes nowhere;
-- treating them all as **blocking** makes ordinary slips unapprovable and trains
-  reviewers to click past the warning.
-
-Please answer all four parts:
-
-- **A1a.** Is the presence of a populated-but-unmapped box code (i) purely
-  informational, (ii) something the reviewer must individually acknowledge before
-  *approved* may be recorded, (iii) an outright block on *approved*, or (iv) handled
-  per box code?
-- **A1b.** If per box code (A1a-iv): each box code's disposition is a distinct tax
-  fact requiring its **own canada.ca verification** for tax year 2025 — which would
-  make this a substantially larger tax-domain spec. Do you want that scope, or a
-  uniform rule for v1?
-- **A1c.** If a reviewer acknowledgement is required (A1a-ii), must the
-  acknowledgement be recorded per box code (auditable) or once per package?
-- **A1d.** Does the same answer apply to a box code the engine mapped but whose
-  amount the reviewer disputes? *(This PRD currently excludes reviewer correction
-  entirely — see `[ASSUMED]` below — so a "no, that is a different feature" answer
-  keeps the exclusion intact.)*
-
-Until A1 is answered, **FR-31 is unspecified**, this PRD is **not ready for
-`/plan`**, and no gating, classification, or advisory behaviour may be designed or
-implemented.
+FR-31, AC-26, and AC-50 through AC-54 are the mechanical consequence. The codes
+themselves remain verbatim and unclassified under FR-14. **No blocking Class A
+question remains.**
 
 ### Class A items raised for the human, non-blocking (excluded, nothing assumed)
 
@@ -943,7 +956,7 @@ no line number needs to be, or is, restated here; AC-44 enforces the same rule i
 code.
 
 Where this document names box codes — FR-15's flattener scope, AC-32/AC-33's Box 14,
-and A1's deferred-code list — it is naming **facts about files in this repository**
+and references to `UnmappedBoxCodes` — it is naming **facts about files in this repository**
 (`src/TaxLogicEngine/Services/T4SlipBoxAmounts.cs`,
 `src/TaxLogicEngine/Services/T4SlipParser.cs`,
 `src/TaxLogicEngine/Mappings/README.md`), each read directly during this analysis —
@@ -957,29 +970,25 @@ re-asserted:
 
 | Reused fact (not re-asserted here) | Verified in | Source | Tax year | Retrieved |
 |---|---|---|---|---|
-| T4 box identities/definitions, required-box set, constrained code sets, companion-box rules (applied upstream by `T4SlipParser`; unchanged) | `specs/003-t4-slip-parsing/prd.md` | canada.ca — "T4 slip – Information for employers" (URL recorded there), plus RC4120 | 2025 | 2026-07-09 |
-| T4 box→CRA-line mapping values (applied upstream from `Mappings/T4LineMap.2025.json` via `T4LineMapper`; displayed unchanged) | `specs/004-t4-cra-line-mapping/prd.md` | canada.ca — "T4 slip: Statement of Remuneration Paid", `https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/tax-slips/understand-your-tax-slips/t4-slips/t4-statement-remuneration-paid.html` (date modified 2026-02-02) | 2025 | 2026-07-11 |
-| Deliberate `UnmappedBoxCodes` deferrals and their per-box rationale (displayed unchanged and unclassified; the subject of blocking question A1) | `specs/004-t4-cra-line-mapping/prd.md`, `src/TaxLogicEngine/Mappings/README.md` | canada.ca — same individuals page as above | 2025 | 2026-07-11 |
+| T4 box identities/definitions, required-box set, constrained code sets, companion-box rules (applied upstream by `T4SlipParser`; unchanged) | `specs/003-t4-slip-parsing/prd.md` | canada.ca — "T4 slip – Information for employers", `https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/completing-filing-information-returns/t4-information-employers/t4-slip.html` | 2025 | 2026-07-09; rechecked 2026-07-26 |
+| T4 box→CRA-line mapping values (applied upstream from `Mappings/T4LineMap.2025.json` via `T4LineMapper`; displayed unchanged) | `specs/004-t4-cra-line-mapping/prd.md` | canada.ca — "T4 slip: Statement of Remuneration Paid", `https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/tax-slips/understand-your-tax-slips/t4-slips/t4-statement-remuneration-paid.html` (date modified 2026-02-02) | 2025 | 2026-07-11; rechecked 2026-07-26 |
+| Deliberate `UnmappedBoxCodes` deferrals and their per-box rationale (displayed unchanged and unclassified; their package-level acknowledgement is the resolved A1 decision) | `specs/004-t4-cra-line-mapping/prd.md`, `src/TaxLogicEngine/Mappings/README.md` | canada.ca — "T4 slip: Statement of Remuneration Paid", `https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/tax-slips/understand-your-tax-slips/t4-slips/t4-statement-remuneration-paid.html` | 2025 | 2026-07-11; rechecked 2026-07-26 |
 
 T5 facts (specs 001–002) are **not relied on**: no T5 type is consumed.
 
 **Verification note (2026-07-26).** Because this PRD asserts no new CRA fact,
-canada.ca was not required. A retrieval was nevertheless attempted for diligence
-against the spec 004 individuals page above and returned **HTTP 403 Forbidden** to
-this agent's fetch tool — the same bot filter recorded by spec 004 on 2026-07-11 and
-spec 008 on 2026-07-25, where verification was completed by the coordinator in a
-browser session. **No fact was taken from memory, from a secondary source, or from a
-prior PRD in place of a source**, and no source conflict was resolved by this agent's
-judgement.
+new CRA research was not required. The two primary canada.ca pages above were
+nevertheless retrieved successfully and rechecked during this audit. **No fact was
+taken from memory, from a secondary source, or from a prior PRD in place of a
+source**, and no source conflict was resolved by this agent's judgement.
 
-**This is precisely why A1 blocks.** Answering A1 in the per-box direction (A1a-iv)
-would require a *new* canada.ca verification for every deferred box code, and
-canada.ca is not reachable from this agent's tooling. Should `/plan` or any
-implementation task find itself needing a CRA line number, a box definition, a
-preparer obligation, or any other tax fact that is not already in
-`Mappings/T4LineMap.2025.json` or `T4SlipParser`, that is a signal this PRD's scope
-has been exceeded: stop and verify against canada.ca (coordinator browser session)
-before proceeding.
+The human resolved A1 with one uniform package-level acknowledgement, so the PRD
+does not classify any deferred code or add a per-code CRA fact. A future per-box
+disposition would require new canada.ca verification for every affected code.
+Should `/plan` or any implementation task need a CRA line number, a box definition,
+a preparer obligation, or any other tax fact not already in
+`Mappings/T4LineMap.2025.json` or `T4SlipParser`, the PRD's scope has been exceeded:
+stop and verify against canada.ca before proceeding.
 
 ---
 
@@ -997,9 +1006,8 @@ Both classes:
       grounded in the actual tree; eight existing types reused, none re-specified;
       `ReadinessCalculator` and `SafeDiagnosticText` explicitly not duplicated)
 - [x] Every AC is mechanically checkable by a single test
-- [x] Zero Class A assumptions made — the one Class A decision this feature cannot
-      avoid (A1/FR-31) is **escalated, not assumed**; the rest are excluded and
-      surfaced
+- [x] Zero Class A assumptions made — A1/FR-31 was answered by the human on
+      2026-07-26; the remaining Class A items are excluded and surfaced
 
 `tax-domain` additionally:
 
@@ -1010,14 +1018,15 @@ Both classes:
 - [x] No source conflict was resolved by this agent's judgement (none arose)
 - [x] Tax year named explicitly in Problem (**2025 only**), with fail-closed
       behaviour stated and no adjacent-year fallback
-- [x] Every fail-closed rule has its own negative AC (AC-11 to AC-25)
+- [x] Every fail-closed rule has its own negative AC (AC-11 to AC-25, AC-50, and
+      AC-51)
 - [x] PII acceptance criteria present (AC-35 to AC-40), covering the masked SIN, the
       omitted caller strings, and the free-text reviewer note
 - [x] Tax-year isolation ACs present (AC-41 to AC-43)
 - [x] Data-driven mapping AC present (AC-44): no CRA line number hardcoded in C#,
       and no engine tax service invoked
-- [ ] **FAILED — every functional requirement is specified.** FR-31 is deliberately
-      left open pending blocking Class A question A1.
+- [x] Every functional requirement is specified, including the human-resolved
+      unmapped-box acknowledgement rule in FR-31.
 
-**Result: NOT ready for `/plan`.** One box is unchecked and it is unchecked on
-purpose. Answering A1 closes it.
+**Result: Ready for `/plan`.** Every Definition of Done item passes and no blocking
+Class A question remains.
