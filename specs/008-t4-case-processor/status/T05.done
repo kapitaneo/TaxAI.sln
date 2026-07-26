@@ -1,0 +1,78 @@
+TaskID: T05
+PR: #77
+Implementation commit: fe4ba40
+Branch: feat/008-w3-t05 (branched from master @ 1dd94d1, the merge of PR #76)
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors; warning-free for
+  both CaseProcessing projects; the 4 remaining warnings are pre-existing in
+  tests/TaxLogicEngine.Tests/, which this spec declares untouchable)
+Tests: pass - dotnet test TaxAI.sln - 1841 passed, 0 failed, 0 skipped
+  (570 CaseProcessing + 673 DocumentExtraction + 337 TaxCases + 261 TaxLogicEngine)
+  CaseProcessing.Tests rose from 539 to 570: 31 new boundary tests.
+Acceptance criteria: T05 mechanical acceptance met.
+  - Positive: both projects are declared exactly once at their approved solution
+    paths, asserted by presence-and-uniqueness and never by a total project
+    count; the production reference set is exactly DocumentExtraction +
+    TaxLogicEngine in both the project file and the compiled assembly's
+    GetReferencedAssemblies; no PackageReference, FrameworkReference,
+    EmbeddedResource, or Content; the 2025 policy lives only in
+    SupportedProcessingTaxYears; the Wave-0 instruction files carry their
+    required content and AGENTS.md is held to pointer length.
+  - AC-40: exactly two production project references, checked at both the
+    declared and the compiled level.
+  - AC-41: no TaxCases in the project file, in the assembly's references, or in
+    any executable line of the module; and no reverse reference to CaseProcessing
+    from TaxLogicEngine, TaxCases, DocumentExtraction, or any of their three test
+    trees (project files and handwritten sources both scanned).
+  - AC-42: no DateTime.Now/UtcNow, Stopwatch, or TimeProvider; no filesystem,
+    network, database/ORM, environment or current-user access; no
+    OCR/LLM/cloud/email token; no ASP.NET Core; no generated identifier.
+  - Also: no CRA line-number literal (any five-digit run), no box→line table
+    (T4LineMappingConfig, T4BoxLineMapping, T4LineMap.Create, Dictionary<,
+    T4BoxCodes, T4OtherInformationCodes), no TaxLogicEngine.Mappings resource
+    read, no MoneyRounding / Math.Round / MidpointRounding / double / float /
+    decimal, no SafeDiagnosticText or other masking helper, no
+    RecipientIdentifier construction, no SIN property or SIN type on any module
+    type, and no T5 token.
+Design notes for review:
+  - Scans read executable lines only. This module's documentation legitimately
+    names nearly every forbidden concept while explaining why it is forbidden, so
+    scanning raw text would make honest comments unwritable.
+  - The year scan looks for any four-digit year rather than the literal 2025, so
+    hardcoding a different year outside the policy type also trips it.
+  - The production file set is pinned by exact file name rather than by a count,
+    so a renamed or added production file is visible rather than silently
+    unscanned.
+Scanner guards (most assertions here are absence claims a broken walk would
+satisfy for free):
+  - TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern pins the exact
+    five-file production set by name, requires >2000 chars of executable source,
+    and requires known-present patterns (T4SlipParser, IT4LineMapProvider) to
+    still match.
+  - TheCommentFilter_RemovesDocumentationWithoutRemovingCode proves the filter
+    works in both directions on a real file: PayloadStructureGuard.cs documents
+    T4RawBox.Value, the filter removes it, and IsNullOrWhiteSpace survives.
+Mutation evidence (every arm was driven by a real violation):
+  - Read DateTime.UtcNow in the processor -> 1 test fails.
+  - Name TaxCases in production source (as a string literal) -> 1 test fails.
+  - Hardcode a CRA-shaped literal "12100" -> 2 tests fail.
+  - Hardcode 2025 outside SupportedProcessingTaxYears -> 1 test fails.
+  - Add a Dictionary<string, string> (a second mapping authority) -> 1 test fails.
+  - Reverse reference: a TaxLogicEngine source file mentions CaseProcessing ->
+    1 test fails.
+  - Add a PackageReference to CaseProcessing.csproj -> 1 test fails.
+  - Add a third production project reference (TaxCases) -> 2 tests fail.
+  - Note: nameof(TaxCases) in production source does not compile at all, because
+    the reference does not exist. The boundary is compiler-enforced for types;
+    the source scan catches what the compiler cannot see, such as a string
+    literal.
+Scope: confirmed only T05-listed files changed vs master:
+  tests/CaseProcessing.Tests/Boundaries/CaseProcessingBoundaryTests.cs,
+  specs/008-t4-case-processor/status/T05.done.
+  No production file changed. No instruction file, root CLAUDE.md, or NEXT.md was
+  modified, and this task does not claim spec 008 complete - that is T06's job.
+  tasks.md was not edited. T04's files were not touched.
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/,
+  tests/TaxCases.Tests/, src/DocumentExtraction/, and
+  tests/DocumentExtraction.Tests/ are unchanged vs master. No bin/, obj/, .vs/,
+  *.user, secret, or .claude/settings.local.json is tracked.
+Status: implemented; full solution suite green; not merged (awaiting human review)
