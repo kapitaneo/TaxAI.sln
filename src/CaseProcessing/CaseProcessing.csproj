@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DocumentExtraction\DocumentExtraction.csproj" />
+    <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
+  </ItemGroup>
+
+  <!-- PayloadStructureGuard is an internal seam guard, not public API; the test
+       project sees it so Wave 1 can unit-test it without widening the surface. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CaseProcessing.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>
