@@ -1,0 +1,93 @@
+TaskID: T04
+PR: #76
+Implementation commits: c567ad6 (suites), 2fcc35f (gap fixes from mutation testing)
+Branch: feat/008-w3-t04 (branched from master @ 6eba230, the merge of PR #75)
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors; warning-free for
+  both CaseProcessing projects; the 4 remaining warnings are pre-existing in
+  tests/TaxLogicEngine.Tests/, which this spec declares untouchable)
+Tests: pass - dotnet test TaxAI.sln - 1810 passed, 0 failed, 0 skipped
+  (539 CaseProcessing + 673 DocumentExtraction + 337 TaxCases + 261 TaxLogicEngine)
+  CaseProcessing.Tests rose from 380 to 539: 159 new end-to-end tests.
+Acceptance criteria: T04 mechanical acceptance met, all through the public API.
+  - AC-2: the full chain runs envelope -> ExtractionEnvelopeValidator.Validate ->
+    T4CaseProcessor.Process, and the result's line entries equal T4LineMapper's
+    own output for the parsed slip. The payload reaches the parser
+    reference-identical, so no step between the two is hand-written.
+  - AC-38: a provider holding a known in-memory map whose destinations are
+    deliberately not CRA lines (TEST-LINE-A/B/C) produces exactly those line
+    numbers, and the same extraction through two different maps yields disjoint
+    destination sets - the output follows the config, not the code. A source scan
+    additionally finds no CRA-shaped literal and no TaxLogicEngine.Mappings.*
+    resource name.
+  - AC-39: the module constructs no T4Slip, never names T4RawBox, parses no
+    value, declares no box-code allow-list, and every `.Value` read is pinned to
+    a ParseResult receiver allow-list, so a box read through `var` would fail.
+    Behavioural counterpart: for a payload the parser rejects, no slip is
+    produced at all.
+  - AC-29 through AC-33: the full mandatory PII matrix - 5 plants x 11 slots,
+    each planted separately, each driven through the accepted pipeline and all 12
+    rejection families. Box 12 = 123456789 on an accepted pipeline exposes only
+    ***-**-789. Includes AC-31 (no SIN property, SIN type, masking helper, or
+    RecipientIdentifier construction; exactly one RecipientIdentifier reachable
+    from a result) and AC-32 (no member exposes T4RawInput/T4RawBox, no such
+    object is reachable from the result object graph, and the caller still holds
+    the payload).
+  - AC-7: replay equality over the accepted pipeline and every rejection family,
+    five replays each, asserting equal error ordering rather than set equality;
+    two distinct-but-equivalent extractions agree; five replays mutate neither
+    the extraction nor its payload.
+Design decision worth review:
+  The PII surfaces are split in two, deliberately. On the omission surfaces (the
+  result's ToString, the JSON, the mapping and its line entries, every
+  ValidationError) not even a masked remnant may appear. The engine's masked
+  RecipientIdentifier on T4Slip.Sin is the one permitted SIN representation and
+  is asserted to show only the last three digits. A single combined rule would
+  either forbid the masking the contract requires or permit a remnant where
+  nothing belongs.
+Two gaps found by mutation testing and closed (commit 2fcc35f):
+  1. The AC-32 surface check compared member types against a fixed list of
+     spellings, so a member typed T4RawBox[] would have passed. Replaced with a
+     recursive detector that looks through array element types and generic
+     arguments at any depth, plus a test of the detector itself against six
+     positive and four negative spellings.
+  2. AC-7's ordering claim was vacuous: every rejection family emitted exactly
+     one error, and a one-element sequence is in order whatever the module does
+     to it. Randomly reordering the accumulated stage 3/4 errors between runs
+     passed the entire suite. Added two multi-error pipelines
+     (MultipleParserDefects: all three required boxes absent plus a malformed
+     amount; YearAndStructureDefects: an unsupported year together with a
+     structural defect so stages 3 and 4 accumulate) and a sweep guard asserting
+     at least two families emit more than one error.
+Mutation evidence (the arms are not vacuous):
+  - Leak the masked SIN into the result's ToString() -> 113 tests fail.
+  - Drop [JsonIgnore] from SourceReference -> 62 tests fail.
+  - Expose the raw boxes off the result as an array -> 61 tests fail.
+  - Leak DocumentId into the result's ToString() -> 12 tests fail.
+  - Randomly reorder accumulated stage 3/4 errors -> 3 tests fail (0 before the
+    fix above; this is the mutation that exposed gap 2).
+  - Reverse the parser's error order -> 1 test fails.
+  - Trim attribution on the way out -> 1 test fails.
+Sweep guards (so a shrinking matrix cannot silently reduce coverage):
+  PlantMatrix_CoversEverySlotAndEveryPlant pins 11 slots, 5 plants, 55
+  combinations, 13 pipelines, and asserts every declared pipeline actually runs
+  and every rejection family actually rejects.
+  ReplaySweep_ActuallyCoversAnAcceptedRunAndEveryRejectionFamily pins 1 success
+  and 12 failures, and that at least two families emit multiple errors.
+  RawPayloadTypeDetector_CatchesEveryWayOfSpellingIt guards the AC-32 detector.
+  SourceScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern guards the
+  source walk used by AC-38 and AC-39.
+Scope: confirmed only T04-listed files changed vs master:
+  tests/CaseProcessing.Tests/EndToEnd/T4ProcessingAcceptanceTests.cs,
+  tests/CaseProcessing.Tests/EndToEnd/T4ProcessingPiiTests.cs,
+  tests/CaseProcessing.Tests/EndToEnd/T4ProcessingDeterminismTests.cs,
+  specs/008-t4-case-processor/status/T04.done.
+  No production file changed - git diff vs master touches nothing under src/.
+  tasks.md was not edited. T05's file was not created or touched.
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/,
+  tests/TaxCases.Tests/, src/DocumentExtraction/, and
+  tests/DocumentExtraction.Tests/ are unchanged vs master. No bin/, obj/, .vs/,
+  *.user, secret, or .claude/settings.local.json is tracked.
+Note: the shared fixture T4ProcessingFixture lives in T4ProcessingAcceptanceTests.cs
+  so all three suites drive identical pipelines. T04 may create only its three
+  declared files, and a fourth file for the fixture would have exceeded that.
+Status: implemented; full solution suite green; not merged (awaiting human review)
