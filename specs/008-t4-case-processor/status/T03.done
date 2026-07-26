@@ -1,0 +1,92 @@
+TaskID: T03
+PR: #75
+Implementation commit: c5c1882
+Branch: feat/008-w2-t03 (branched from master @ a13f8b2, the merge of PR #74)
+Build: pass - dotnet build TaxAI.sln --no-incremental (0 errors; warning-free for
+  both CaseProcessing projects; the 4 remaining warnings are pre-existing in
+  tests/TaxLogicEngine.Tests/, which this spec declares untouchable)
+Tests: pass - dotnet test TaxAI.sln - 1651 passed, 0 failed, 0 skipped
+  (380 CaseProcessing + 673 DocumentExtraction + 337 TaxCases + 261 TaxLogicEngine)
+  CaseProcessing.Tests rose from 340 to 380: 40 new T4CaseProcessorTests.
+Acceptance criteria: T03 mechanical acceptance met.
+  - AC-1 happy path; AC-3 and AC-4 anti-drift (the slip is compared to
+    T4SlipParser's own output property by property by reflection, with a guard
+    that the walk saw all 30 properties; the mapping is compared to
+    T4LineMapper's own output entry by entry - line, amount, source box codes -
+    plus UnmappedBoxCodes).
+  - AC-5 attribution echoed ordinally and untrimmed for all five caller strings
+    plus the tax year; AC-6 UnmappedBoxCodes sequence-equal to the mapper's and
+    never rejecting; AC-8 result year coherence.
+  - AC-24 empty box list yields the parser's required-box errors; AC-25 zero
+    amounts; AC-26 required boxes only; AC-27 half-cent boundary equals
+    MoneyRounding.ToCents (100.005 -> 100.01, 100.015 -> 100.02) on both the slip
+    and every line entry Box 14 feeds; AC-28 no arithmetic - an executable-line
+    scan of all five production files finds no MoneyRounding, Math.Round,
+    MidpointRounding, double, float, or even a `decimal` token, with a scanner
+    guard proving the walk saw every file.
+  - AC-9 null extraction (exactly one error, no throw); AC-10 GenericEvidence
+    kind with the provider never queried; AC-11 at pipeline level; stage 3+4
+    accumulation proved to emit TaxYear before PayloadBoxes.
+  - AC-14 through AC-21: all eight parser rejection families (duplicate box,
+    missing Box 12/45/54, malformed amount, negative amount, constrained code out
+    of range, missing companion box) each assert the result's errors are
+    sequence-equal to T4SlipParser's own errors for the same payload - verbatim
+    and in order - with the provider never queried.
+  - AC-22 provider failure surfaced verbatim and in order (a two-error stub pins
+    ordering) with no other year requested; AC-23 a recording provider proves
+    TryGetForYear was never called on parser rejection.
+  - AC-34 policy is exactly [2025] in one place; AC-35 the provider is asked for
+    2025 exactly once and it is the slip's year; AC-36 a provider holding only
+    2024 never hands its map to a 2025 slip (MapWasHandedOut stays false);
+    AC-37 2024 and 2026 envelopes never become a ValidatedExtraction and neither
+    year is coerced.
+  - Unsupported extraction years (2024, 2026, 1999) fail closed with a single
+    TaxYear error and no provider query. These are built through the internal
+    ValidatedExtraction constructor by reflection because spec 007 will not mint
+    one - which is precisely why stage 3 must be provable on its own rather than
+    leaning on the upstream gate.
+  - Every failure across an 11-case corpus carries no value and throws nothing;
+    every self-originated Field is a T4ProcessingFields constant; this module's
+    own messages are non-interpolated constants naming no year; neither the
+    extraction nor its payload is mutated.
+Decisions flagged for one-pass human override:
+  [ASSUMED] Stage 2 is sequential, not accumulating: a non-T4 extraction
+  correctly carries no payload (spec 007 forbids one), so also reporting
+  "a T4 payload is required" would invent a defect that is not there.
+  architecture.md states stage 2 as one rule yielding "error(s)", which permits
+  either reading.
+Known coverage gap, deliberate and recorded:
+  Stage 6 (slip/extraction year mismatch) is implemented but currently
+  unreachable - SupportedProcessingTaxYears is [2025] and T4SlipParser yields
+  2025 only, so a slip that parses cannot disagree with an extraction that
+  reached stage 6. There is therefore no live rejection test for it. Instead
+  SlipYearGuard_IsUnreachableOnlyBecauseBothYearPoliciesAgree pins the property
+  that makes it unreachable and fails the moment either policy widens, at which
+  point stage 6 needs a live arm.
+Mutation evidence (the arms are not vacuous):
+  - Re-word engine errors instead of surfacing them verbatim -> 10 tests fail.
+  - Retry an adjacent year when the provider fails -> 3 tests fail.
+  - Drop the stage-4 structural guard -> 4 tests fail, including the
+    ArgumentNullException from T4SlipParser's GroupBy that the guard exists to
+    prevent.
+  - Drop the unsupported-year check -> 4 tests fail.
+  - Accept a non-T4 kind -> 1 test fails.
+  - Trim attribution on the way out -> 1 test fails.
+  - On parser failure, map a stand-in slip anyway -> 9 tests fail.
+  - SURVIVED: invoking the mapper with an empty slip list on the parser-failure
+    path. T4LineMapper rejects an empty list before querying the provider, so the
+    call has no observable effect and no tax consequence. T4LineMapper is
+    constructed internally by design, so "the mapper was not invoked" is
+    observable only through the provider; every parser-rejection arm asserts the
+    provider was never queried, and the stand-in-slip mutation above shows that
+    assertion bites for any invocation carrying a real slip.
+Scope: confirmed only T03-listed files changed vs master:
+  src/CaseProcessing/Services/T4CaseProcessor.cs,
+  tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs,
+  specs/008-t4-case-processor/status/T03.done.
+  tasks.md was not edited. No sibling- or later-task file was touched.
+  src/TaxLogicEngine/, tests/TaxLogicEngine.Tests/, src/TaxCases/,
+  tests/TaxCases.Tests/, src/DocumentExtraction/, and
+  tests/DocumentExtraction.Tests/ are unchanged vs master. No bin/, obj/, .vs/,
+  *.user, secret, or .claude/settings.local.json is tracked.
+Status: implemented; full solution suite green; not merged (awaiting human review)
