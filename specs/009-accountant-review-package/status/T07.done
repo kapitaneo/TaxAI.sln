@@ -1,0 +1,32 @@
+TaskID: T07
+PR: #87
+Implementation commit: 56392ecc242d33e0afb187a48c949d7b6aaab040
+Branch: codex/009-t07 (branched from master @ 04e150e, the merge of PR #86)
+Build: pass - dotnet build TaxAI.sln --no-incremental
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2331 passed, 0 failed, 0 skipped
+  (466 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Focused tests: pass - dotnet test tests/CaseReview.Tests/CaseReview.Tests.csproj
+  --configuration Release --no-restore --filter
+  "FullyQualifiedName~CaseReviewBoundaryTests"
+  - 35 passed, 0 failed, 0 skipped
+Acceptance criteria: T07 boundary enforcement met.
+  - Solution, project XML, compiled references, and upstream project/source
+  scans pin exact project presence, dependency direction, and the absence of
+  package, framework, content, resource, TaxCases, and direct extraction edges.
+  - Reflection pins the exact nine-type public contract, constructor and
+  property nullability, JSON omissions, sealed/manual model shape, fixed field
+  set, 2025-only policy, and package-level-only acknowledgement surface.
+  - Executable-source and compiled-IL scanners reject arithmetic/rounding,
+  second mapping authority, CRA and box-code literals, forbidden tax services,
+  PII carriers/helpers, T5, infrastructure, I/O, clock, environment, and
+  generated-identifier behavior while proving the sole permitted engine call.
+  - Source and IL checks prove every materialized extraction is compared for
+  year coherence and passed through SupportedReviewTaxYears before assembly;
+  diagnostics are restricted to ReviewFields and fixed message constants.
+Scope: confirmed only the T07 boundary test and this completion marker changed
+  versus master. Existing module/test trees and tasks.md are unchanged.
+Status: implemented; PR #87 open; full solution suite green; not merged
+  (awaiting human review).
