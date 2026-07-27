@@ -121,15 +121,8 @@ public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Pr
         Assert.Equal(ExpectedHealthBody, await response.Content.ReadAsStringAsync());
     }
 
-    [Fact]
-    public async Task TheRootIsNotMappedYet()
-    {
-        // T03 maps GET /. Until then the host serves exactly one route, and this
-        // test is what makes that visible rather than assumed.
-        using var client = _factory.CreateClient();
-
-        using var response = await client.GetAsync("/");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
+    // Deliberately no assertion here about GET / being unmapped. T03 maps it,
+    // and T03 does not own this file — an assertion about a route this task does
+    // not own would make a later task's correct change look like a regression it
+    // could not fix. The full endpoint inventory is AC-26, owned by T03.
 }
