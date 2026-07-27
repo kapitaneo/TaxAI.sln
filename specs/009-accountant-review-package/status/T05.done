@@ -1,0 +1,35 @@
+TaskID: T05
+PR: #85
+Implementation commit: 2e2d658478ebbebd980930e72e27484b75e6080c
+Branch: codex/009-t05 (branched from master @ afcb733, the merge of PR #84)
+Build: pass - dotnet build TaxAI.sln --no-incremental
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2115 passed, 0 failed, 0 skipped
+  (250 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Focused tests: pass - dotnet test tests/CaseReview.Tests/CaseReview.Tests.csproj
+  --configuration Release --no-restore --filter
+  "FullyQualifiedName~AccountantReviewPackageDecisionTests"
+  - 41 passed, 0 failed, 0 skipped
+Acceptance criteria: T05 decision recording and mechanical acceptance met.
+  - Null descriptors and already-signed packages short-circuit in the required
+    order; independent descriptor errors accumulate in fixed field order.
+  - Undefined decisions, every blank reviewer and decided-at form, missing
+    required notes for both non-approval decisions, and second decisions fail
+    closed with fixed, non-interpolated errors and no partial replacement.
+  - Successful decisions return immutable replacement packages preserving the
+    exact reviewed-slip objects and every accepted caller value without
+    trimming, parsing, normalization, clock access, or original mutation.
+  - Approved packages containing any unmapped code require one package-level
+    affirmative acknowledgement; absent and explicitly negative inputs have
+    separate failures, including when the code is on a later reviewed slip.
+  - ChangesRequested and Rejected remain available without acknowledgement;
+    when acknowledgement is optional, null, false, and true are preserved
+    exactly.
+  - Reflection tests confirm no per-slip/per-code acknowledgement, disposition,
+    or mapped-amount dispute member was introduced.
+Scope: confirmed only T05-listed files changed versus master, including this
+  marker. tasks.md is unchanged.
+Status: implemented; PR #85 open; full solution suite green; not merged
+  (awaiting human review).
