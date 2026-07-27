@@ -1,0 +1,30 @@
+TaskID: T02
+PR: #82
+Implementation commit: f36433ecd8949ad165b181d406416764bceab8bb
+Branch: feat/009-t02 (branched from master @ a741373307b7a131e066b1c81e934ce8428f4366, the merge of prerequisite PR #81)
+Build: pass - dotnet build TaxAI.sln --no-incremental --configuration Release
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2037 passed, 0 failed, 0 skipped
+  (172 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Focused tests: pass - dotnet test tests/CaseReview.Tests/CaseReview.Tests.csproj --configuration Release
+  - 172 passed, 0 failed, 0 skipped
+Acceptance criteria: T02 immutable reviewed-content and package-core semantics met.
+  - ReviewedBoxAmount has ordinal box-code and exact decimal value equality.
+  - ReviewedSlip retains the exact T4Slip reference and takes ordered defensive
+    snapshots of line entries, each source-box-code sequence, box amounts, and
+    unmapped codes.
+  - AccountantReviewPackage takes an ordered defensive snapshot of reviewed
+    slips, exposes an unsigned state, and provides no collection mutation path.
+  - Manual Equals, Equals(object), and hash behavior cover attribution,
+    reference identity, nested ordered content, and package slip order.
+  - Positive and negative tests cover value fidelity, order sensitivity,
+    null/wrong-type equality, caller-list mutation, non-writable collections,
+    get-only properties, fixed structural rendering, exact JSON shapes, caller
+    string omission, and full-SIN/nine-digit-run exclusion.
+  - No parser, mapper, mapping provider, rounding service, monetary arithmetic,
+    or dependency was added. RecordDecision remains untouched.
+Scope: confirmed only the five T02-listed files changed versus master,
+  including this marker. tasks.md is unchanged.
+Status: implemented; full solution suite green; not merged (awaiting human review)
