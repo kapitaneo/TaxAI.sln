@@ -1,0 +1,30 @@
+TaskID: T01
+PR: #81
+Implementation commit: 2479ab56f73ec9f44cc35970b1f7c37099a5502f
+Branch: feat/009-t01 (branched from master @ 21e66eba7d83226bc7624d455b9c19a55bb951f8, the merge of plan PR #80)
+Build: pass - dotnet build TaxAI.sln --no-incremental --configuration Release
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2025 passed, 0 failed, 0 skipped
+  (160 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Additional validation: pass - dotnet test TaxAI.sln --configuration Release --no-build
+  - 2025 passed, 0 failed, 0 skipped
+Acceptance criteria: T01 contract and mechanical acceptance met.
+  - TaxAI.sln contains exactly one entry for each new project.
+  - CaseReview.csproj references exactly CaseProcessing and TaxLogicEngine and
+    exposes internals only to CaseReview.Tests.
+  - The exact nine-type public surface, enum values, constructors, nullability,
+    JsonIgnore placement, IEquatable declarations, partial split, ReviewFields
+    constants, and 2025-only support policy are pinned by reflection tests.
+  - Safe structural ToString and JSON omission are covered by a reachable
+    14-slot x 5-plant matrix, exact JSON-shape assertions, and nine-digit-run
+    guards.
+  - Equality, package assembly, and sign-off behavior remain intentional
+    NotImplementedException stubs for their later tasks.
+  - The resolved review policy is documented locally: populated unmapped boxes
+    require one package-level acknowledgement before approval; mapped-box
+    disputes are out of scope for v1.
+Scope: confirmed only T01-listed files changed versus master, including this
+  marker. tasks.md is unchanged.
+Status: implemented; full solution suite green; not merged (awaiting human review)
