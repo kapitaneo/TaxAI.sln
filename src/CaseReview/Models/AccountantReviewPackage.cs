@@ -22,7 +22,7 @@ public sealed partial class AccountantReviewPackage : IEquatable<AccountantRevie
         CaseId = caseId;
         ParticipantId = participantId;
         TaxYear = taxYear;
-        ReviewedSlips = reviewedSlips;
+        ReviewedSlips = Array.AsReadOnly(reviewedSlips.ToArray());
         SignOff = signOff;
     }
 
@@ -43,11 +43,45 @@ public sealed partial class AccountantReviewPackage : IEquatable<AccountantRevie
     [JsonIgnore]
     public ReviewSignOff? SignOff { get; }
 
-    public bool Equals(AccountantReviewPackage? other) => throw new NotImplementedException();
+    public bool Equals(AccountantReviewPackage? other)
+    {
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
 
-    public override bool Equals(object? obj) => throw new NotImplementedException();
+        return other is not null &&
+               string.Equals(FirmId, other.FirmId, StringComparison.Ordinal) &&
+               string.Equals(CaseId, other.CaseId, StringComparison.Ordinal) &&
+               string.Equals(
+                   ParticipantId,
+                   other.ParticipantId,
+                   StringComparison.Ordinal) &&
+               TaxYear == other.TaxYear &&
+               ReviewedSlips.SequenceEqual(other.ReviewedSlips) &&
+               (ReferenceEquals(SignOff, other.SignOff) ||
+                (SignOff is not null && SignOff.Equals(other.SignOff)));
+    }
 
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override bool Equals(object? obj) => Equals(obj as AccountantReviewPackage);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(FirmId, StringComparer.Ordinal);
+        hash.Add(CaseId, StringComparer.Ordinal);
+        hash.Add(ParticipantId, StringComparer.Ordinal);
+        hash.Add(TaxYear);
+        hash.Add(ReviewedSlips.Count);
+
+        foreach (var reviewedSlip in ReviewedSlips)
+        {
+            hash.Add(reviewedSlip);
+        }
+
+        hash.Add(SignOff);
+        return hash.ToHashCode();
+    }
 
     /// <summary>
     /// Fixed structural facts only; never attribution, reviewed content, a

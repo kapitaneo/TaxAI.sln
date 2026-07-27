@@ -22,11 +22,16 @@ public sealed class ReviewedBoxAmount : IEquatable<ReviewedBoxAmount>
     [JsonIgnore]
     public decimal Amount { get; }
 
-    public bool Equals(ReviewedBoxAmount? other) => throw new NotImplementedException();
+    public bool Equals(ReviewedBoxAmount? other) =>
+        other is not null &&
+        string.Equals(BoxCode, other.BoxCode, StringComparison.Ordinal) &&
+        Amount == other.Amount;
 
-    public override bool Equals(object? obj) => throw new NotImplementedException();
+    public override bool Equals(object? obj) => Equals(obj as ReviewedBoxAmount);
 
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override int GetHashCode() => HashCode.Combine(
+        StringComparer.Ordinal.GetHashCode(BoxCode),
+        Amount);
 
     /// <summary>Fixed type identity only; no box code or amount is rendered.</summary>
     public override string ToString() => nameof(ReviewedBoxAmount);
