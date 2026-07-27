@@ -11,13 +11,16 @@ foundation). **Tax/CRA semantic impact: none.** Implements the approved
   wave to `master` before the next wave begins. **Agents never merge.**
 - Every task may create or modify **only** the exact files in its declared file
   list, including its own `.done` marker. Files outside the list must not change.
-- **`src/TaxLogicEngine/`, `tests/TaxLogicEngine.Tests/`, `src/TaxCases/`,
+- **All ten pre-existing project trees are untouchable in every task** —
+  `src/TaxLogicEngine/`, `tests/TaxLogicEngine.Tests/`, `src/TaxCases/`,
   `tests/TaxCases.Tests/`, `src/DocumentExtraction/`,
-  `tests/DocumentExtraction.Tests/`, `src/CaseProcessing/`, and
-  `tests/CaseProcessing.Tests/` are untouchable in every task** — source, tests,
-  project files, `CLAUDE.md`, and `AGENTS.md` alike. If a task appears to need an
-  edit there, the design has drifted outside the PRD (FR-16); stop and escalate
-  rather than relaxing an existing assertion.
+  `tests/DocumentExtraction.Tests/`, `src/CaseProcessing/`,
+  `tests/CaseProcessing.Tests/`, `src/CaseReview/`, and `tests/CaseReview.Tests/`
+  — source, tests, project files, `CLAUDE.md`, and `AGENTS.md` alike. **Zero
+  edits to any existing test are required**; this was verified file-by-file
+  across all five modules (see architecture.md, *Current structure*). If a task
+  appears to need one, the design has drifted outside the PRD (FR-16); stop and
+  escalate rather than relaxing an existing assertion.
 - Tests ship **with** each task. No existing test may be removed, skipped,
   renamed, weakened, or rewritten to make a task pass.
 - Before completing **every** task, run `dotnet build TaxAI.sln --no-incremental`
@@ -35,8 +38,19 @@ foundation). **Tax/CRA semantic impact: none.** Implements the approved
   box→line table, tax-year literal, taxpayer type, SIN, masking helper, or
   arithmetic token may enter `src/TaxAI.Portal/`. The v1 PII posture is
   **omission** — the data never enters the process.
-- **No `PackageReference` in the portal** (AC-3). **No `InternalsVisibleTo`
-  anywhere**, including on the new projects (AC-16).
+- **No `PackageReference` in the portal** (AC-3). **No `InternalsVisibleTo` on
+  either new project** (AC-16). The repository has **three** grants in **two
+  forms**: `CaseProcessing → CaseProcessing.Tests` and
+  `CaseReview → CaseReview.Tests` as MSBuild `AssemblyAttribute` items in their
+  `.csproj` files, and `TaxLogicEngine → TaxLogicEngine.Tests` as a source-level
+  `[assembly: InternalsVisibleTo(...)]` at
+  `src/TaxLogicEngine/Services/EmbeddedT4LineMapProvider.cs:8`. **A scan that
+  reads only `.csproj` files misses the third.** `TaxCases` and
+  `DocumentExtraction` declare none.
+- **The portal does not reference or name `CaseReview`** (AC-50). Spec 009 is
+  complete and merged, but `AccountantReviewPackage` and its reviewed slips are
+  taxpayer data, and rendering them is what the FR-18 gate stops. Consuming
+  `CaseReview` belongs to the first screen spec, which will be `tax-domain`.
 - **Purely additive.** Nothing moves, nothing is renamed. `TaxAI.sln` is edited
   by **appending only**.
 
@@ -211,8 +225,9 @@ earlier task, not in a weakened assertion.
   — files: `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs`,
   `specs/010-portal-foundation/status/T04.done` — depends on: T01, T02, T03
 
-  **Tests** — AC-10 (no reverse reference: every pre-existing `.csproj` under
-  `src/` and `tests/`, and every handwritten `.cs` file in those trees, contains
+  **Tests** — AC-10 (no reverse reference: each of the ten pre-existing `.csproj`
+  files under `src/` and `tests/` — including `CaseReview` and
+  `CaseReview.Tests` — and every handwritten `.cs` file in those trees contains
   no `TaxAI.Portal`), AC-40 (compiled non-framework references are exactly
   `CaseProcessing` and `TaxLogicEngine`, using the framework filter fixed above —
   a transitive `DocumentExtraction` leak must fail), AC-22 (every
@@ -274,24 +289,32 @@ earlier task, not in a weakened assertion.
 
   **Tests** — AC-6 (every pre-existing `Project(` line and configuration row in
   `TaxAI.sln` is intact and the only additions are the two new projects' blocks
-  and rows — assert the eight pre-existing declarations and their GUIDs are
+  and rows — assert the **ten** pre-existing declarations and their GUIDs are
   present unchanged, **without asserting a total count**), AC-12 (no speculative
-  project: no `.csproj` exists for Clients, Firms, Documents, Intake, Review, or
-  CaseReview), AC-14 (the set of exported public type full-names of
-  `TaxLogicEngine`, `TaxCases`, `DocumentExtraction`, and `CaseProcessing` matches
-  a snapshot recorded in this test file — a public-surface change fails loudly),
-  AC-15 (the built `TaxLogicEngine` assembly's manifest resource names include
-  `TaxLogicEngine.Mappings.T4LineMap.2025.json` and
+  project: no `.csproj` exists for Clients, Firms, Documents, Intake, or Review —
+  `CaseReview` is a legitimately existing module and must **not** appear in this
+  forbidden list), AC-14 (the set of exported public type full-names of
+  `TaxLogicEngine`, `TaxCases`, `DocumentExtraction`, `CaseProcessing`, and
+  `CaseReview` matches a snapshot recorded in this test file — a public-surface
+  change fails loudly), AC-15 (the built `TaxLogicEngine` assembly's manifest
+  resource names include `TaxLogicEngine.Mappings.T4LineMap.2025.json` and
   `TaxLogicEngine.Mappings.T5LineMap.2025.json` with exactly those strings),
-  AC-16 (every pre-existing production project file declares only the two
-  pre-existing `InternalsVisibleTo` grants; neither new project declares one),
-  AC-50 (neither the portal's source nor `TaxAI.sln` names `CaseReview`,
-  `AccountantReviewPackage`, `ReviewedSlip`, or `ReviewSignOff`, and no
-  CaseReview project is declared).
+  AC-16 (scanning **both** pre-existing `.csproj` files **and** pre-existing
+  production `.cs` files, the repository's `InternalsVisibleTo` grants are
+  exactly the three named in the binding rules above — two MSBuild items plus
+  `TaxLogicEngine`'s source-level attribute — `TaxCases` and
+  `DocumentExtraction` declare none, and neither new project adds one; a
+  `.csproj`-only scan would miss the third grant and must not be written),
+  AC-50 (**no spec-009 coupling**: the portal's
+  project file, production source, and compiled assembly name none of
+  `CaseReview`, `AccountantReviewPackage`, `ReviewedSlip`, `ReviewSignOff`, or
+  `ReviewPackageAssembler` — the module's existence is fine; depending on it is
+  not).
 
-  Also assert the four modules' project files still declare exactly their
-  pre-existing reference sets, and that the three tax-domain projects still
-  declare no `PackageReference`/`FrameworkReference`.
+  Also assert the five modules' project files still declare exactly their
+  pre-existing reference sets — including `CaseReview` → `CaseProcessing` +
+  `TaxLogicEngine` — and that the tax-domain projects still declare no
+  `PackageReference`/`FrameworkReference`.
 
   **Mechanical acceptance:** AC-6, AC-12, AC-14–AC-16, AC-50 pass; no production
   file changed.
@@ -324,7 +347,7 @@ earlier task, not in a weakened assertion.
   Update root `CLAUDE.md`'s repository-layout and current-state sections, and
   `NEXT.md`. **No existing module's `CLAUDE.md` or `AGENTS.md` may be edited.**
 
-  **Tests** — AC-46 (no `CLAUDE.md` or `AGENTS.md` under the four existing module
+  **Tests** — AC-46 (no `CLAUDE.md` or `AGENTS.md` under the five existing module
   trees is in the changed-file list), AC-47 (README lists the portal project and
   its run command, documents every existing project tree, no longer contains
   `two projects`, and asserts no project count), AC-48 (README claims no
@@ -334,7 +357,7 @@ earlier task, not in a weakened assertion.
 
   **Command evidence recorded in `verification.md`** — AC-7 (`dotnet build
   TaxAI.sln --no-incremental` exits 0), AC-11 (`git diff --name-only` against the
-  merge base lists no path under the four existing module `src/` trees or their
+  merge base lists no path under the five existing module `src/` trees or their
   four test trees), AC-13 (`dotnet test TaxAI.sln` exits 0 with every pre-existing
   test green, none removed, skipped, or renamed — record the before/after test
   counts per project), AC-43 (`git ls-files` / `git status --porcelain` show no
@@ -352,7 +375,7 @@ earlier task, not in a weakened assertion.
   AC-1 through AC-50 with exact test-name or command evidence;
   `dotnet build TaxAI.sln --no-incremental` and `dotnet test TaxAI.sln` both pass
   with every pre-existing test green; the diff shows no change under any of the
-  eight pre-existing project trees; every task changed only its declared files.
+  ten pre-existing project trees; every task changed only its declared files.
 
 ---
 

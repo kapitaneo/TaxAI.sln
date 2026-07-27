@@ -33,7 +33,7 @@ config, and contains no year literal.
 
 ## Problem
 
-TaxAI has four deterministic modules and no way to run any of them. Concretely,
+TaxAI has five deterministic modules and no way to run any of them. Concretely,
 today:
 
 1. **There is no deployable application.** `TaxAI.sln` declares production class
@@ -58,14 +58,15 @@ today:
    bind.
 
 4. **The next features have nowhere to land.** Spec 009's Accountant Review
-   Package explicitly names "the Portal Foundation author" as the consumer of its
-   read model. Document upload, review screens, and firm workflows all presuppose
-   a host. Each of those is a Class A-heavy feature; none should be the feature
-   that also has to decide, under deadline, where `Program.cs` lives.
+   Package is merged, and its read model explicitly names "the Portal Foundation
+   author" as its consumer — but there is no host to consume it from. Document
+   upload, review screens, and firm workflows all presuppose a host. Each of
+   those is a Class A-heavy feature; none should be the feature that also has to
+   decide, under deadline, where `Program.cs` lives.
 
 5. **The README is drifting.** It states `TaxAI.sln  Solution (two projects)` and
-   lists only `src/TaxLogicEngine/` and `tests/TaxLogicEngine.Tests/`. Four
-   modules and four test projects exist. A README that describes a repository
+   lists only `src/TaxLogicEngine/` and `tests/TaxLogicEngine.Tests/`. Five
+   modules and five test projects exist. A README that describes a repository
    that is not there is the same correctness hazard spec 005 fixed once already.
 
 **What this feature deliberately is not.** It is not a portal. It is the
@@ -79,9 +80,9 @@ and every byte of taxpayer data is a later, separately-specified feature.
 ## Current repository state and reuse analysis
 
 Grounded in the actual tree at `D:\Projects\TaxAI` (branch
-`spec/009-accountant-review-package`, whose only difference from `master` is
-spec 009's PRD), read directly during this analysis — not from memory and not
-from a prior PRD taken as a source.
+`spec/010-portal-foundation`, which carries spec 010's artifacts only; spec 009
+is implemented and merged to `master`), read directly during this analysis — not
+from memory and not from a prior PRD taken as a source.
 
 ### Solution and projects that exist today
 
@@ -98,6 +99,8 @@ each once, at these paths:
 | `DocumentExtraction.Tests` | `tests\DocumentExtraction.Tests\DocumentExtraction.Tests.csproj` | net8.0, xunit 2.5.3 |
 | `CaseProcessing` | `src\CaseProcessing\CaseProcessing.csproj` | net8.0 |
 | `CaseProcessing.Tests` | `tests\CaseProcessing.Tests\CaseProcessing.Tests.csproj` | net8.0, xunit 2.5.3 |
+| `CaseReview` | `src\CaseReview\CaseReview.csproj` | `Microsoft.NET.Sdk`, net8.0 |
+| `CaseReview.Tests` | `tests\CaseReview.Tests\CaseReview.Tests.csproj` | net8.0, xunit 2.5.3 |
 
 Test projects uniformly use `xunit` 2.5.3, `xunit.runner.visualstudio` 2.5.3,
 `Microsoft.NET.Test.Sdk` 17.8.0, `coverlet.collector` 6.0.0.
@@ -112,9 +115,9 @@ project count anywhere — see Migration constraints.)*
   `Microsoft.Extensions` finds matches **only inside the existing boundary tests**,
   where those names appear as *forbidden* patterns being scanned for. No
   production file references any of them.
-- **No `Portal` anywhere in production code.** The only occurrences of the word
-  in the tracked tree are `NEXT.md` line 77 ("then Portal Foundation") and spec
-  009's user story 10.
+- **No `Portal` anywhere in production code, in any project file, or in
+  `TaxAI.sln`.** Occurrences of the word are confined to spec documents (spec
+  009's user story 10, and spec 010's own artifacts) and `NEXT.md`.
 - No `global.json`, no `Directory.Build.props`, no `Directory.Packages.props`, no
   `.editorconfig`, no `nuget.config`, no `.github/` CI workflow, no Dockerfile,
   no `package.json`, no `node_modules`.
@@ -128,13 +131,14 @@ project count anywhere — see Migration constraints.)*
 | `IT5LineMapProvider` / `EmbeddedT5LineMapProvider` | `src/TaxLogicEngine/Services/` | Same, for T5. |
 | `T4CaseProcessor` | `src/CaseProcessing/Services/` | Registered so the container can construct the spec 008 coordinator from its declared constructor `T4CaseProcessor(IT4LineMapProvider)`. **Registered only** — no endpoint resolves or invokes it in v1. |
 | `TaxAI.sln` | repo root | Two project declarations are appended. No existing declaration, GUID, or configuration row is altered. |
-| The four modules' `CLAUDE.md` / `AGENTS.md` pattern | `src/<Module>/` | The portal follows the same local-instructions pattern. **No existing module's `CLAUDE.md` or `AGENTS.md` is edited.** |
+| The five modules' `CLAUDE.md` / `AGENTS.md` pattern | `src/<Module>/` | The portal follows the same local-instructions pattern. **No existing module's `CLAUDE.md` or `AGENTS.md` is edited.** |
 
 Nothing in the existing type inventory — `ParseResult<T>`, `ValidationError`,
 `MoneyRounding`, `RecipientIdentifier`, the T4/T5 slip, raw-input, mapping, and
 line-entry types, `TaxCase` and its descriptors, `ExtractionEnvelope`,
-`ValidatedExtraction`, `ProcessedT4Extraction` — is re-specified, duplicated,
-wrapped, or re-implemented. The portal names none of them (AC-31, AC-32).
+`ValidatedExtraction`, `ProcessedT4Extraction`, `AccountantReviewPackage` and its
+review types — is re-specified, duplicated, wrapped, or re-implemented. The
+portal names none of them (AC-31, AC-32, AC-50).
 
 ### Relied on but deliberately NOT consumed
 
@@ -147,9 +151,15 @@ wrapped, or re-implemented. The portal names none of them (AC-31, AC-32).
   services with nothing to register. No project reference in either direction.
 - **`DocumentExtraction`** — no direct project reference; `ExtractionEnvelopeValidator`
   is static and nothing in v1 calls it.
-- **Spec 009's `CaseReview` module** — does not exist, is not merged, and its PRD
-  is blocked on a Class A question. This feature has **no dependency on spec 009**
-  in either direction (AC-45).
+- **Spec 009's `CaseReview` module** — exists and is merged (`src/CaseReview/`,
+  `tests/CaseReview.Tests/`). The portal nonetheless **does not reference it,
+  registers nothing from it, and names none of its types in v1** `[ASSUMED]`
+  (AC-50). Rationale: `AccountantReviewPackage` and its `ReviewedSlip` content
+  **are taxpayer data** — slips, box amounts, CRA line entries, source-box
+  provenance, and a masked SIN — and rendering them is exactly what the FR-18
+  gate exists to stop until Class A questions A–F are answered. Consuming
+  `CaseReview` is the first screen spec's job, not this one's. The independence
+  is two-directional: no existing module references the portal either (AC-10).
 - **`SafeDiagnosticText`, `RecipientIdentifier`, and every masking helper** — not
   referenced. The portal handles no PII in v1, so it needs no masking, and
   introducing a second masking helper is exactly what every prior module's
@@ -166,13 +176,36 @@ kind of change that trips a repository-verification suite:
   generically, so a new sibling project does not enter its scan.
 - `CaseProcessing.Tests/EndToEnd/RepositoryVerificationTests.PreExistingTrees` is
   a fixed six-entry list frozen at spec 008. A new tree is out of its scope.
+- **`CaseReview.Tests` (spec 009, merged) does not obstruct this feature** —
+  verified file-by-file:
+  - its forbidden-pattern and production-file scans are rooted at
+    `Path.Combine(RepositoryRoot, "src", "CaseReview")`, so they never see the
+    portal's tree;
+  - its solution assertions are presence-and-uniqueness (`Assert.Single(...)`
+    over `projectLines` matching an approved path), never a total count;
+  - `RepositoryVerificationTests.PreExistingTrees` is a frozen **eight**-entry
+    list that predates CaseReview, and `CaseReviewBoundaryTests.ExistingProjectFiles`
+    is a frozen eight-entry literal whose `Assert.Equal(8, …)` checks that
+    literal's own length — not the repository's project count;
+  - `EveryDeclaredSolutionProjectAndProjectReferenceResolves` *does* iterate every
+    project declared in `TaxAI.sln`, but asserts only that each declaration and
+    each of its project references **resolves to an existing file**; a portal
+    declared at a real path with real references satisfies it;
+  - `EveryKnownProjectHasItsExactApprovedReferenceSet` iterates a fixed
+    ten-entry `ExpectedProjects` list, not the solution, so the portal is simply
+    outside it;
+  - `NoExistingProductionOrTestProjectReferencesCaseReview` and
+    `NoPreExistingProjectOrSourceTreeReferencesCaseReview` iterate those frozen
+    eight-entry lists, so the portal never enters their scan — and it would pass
+    anyway, because it names `CaseReview` nowhere (AC-50).
 - Every module's forbidden-pattern scan (`Microsoft.AspNetCore`, `DbContext`,
   `HttpClient`, `Math.Round`, five-digit CRA line literals, …) is rooted at
   `Path.Combine(RepositoryRoot, "src", "<ThatModule>")`. **No test scans all of
   `src/`.**
 - Every solution assertion is presence-and-uniqueness
-  (`Assert.Equal(1, projectLines.Count(...))`). **No test asserts a total project
-  count** — the trap recorded in root `CLAUDE.md` after PR #66.
+  (`Assert.Equal(1, projectLines.Count(...))` / `Assert.Single(...)`). **No test
+  asserts a total project count** — the trap recorded in root `CLAUDE.md` after
+  PR #66.
 - **No test reads root `CLAUDE.md`, `README.md`, or `NEXT.md`.** Doc updates
   cannot break the suite.
 - Each module's own `CLAUDE.md`/`AGENTS.md` content assertions are rooted at that
@@ -180,9 +213,10 @@ kind of change that trips a repository-verification suite:
   nor breaks them.
 
 **Conclusion:** adding an ASP.NET Core host as a new sibling project requires
-**zero edits to any existing test, project file, or module source**. If `/plan`
-finds itself needing to edit an existing test's expectations, that is a signal the
-design has drifted outside this PRD (FR-16, AC-11).
+**zero edits to any existing test, project file, or module source**, across all
+five modules and all five test projects. If `/plan` finds itself needing to edit
+an existing test's expectations, that is a signal the design has drifted outside
+this PRD (FR-16, AC-11).
 
 ### Genuinely new (introduced by this feature)
 
@@ -199,8 +233,8 @@ modules" binds this PRD:
 | `src/TaxAI.Portal/CLAUDE.md` + pointer `AGENTS.md` | The established per-module pattern; it is where the "UI computes no tax" and "no taxpayer data until Class A answers" gates are written down. |
 
 **No project, folder, page, controller, or interface is created for a future
-module or a future screen.** No Clients, Firms, Documents, Intake, Review, or
-CaseReview project is scaffolded (AC-12).
+module or a future screen.** No Clients, Firms, Documents, Intake, or Review
+project is scaffolded (AC-12).
 
 ---
 
@@ -238,12 +272,14 @@ green.
    including that `IDocumentExtractionIngress` still has **no implementation** —
    unchanged.
 5. **T4 Case Processor** (`src/CaseProcessing/`) behaviour, including its
-   eight-stage order, verbatim error surfacing, and single-year provider query —
-   unchanged.
-6. **Public contracts** — every public type, member, and signature in all four
+   eight-stage order, verbatim error surfacing, and single-year provider query,
+   and **Accountant Review Package** (`src/CaseReview/`) behaviour, including its
+   assembly rules, package-level acknowledgement gate, single-decision
+   immutability, and 2025-only year policy — unchanged.
+6. **Public contracts** — every public type, member, and signature in all five
    existing modules stays exactly as-is; nothing added, renamed, removed, or
    re-shaped.
-7. **Assembly identity and namespaces** of all four modules — unchanged.
+7. **Assembly identity and namespaces** of all five modules — unchanged.
 8. **Embedded-resource logical names** — `TaxLogicEngine.Mappings.T4LineMap.2025.json`
    and `TaxLogicEngine.Mappings.T5LineMap.2025.json` remain exactly those strings.
 9. **Monetary rounding** — `MoneyRounding.ToCents` half-up
@@ -253,10 +289,14 @@ green.
 11. **Tax-year isolation / fail-closed** — every module's 2025-only policy and
     its no-adjacent-year-fallback behaviour — unchanged. The portal declares no
     year policy of its own.
-12. **`InternalsVisibleTo` grants** — the two that exist
-    (`TaxLogicEngine` → `TaxLogicEngine.Tests`, `CaseProcessing` →
-    `CaseProcessing.Tests`) are unchanged, and **no new grant is added to any
-    existing module**.
+12. **`InternalsVisibleTo` grants** — the three that exist on `master` are
+    unchanged, and **no new grant is added to any existing module, nor declared
+    by either new project**. Two are declared in project files
+    (`CaseProcessing` → `CaseProcessing.Tests`, `CaseReview` →
+    `CaseReview.Tests`); the third is a source-level assembly attribute in
+    `src/TaxLogicEngine/Services/EmbeddedT4LineMapProvider.cs`
+    (`TaxLogicEngine` → `TaxLogicEngine.Tests`). No project file other than those
+    two declares one.
 13. **The full existing test suite passes**, with the same set of tests, before
     and after — none removed, skipped, renamed, or weakened.
 14. **Every existing test file and every existing `.csproj` is byte-unchanged.**
@@ -266,19 +306,23 @@ green.
 ## Migration constraints
 
 - **Additive only.** No existing project, file, folder, namespace, or type moves,
-  is renamed, or is edited — except the documentation files named in FR-17.
+  is renamed, or is edited — except the documentation files named in FR-17. The
+  untouchable trees are `src/TaxLogicEngine/`, `src/TaxCases/`,
+  `src/DocumentExtraction/`, `src/CaseProcessing/`, `src/CaseReview/`, and their
+  five test trees.
 - **No edit to any existing test.** If a design choice would require relaxing an
   existing boundary assertion, the design is wrong, not the assertion.
 - **No `PackageReference`, `FrameworkReference`, `EmbeddedResource`, or `Content`
-  item may be added to any pre-existing production project.** Three of the four
-  modules already assert this about themselves; the fourth must not be the
-  exception.
+  item may be added to any pre-existing production project.** Four of the five
+  modules already assert this about themselves; the fifth (`TaxLogicEngine`,
+  whose embedded mapping configs are the deliberate pre-existing exception) must
+  not gain one either.
 - **ASP.NET Core enters the repository in exactly two projects** — the portal and
   its test project — and nowhere else. Tax-domain code keeps its zero-web-
   dependency guarantee by never being touched.
 - **Never assert a total project count** for `TaxAI.sln`, in a test, in a doc, or
   in the README. The two new projects are asserted by presence-and-uniqueness at
-  their approved paths, exactly as specs 006–008 do.
+  their approved paths, exactly as specs 006–009 do.
 - **The solution is edited by appending only**: two `Project(...)`/`EndProject`
   blocks with fresh GUIDs and their configuration rows. No existing GUID,
   ordering, or configuration row changes.
@@ -287,8 +331,8 @@ green.
 - **No tracked build output or machine-local file** — no `bin/`, `obj/`, `.vs/`,
   `*.user`, `node_modules/`, secret, certificate, or `.claude/settings.local.json`
   may become tracked as a side effect.
-- **No dependency on spec 009.** Spec 009 is unmerged and blocked; this feature
-  neither references nor anticipates its types.
+- **No dependency on spec 009.** Spec 009 is merged, but this feature neither
+  references, registers, nor names any of its types (AC-50).
 - **Ordering `[ASSUMED]`** (each stage independently green):
   1. Create the portal project and its test project, add both to the solution,
      add the local `CLAUDE.md` and pointer `AGENTS.md`; verify build + full test
@@ -342,7 +386,7 @@ executable project.
 
 **FR-2 `[new]`** — A matching test project SHALL be added at
 `tests/TaxAI.Portal.Tests/` `[ASSUMED]`, using the same xUnit tooling versions as
-the four existing test projects, and referencing only the portal project.
+the five existing test projects, and referencing only the portal project.
 
 **FR-3 `[boundary]`** — The portal's production project references SHALL be
 exactly `TaxLogicEngine` and `CaseProcessing`, pointing inward `[ASSUMED]`. It
@@ -474,7 +518,8 @@ of scope and is a defect, not a delivered outcome.**
 - **Any change to tax semantics** — no new or changed box, CRA line, mapping,
   rate, threshold, limit, deadline, calculation, or taxpayer-domain validation.
 - **Any change to any existing module's source, tests, project file, `CLAUDE.md`,
-  or `AGENTS.md`.**
+  or `AGENTS.md`** — `TaxLogicEngine`, `TaxCases`, `DocumentExtraction`,
+  `CaseProcessing`, and `CaseReview`, and their five test trees.
 - **Rendering, exporting, or displaying any taxpayer data** — including a review
   package, a slip, a line entry, an amount, a name, or a SIN in any form, masked
   included.
@@ -487,8 +532,9 @@ of scope and is a defect, not a delivered outcome.**
   caching, or audit storage.
 - **Implementing `IDocumentExtractionIngress`**, or any OCR/LLM integration or
   adapter.
-- **Consuming spec 009's Accountant Review Package** — unmerged, and its PRD is
-  blocked on a Class A question.
+- **Consuming spec 009's Accountant Review Package** — merged and available, and
+  deliberately left unconsumed: its contents are taxpayer data, so wiring it into
+  a screen is the first taxpayer-data feature's job, behind the FR-18 gate.
 - **Deployment, hosting environment, TLS, reverse proxy, containers, CI/CD, data
   residency, monitoring, telemetry, and log shipping** — Class A/infrastructure,
   reserved (Open questions D, E).
@@ -547,30 +593,36 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
 11. **No pre-existing file changed.** Given `git diff` against the merge base,
     When the changed-file list is read, Then it contains no path under
     `src/TaxLogicEngine/`, `src/TaxCases/`, `src/DocumentExtraction/`,
-    `src/CaseProcessing/`, or any of the four existing test trees.
+    `src/CaseProcessing/`, `src/CaseReview/`, or any of the five existing test
+    trees.
 12. **No speculative project.** Given the repository, When all `.csproj` files
     are listed, Then the only additions are the two named above, and no project
-    exists for Clients, Firms, Documents, Intake, Review, or CaseReview.
+    exists for Clients, Firms, Documents, Intake, or Review.
 
 ### Regression — existing behaviour stays green (FR-23, Preserved behaviour)
 
 13. **Full suite green.** Given the repository, When `dotnet test TaxAI.sln`
     runs, Then it exits 0 and every pre-existing test in `TaxLogicEngine.Tests`,
-    `TaxCases.Tests`, `DocumentExtraction.Tests`, and `CaseProcessing.Tests`
-    passes, with none removed, skipped, or renamed.
-14. **No tax mapping, calculation, or parser behaviour changed.** Given the four
-    modules' parser, mapper, provider, rounding, PII, and year-isolation suites,
-    When they run after this feature, Then every one passes unchanged, and the
-    set of public type full-names exported by each of the four modules is
-    identical to its pre-feature set.
+    `TaxCases.Tests`, `DocumentExtraction.Tests`, `CaseProcessing.Tests`, and
+    `CaseReview.Tests` passes, with none removed, skipped, or renamed.
+14. **No tax mapping, calculation, or parser behaviour changed.** Given the five
+    modules' parser, mapper, provider, rounding, review-assembly, PII, and
+    year-isolation suites, When they run after this feature, Then every one
+    passes unchanged, and the set of public type full-names exported by each of
+    the five modules is identical to its pre-feature set.
 15. **Embedded mapping resources are untouched.** Given the built
     `TaxLogicEngine` assembly, When its manifest resource names are enumerated,
     Then `TaxLogicEngine.Mappings.T4LineMap.2025.json` and
     `TaxLogicEngine.Mappings.T5LineMap.2025.json` are present with exactly those
     names.
-16. **No new internals grant.** Given every pre-existing production project file,
-    When scanned for `InternalsVisibleTo`, Then only the two pre-existing grants
-    are present and no new one was added.
+16. **No new internals grant.** Given every pre-existing production project file
+    and every pre-existing production source file, When scanned for
+    `InternalsVisibleTo`, Then exactly the three pre-existing grants are found —
+    `CaseProcessing` → `CaseProcessing.Tests` and `CaseReview` →
+    `CaseReview.Tests` in project files, and `TaxLogicEngine` →
+    `TaxLogicEngine.Tests` as a source attribute in
+    `src/TaxLogicEngine/Services/EmbeddedT4LineMapProvider.cs` — and neither new
+    project declares one.
 
 ### Host behaviour (FR-6 – FR-14)
 
@@ -684,11 +736,12 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
     before any taxpayer-data surface is added.
 45. **Pointer-only bridge.** Given `src/TaxAI.Portal/AGENTS.md`, When read, Then
     it is fewer than 15 lines and links `../../AGENTS.md`, `../../CLAUDE.md`, and
-    the local `CLAUDE.md` — matching the four existing modules' pattern.
+    the local `CLAUDE.md` — matching the five existing modules' pattern.
 46. **No existing module instruction file changed.** Given `git diff` against the
     merge base, When the changed-file list is read, Then no `CLAUDE.md` or
     `AGENTS.md` under `src/TaxLogicEngine/`, `src/TaxCases/`,
-    `src/DocumentExtraction/`, or `src/CaseProcessing/` appears in it.
+    `src/DocumentExtraction/`, `src/CaseProcessing/`, or `src/CaseReview/`
+    appears in it.
 47. **README describes the actual repository.** Given `README.md`, When read,
     Then it lists the portal project and its run command, documents every
     existing project tree, and no longer claims the solution has "two projects" —
@@ -700,9 +753,11 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
     read, Then its repository-layout section lists `src/TaxAI.Portal/` and
     `tests/TaxAI.Portal.Tests/`, and its current-state section records spec 010's
     delivered scope.
-50. **No dependency on spec 009.** Given the portal's source and `TaxAI.sln`,
-    When scanned, Then neither names `CaseReview`, `AccountantReviewPackage`,
-    `ReviewedSlip`, or `ReviewSignOff`, and no CaseReview project is declared.
+50. **No coupling to spec 009.** Given the portal's production source, its
+    project file, and its compiled assembly, When scanned, Then the source and
+    project file name none of `CaseReview`, `AccountantReviewPackage`,
+    `ReviewedSlip`, `ReviewSignOff`, or `ReviewPackageAssembler`, and the
+    assembly's referenced assemblies do not include `CaseReview`.
 
 ---
 
@@ -771,15 +826,22 @@ an accident into a stop sign.
   health endpoint, one static shell page, one test project, and the documentation
   updates in FR-17 — and nothing else. No screen, no data, no input, no login, no
   storage.
-- `[ASSUMED]` **Sequencing.** Portal Foundation is specified before spec 009 is
-  unblocked. It carries no dependency on spec 009 in either direction, so the two
-  can be planned and implemented in any order.
+- `[ASSUMED]` **Sequencing.** Spec 009 (Accountant Review Package) is complete and
+  merged; Portal Foundation follows it and takes no dependency on it in either
+  direction.
+- `[ASSUMED]` **`CaseReview` is deliberately not consumed in v1.** The portal does
+  not reference the merged `CaseReview` project, registers nothing from it, and
+  names none of its types (AC-50), because `AccountantReviewPackage` and its
+  reviewed slips are taxpayer data and rendering them is exactly what FR-18 gates
+  until Class A questions A–F are answered. Overriding this assumption does not by
+  itself make Portal Foundation a `tax-domain` feature — but the screen that
+  consumes the package is one, and must be specified as such.
 - `[ASSUMED]` **Project home and names** — `src/TaxAI.Portal/` (assembly
   `TaxAI.Portal`) and `tests/TaxAI.Portal.Tests/`, matching the repository's
   `src/`+`tests/` convention. The name is host-neutral ("Portal"), not
   screen-specific.
 - `[ASSUMED]` **SDK and settings** — the ASP.NET Core web SDK, net8.0, nullable
-  enabled, implicit usings enabled, matching the four existing projects.
+  enabled, implicit usings enabled, matching the five existing projects.
 - `[ASSUMED]` **Server-rendered, no client framework.** Razor Pages-style
   server rendering; no SPA, no JSON API, no npm. Rationale: taxpayer data must
   never be shipped to a browser as data, and that posture is cheapest to fix
@@ -798,8 +860,9 @@ an accident into a stop sign.
   invoked as services by `CaseProcessing`, not resolved by the host.
 - `[ASSUMED]` **Portal production references are `TaxLogicEngine` and
   `CaseProcessing` only.** `TaxCases` exposes only immutable values and static
-  policy services (nothing to register), and `DocumentExtraction` arrives
-  transitively; neither needs a direct reference in v1.
+  policy services (nothing to register), `DocumentExtraction` arrives
+  transitively, and `CaseReview` is excluded on the taxpayer-data grounds above;
+  none needs a direct reference in v1.
 - `[ASSUMED]` **Composition root shape** — one `Program.cs` calling one
   registration extension in one file (working name `ModuleRegistration`); exact
   names are `/plan`'s to finalize.
@@ -807,7 +870,7 @@ an accident into a stop sign.
   over the web-test-host package) in the test project only, with no network port
   bound; `Program` exposed as a public partial class **solely** for testability
   and carrying no other public API.
-- `[ASSUMED]` **Test tooling versions** match the four existing test projects
+- `[ASSUMED]` **Test tooling versions** match the five existing test projects
   (xunit 2.5.3, runner 2.5.3, Test.Sdk 17.8.0, coverlet 6.0.0), plus the 8.0.x
   in-process web test host.
 - `[ASSUMED]` **No `Directory.Build.props`, no `global.json`, no central package
@@ -818,7 +881,7 @@ an accident into a stop sign.
 - `[ASSUMED]` **Documentation set** — new `src/TaxAI.Portal/CLAUDE.md` and
   pointer `AGENTS.md`; updates to `README.md`, root `CLAUDE.md`, and `NEXT.md`;
   and a `specs/010-portal-foundation/verification.md` AC-by-AC record following
-  specs 005–008. **No existing module's instruction file is touched.**
+  specs 005–009. **No existing module's instruction file is touched.**
 - `[ASSUMED]` **Migration ordering** is the five-stage sequence in Migration
   constraints.
 - `[ASSUMED]` **The README's stale "Solution (two projects)" line is corrected**
@@ -848,9 +911,10 @@ No external tax sources required; this feature introduces no tax facts.
 - [x] Feature class named explicitly (`platform`) and justified; the boundary that
       would make it `tax-domain` is written down as an enforced gate (FR-18)
 - [x] Reuse check performed and documented — `specs/*/prd.md` and the source tree
-      were read directly; four reused types are referenced and none re-specified;
-      the existing test suites were read file-by-file to confirm no edit to them
-      is required
+      were read directly; the reused engine and processor types are referenced and
+      none re-specified; the five existing test suites, including the merged
+      `CaseReview.Tests`, were read file-by-file to confirm no edit to them is
+      required
 - [x] Every AC is mechanically checkable by a single test
 - [x] Zero Class A assumptions made — tax semantics, PII, tenant isolation, and
       security boundaries are all excluded from scope and surfaced (Open
