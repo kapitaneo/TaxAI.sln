@@ -1,0 +1,33 @@
+TaskID: T03
+PR: #83
+Implementation commit: eac764acc3a7aca4c7d90b86f94d2f32f13f587f
+Branch: feat/009-t03 (branched from master @ 66ed0eb81d201310fbe2bdf0ef518ab160f92138, the merge of PR #82)
+Build: pass - dotnet build TaxAI.sln --no-incremental --configuration Release
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2053 passed, 0 failed, 0 skipped
+  (188 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Focused tests: pass - dotnet test tests/CaseReview.Tests/CaseReview.Tests.csproj --configuration Release --no-restore
+  - 188 passed, 0 failed, 0 skipped
+Acceptance criteria: T03 decision-input and immutable sign-off semantics met.
+  - ReviewDecisionDescriptor preserves null, empty, whitespace, undefined-enum,
+    opaque decided-at, note, and nullable-acknowledgement values exactly without
+    validation, trimming, parsing, normalization, or exceptions.
+  - ReviewSignOff preserves accepted values and implements manual ordinal/value
+    equality, Equals(object), and immutable-state hash behavior across all five
+    members.
+  - Null, false, and true acknowledgements remain distinct.
+  - Direct JSON exposes only Decision and UnmappedBoxesAcknowledged; all caller
+    strings remain programmatically readable and JsonIgnore-protected.
+  - Fixed structural ToString and JSON tests plant reviewer, decided-at, and note
+    PII, proving no caller string or nine-digit run escapes.
+  - Signed packages with equivalent sign-offs compare equal with equal hashes.
+  - No validation, date parsing, clock, aggregate decision behavior, parser,
+    mapper, or tax behavior was added.
+Scope: only T03-listed files changed versus master:
+  src/CaseReview/Models/ReviewSignOff.cs,
+  tests/CaseReview.Tests/Models/ReviewDecisionModelTests.cs, and this marker.
+  ReviewDecisionDescriptor.cs required no diff because T01 already completed
+  and pinned its lossless value plumbing. tasks.md is unchanged.
+Status: implemented; full solution suite green; not merged (awaiting human review)

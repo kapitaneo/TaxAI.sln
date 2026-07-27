@@ -33,11 +33,39 @@ public sealed class ReviewSignOff : IEquatable<ReviewSignOff>
 
     public bool? UnmappedBoxesAcknowledged { get; }
 
-    public bool Equals(ReviewSignOff? other) => throw new NotImplementedException();
+    public bool Equals(ReviewSignOff? other)
+    {
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
 
-    public override bool Equals(object? obj) => throw new NotImplementedException();
+        return other is not null &&
+               Decision == other.Decision &&
+               string.Equals(
+                   ReviewerReference,
+                   other.ReviewerReference,
+                   StringComparison.Ordinal) &&
+               string.Equals(
+                   DecidedAtReference,
+                   other.DecidedAtReference,
+                   StringComparison.Ordinal) &&
+               string.Equals(Note, other.Note, StringComparison.Ordinal) &&
+               UnmappedBoxesAcknowledged == other.UnmappedBoxesAcknowledged;
+    }
 
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override bool Equals(object? obj) => Equals(obj as ReviewSignOff);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Decision);
+        hash.Add(ReviewerReference, StringComparer.Ordinal);
+        hash.Add(DecidedAtReference, StringComparer.Ordinal);
+        hash.Add(Note, StringComparer.Ordinal);
+        hash.Add(UnmappedBoxesAcknowledged);
+        return hash.ToHashCode();
+    }
 
     /// <summary>Structural presence facts only; no caller string is rendered.</summary>
     public override string ToString() =>
