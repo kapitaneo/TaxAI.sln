@@ -155,8 +155,23 @@ exactly the slip's year, once, with no adjacent-year retry. PII crosses the
 **omission → masking** seam: the raw `T4RawInput` never reaches the result, and
 the parsed Box 12 exists only as the engine's masked `RecipientIdentifier` on
 `T4Slip.Sin`. AC-1 through AC-43 are recorded in
-`specs/008-t4-case-processor/verification.md`. The next feature is the
-Accountant Review Package.
+`specs/008-t4-case-processor/verification.md`.
+
+Spec 009 (Accountant Review Package) is complete. `src/CaseReview/` implements
+the deterministic 2025 review boundary after CaseProcessing: it assembles one
+immutable package from one or more successful `ProcessedT4Extraction` values,
+preserving the exact parsed-slip reference and ordered snapshots of
+engine-produced line entries, provenance, populated amounts, and unmapped
+codes. `AccountantReviewPackage.RecordDecision` records exactly one immutable
+human decision on a replacement package. Approval fails closed when any
+reviewed slip has an unmapped code unless the reviewer supplies one affirmative
+package-level acknowledgement; there is no per-slip/per-code disposition or
+mapped-amount dispute mechanism. The module invokes no parser, mapper, mapping
+provider, mapping resource, arithmetic, or rounding. PII is protected by the
+engine's existing masked `RecipientIdentifier` plus omission of caller strings
+and reviewed content from defensive output. AC-1 through AC-54 are recorded in
+`specs/009-accountant-review-package/verification.md`. The next feature is
+Portal Foundation.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

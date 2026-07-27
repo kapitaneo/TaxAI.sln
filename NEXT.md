@@ -68,13 +68,25 @@
   - AC-1…AC-43 verification recorded in
     `specs/008-t4-case-processor/verification.md`.
 
+- Spec 009 — Accountant Review Package:
+  - deterministic, immutable 2025 review packages implemented in
+    `src/CaseReview/`, assembled only from successful
+    `ProcessedT4Extraction` values;
+  - exact slip identity and ordered snapshots of engine-produced line entries,
+    source-box provenance, populated amounts, and unmapped codes, with no
+    parsing, mapping, arithmetic, or rounding;
+  - one immutable human decision per package, with fixed fail-closed validation
+    and one package-level affirmative acknowledgement required before approval
+    whenever any reviewed slip has an unmapped code;
+  - PII by masking plus omission: the engine's masked `RecipientIdentifier` is
+    the only SIN representation, while caller strings and reviewed nested
+    content are omitted from defensive rendering and serialization;
+  - AC-1…AC-54 verification recorded in
+    `specs/009-accountant-review-package/verification.md`.
+
 ## Next
 
-Create the **Accountant Review Package** spec.
-
-## After Accountant Review Package
-
-- then Portal Foundation.
+Create the **Portal Foundation** spec.
 
 ## Explicitly not now
 
