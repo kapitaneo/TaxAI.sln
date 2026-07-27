@@ -1,0 +1,51 @@
+T01 — Scaffold both projects, fix the response literals, declare the
+composition-root signature, and write the portal's instruction files.
+
+Spec:   010-portal-foundation (Wave 0 — repository/architecture contract)
+PR:     #90  https://github.com/kapitaneo/TaxAI.sln/pull/90
+Branch: feat/010-w0-t01
+Commit: 0645d4c
+
+Files created/changed (exactly the task's declared list):
+  TaxAI.sln                                          (appended only: 28 insertions, 0 deletions)
+  src/TaxAI.Portal/TaxAI.Portal.csproj
+  src/TaxAI.Portal/Program.cs
+  src/TaxAI.Portal/ModuleRegistration.cs
+  src/TaxAI.Portal/PortalContent.cs
+  src/TaxAI.Portal/appsettings.json
+  src/TaxAI.Portal/Properties/launchSettings.json
+  src/TaxAI.Portal/CLAUDE.md
+  src/TaxAI.Portal/AGENTS.md
+  tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj
+  tests/TaxAI.Portal.Tests/ProjectStructureTests.cs
+  specs/010-portal-foundation/status/T01.done
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests (CS0649 x2, xUnit2008 x2). None from the new
+       projects.
+
+  dotnet test TaxAI.sln
+    -> Passed. 2378 passed, 0 failed, 0 skipped.
+       TaxLogicEngine.Tests      261 passed
+       DocumentExtraction.Tests  673 passed
+       TaxCases.Tests            337 passed
+       CaseProcessing.Tests      594 passed
+       CaseReview.Tests          482 passed
+       TaxAI.Portal.Tests         31 passed  (new)
+
+Acceptance criteria verified by this task: AC-1, AC-2, AC-3, AC-4, AC-5, AC-8,
+AC-9, AC-44, AC-45.
+
+Notes for the reviewer and for later waves:
+  - Program.cs deliberately does NOT call AddTaxAiModules yet. T02 implements
+    the method and wires it in the same task.
+  - PortalContent's literals use explicit \n escapes so the response bodies stay
+    byte-identical across checkouts; T03 and T05 assert byte equality against
+    independently written expectations.
+  - No InternalsVisibleTo grant was added to either new project.
+  - Smoke test: dotnet run --project src/TaxAI.Portal reported
+    "Now listening on: http://localhost:5199" and "Application started."
+
+Merged by: not merged — awaiting human review. Agents never merge.
