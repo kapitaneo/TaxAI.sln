@@ -1,0 +1,30 @@
+TaskID: T06
+PR: #86
+Implementation commit: 9ace801791a3c8653c133c185c28140b3abd415c
+Branch: codex/009-t06 (branched from master @ 46043e6, the merge of PR #85)
+Build: pass - dotnet build TaxAI.sln --no-incremental
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2296 passed, 0 failed, 0 skipped
+  (431 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Focused tests: pass - dotnet test tests/CaseReview.Tests/CaseReview.Tests.csproj
+  --configuration Release --no-restore --filter
+  "FullyQualifiedName~CaseReview.Tests.EndToEnd.ReviewPackage"
+  - 181 passed, 0 failed, 0 skipped
+Acceptance criteria: T06 public-pipeline end-to-end assurance met.
+  - Acceptance coverage exercises extraction validation, T4 case processing,
+  review-package assembly, and decision recording through public APIs for
+  multi-slip, fidelity, empty-mapping, rounding-boundary, acknowledgement,
+  all-decision, failure, and no-mutation scenarios.
+  - PII coverage applies the complete five-plant by fourteen-slot matrix to
+  accepted assembly/sign-off and every constructible rejected family, checks
+  serialized public output shapes and raw-type unreachability, and confirms
+  the masked recipient identifier is the only reviewed-slip identity surface.
+  - Determinism coverage replays accepted and every rejected family five times
+  with distinct equivalent input collections and verifies stable packages,
+  sign-offs, errors, ordering, and unchanged caller-owned input graphs.
+Scope: confirmed only the three T06 end-to-end test files and this completion
+  marker changed versus master. tasks.md is unchanged.
+Status: implemented; PR #86 open; full solution suite green; not merged
+  (awaiting human review).
