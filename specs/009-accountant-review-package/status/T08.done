@@ -1,0 +1,38 @@
+TaskID: T08
+PR: #88
+Implementation commit: ee88abd6310932e922d352aad6ba3fa0b04eacb6
+Branch: codex/009-t08 (branched from master @ b291ce9, the merge of PR #87)
+Build: pass - dotnet build TaxAI.sln --no-incremental
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2347 passed, 0 failed, 0 skipped
+  (482 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Task suites: pass.
+  - T01 contract and omission: 160 passed
+  - T02 reviewed-content models: 12 passed
+  - T03 decision models: 16 passed
+  - T04 package assembly: 21 passed
+  - T05 decision recording and acknowledgement: 41 passed
+  - T06 public-pipeline acceptance, PII, and determinism: 181 passed
+  - T07 boundary enforcement: 35 passed
+  - T08 repository verification: 16 passed
+Acceptance criteria: 54 of 54 pass, 0 fail.
+  - verification.md maps every criterion to exact test evidence and records
+    every task-suite, project, build, full-suite, ownership, and hygiene check.
+  - The representative accepted chain and rejected acknowledgement gate run
+    through the public extraction, processing, assembly, and decision APIs.
+  - Exact contract, dependency direction, year isolation, deterministic error
+    order, defensive snapshots, PII omission/masking, no tax recomputation, and
+    package-level-only acknowledgement are verified.
+  - All pre-existing test suites remain green at their prior counts and the
+    eight forbidden existing source/test trees are unchanged from the spec-009
+    plan merge.
+  - No tracked build output, local settings, user file, key, credential, or
+    secret artifact was found; tasks.md remains unchanged.
+Repository state: NEXT.md and root CLAUDE.md record spec 009 complete and name
+  Portal Foundation as the next feature.
+Scope: confirmed only the five T08-listed files changed versus master,
+  including this marker.
+Status: implemented; PR #88 open; full solution suite green; not merged
+  (awaiting human review).
