@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Dependencies point inward, and are exactly these two. The web SDK's
+       implicit Microsoft.AspNetCore.App framework reference is the whole of this
+       project's dependency surface: no PackageReference belongs here. -->
+  <ItemGroup>
+    <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
+    <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
+  </ItemGroup>
+
+</Project>
