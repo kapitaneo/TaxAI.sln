@@ -1,0 +1,35 @@
+TaskID: T04
+PR: #84
+Implementation commit: dd332ca39d7c011a3ac5b077503df21d046121b2
+Branch: codex/009-t04 (branched from master @ 698b6ab, the merge of prerequisite PR #83)
+Build: pass - dotnet build TaxAI.sln --no-incremental
+  (0 errors; CaseReview and CaseReview.Tests warning-free; 4 pre-existing
+  warnings remain in tests/TaxLogicEngine.Tests)
+Tests: pass - dotnet test TaxAI.sln - 2074 passed, 0 failed, 0 skipped
+  (209 CaseReview + 594 CaseProcessing + 673 DocumentExtraction + 337 TaxCases
+  + 261 TaxLogicEngine)
+Focused tests: pass - dotnet test tests/CaseReview.Tests/CaseReview.Tests.csproj
+  --configuration Release --no-restore --filter
+  "FullyQualifiedName~ReviewPackageAssemblerTests"
+  - 21 passed, 0 failed, 0 skipped
+Acceptance criteria: T04 package assembly and mechanical acceptance met.
+  - Structural null, empty, and null-element failures short-circuit with fixed,
+    non-interpolated errors and no partial package.
+  - Firm, case, participant, tax-year coherence, supported-year policy, and
+    duplicate-document rules accumulate once each in the required fixed order.
+  - Every identifier comparison is ordinal and every element consults the
+    module-local supported-year policy.
+  - Successful assembly preserves supplied order, exact attribution, T4Slip
+    reference identity, and ordered value snapshots of line entries, source box
+    provenance, populated box amounts, and unmapped box codes.
+  - T4SlipBoxAmounts.Enumerate is the only engine call; no parser, mapper,
+    mapping resource, arithmetic, rounding, normalization, or unsupported-year
+    fabrication was added.
+  - Tests cover single and multi-slip success, deterministic equality, one-time
+    materialization, input immutability, empty mappings, zero and both half-cent
+    inputs, every constructible rejection rule, caller-value omission, and
+    fixed multi-error order using only real spec 008 processed outputs.
+Scope: confirmed only T04-listed files changed versus master, including this
+  marker. tasks.md is unchanged.
+Status: implemented; PR #84 open; full solution suite green; not merged
+  (awaiting human review).
