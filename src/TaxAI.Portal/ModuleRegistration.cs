@@ -1,3 +1,6 @@
+using CaseProcessing.Services;
+using TaxLogicEngine.Services;
+
 namespace TaxAI.Portal;
 
 /// <summary>
@@ -20,10 +23,32 @@ internal static class ModuleRegistration
     /// Registers the tax modules' contracts with the container.
     /// </summary>
     /// <remarks>
-    /// Declared in Wave 0 as the contract every later task codes against;
-    /// implemented in Wave 1 (T02). Until then nothing calls it, so no start-up
-    /// path can reach this throw.
+    /// <para>
+    /// Every registration is a singleton. Both providers are stateless and
+    /// parameterless, and the coordinator holds nothing but a provider, so there
+    /// is no per-request state to scope and no reason to rebuild them.
+    /// </para>
+    /// <para>
+    /// Deliberately absent: <c>IDocumentExtractionIngress</c>, whose signature
+    /// spec 007 shipped without an implementation — registering one here would
+    /// invent the untrusted-input intake path inside a hosting spec. Also absent
+    /// are the T4/T5 line mappers, which <c>CaseProcessing</c> constructs
+    /// internally rather than resolving from a container.
+    /// </para>
+    /// <para>
+    /// The coordinator is registered so the container can prove it is
+    /// constructible. Nothing resolves or invokes it: there is no endpoint that
+    /// runs tax logic.
+    /// </para>
     /// </remarks>
-    internal static IServiceCollection AddTaxAiModules(this IServiceCollection services) =>
-        throw new NotImplementedException();
+    internal static IServiceCollection AddTaxAiModules(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddSingleton<IT4LineMapProvider, EmbeddedT4LineMapProvider>();
+        services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
+        services.AddSingleton<T4CaseProcessor>();
+
+        return services;
+    }
 }
