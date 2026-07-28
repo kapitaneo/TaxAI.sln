@@ -1,0 +1,475 @@
+using System.Net;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace TaxAI.Portal.Tests.Security;
+
+/// <summary>
+/// T05 — proves the portal's v1 posture: no input surface, no PII, no
+/// authentication, no infrastructure, no secret, and no client-side stack.
+/// <para>
+/// The PII protection here is <b>omission, not masking</b>. In v1 the safest
+/// possible posture is available and is therefore mandatory: taxpayer data never
+/// enters the process, so there is nothing to mask, and introducing a second
+/// masking helper is exactly what every module's instructions forbid.
+/// </para>
+/// <para>
+/// Source scans read <b>executable lines only</b>. The portal's documentation
+/// legitimately names forbidden concepts while explaining why they are
+/// forbidden. The scanner guard at the bottom proves the walk and the filter
+/// both still work, so these assertions cannot pass for free.
+/// </para>
+/// </summary>
+public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+{
+    /// <summary>Nine consecutive digits — the shape of an unmasked SIN.</summary>
+    private static readonly Regex NineDigitRun =
+        new(@"\d{9}", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+    private static readonly string RepositoryRoot = FindRepositoryRoot();
+
+    private static readonly string PortalRoot =
+        Path.Combine(RepositoryRoot, "src", "TaxAI.Portal");
+
+    private static readonly string[] ExpectedProductionFiles =
+    {
+        "ModuleRegistration.cs",
+        "PortalContent.cs",
+        "Program.cs",
+    };
+
+    private readonly WebApplicationFactory<Program> _factory;
+
+    public PortalSecurityTests(WebApplicationFactory<Program> factory) =>
+        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+
+    public void Dispose() => _factory.Dispose();
+
+    // ------------------------------------------------- AC-27: no input surface
+
+    public static TheoryData<string, string> InputBindingPatterns() => new()
+    {
+        { "model binding attribute", @"\[From(?:Body|Query|Route|Form|Header|Services)\]" },
+        { "request body", @"Request\s*\.\s*Body|\bReadFromJsonAsync\b|\bReadAsStringAsync\b" },
+        { "request query", @"Request\s*\.\s*Query|\bQueryString\b" },
+        { "request form", @"Request\s*\.\s*Form|\bIFormFile\b|\bIFormCollection\b" },
+        { "request headers", @"Request\s*\.\s*Headers" },
+        { "request cookies", @"Request\s*\.\s*Cookies|\bCookieOptions\b" },
+        { "route parameter binding", @"\bRouteData\b|\bGetRouteValue\b" },
+    };
+
+    [Theory] // AC-27
+    [MemberData(nameof(InputBindingPatterns))]
+    public void ProductionSource_ReadsNoRequestInput(string surface, string pattern)
+    {
+        // v1 has no input surface at all, so there is nothing to validate and
+        // nothing that can be malformed. That is the whole defence.
+        AssertNoProductionMatch(surface, pattern);
+    }
+
+    // -------------------------------------- AC-28, AC-37: what goes on the wire
+
+    [Fact]
+    public async Task NeitherResponseBodyContainsANineDigitRun() // AC-37
+    {
+        using var client = _factory.CreateClient();
+
+        foreach (var path in new[] { "/", "/health" })
+        {
+            var body = await (await client.GetAsync(path)).Content.ReadAsStringAsync();
+
+            Assert.False(
+                NineDigitRun.IsMatch(body),
+                $"{path} response contains a nine-digit run: {body}");
+        }
+    }
+
+    [Fact]
+    public async Task TheHealthBodyDisclosesNothingAboutTheSystem() // AC-28
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/health");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // A probe endpoint that describes the system is a disclosure surface:
+        // it tells an unauthenticated caller what to attack.
+        foreach (var disclosure in new[]
+                 {
+                     Environment.MachineName,
+                     Environment.UserName,
+                     Environment.OSVersion.VersionString,
+                     "Production",
+                     "Development",
+                     "net8.0",
+                     "Version",
+                     ":\\",
+                     "TaxAI.Portal",
+                 })
+        {
+            Assert.DoesNotContain(disclosure, body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // No timestamp of any kind, and no digits at all in the health body.
+        Assert.DoesNotMatch(new Regex(@"\d"), body);
+    }
+
+    [Fact]
+    public async Task NoResponseCarriesAServerIdentityHeader()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/health");
+
+        Assert.DoesNotContain(
+            response.Headers,
+            header => header.Key.Equals("Server", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TheKestrelServerHeaderIsSuppressedAtTheSource()
+    {
+        // TestServer does not use Kestrel, so the wire test above cannot prove
+        // this for a real deployment. The source assertion can.
+        var program = string.Join("\n", ExecutableLines(Path.Combine(PortalRoot, "Program.cs")));
+
+        Assert.Matches(new Regex(@"AddServerHeader\s*=\s*false"), program);
+    }
+
+    // ------------------------------------------- AC-30: no diagnostic leakage
+
+    [Fact]
+    public void AnyDeveloperExceptionPageIsConfinedToDevelopment() // AC-30
+    {
+        // The AC permits either: absent entirely, or present behind an
+        // IsDevelopment() branch. Both are safe; anything else leaks stack
+        // traces to whoever asks.
+        foreach (var file in ProductionSourceFiles())
+        {
+            var executable = string.Join("\n", ExecutableLines(file));
+
+            if (!executable.Contains("DeveloperExceptionPage", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            Assert.Contains("IsDevelopment", executable, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task AnUnmatchedRouteLeaksNoDiagnosticDetail() // AC-30
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/no-such-path");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        foreach (var leak in new[] { "Exception", "StackTrace", ".cs:line", ":\\", "at TaxAI" })
+        {
+            Assert.DoesNotContain(leak, body, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    // ------------------------------------------------------- AC-36: no PII path
+
+    public static TheoryData<string, string> PiiPatterns() => new()
+    {
+        { "SIN identifier", @"(?<![A-Za-z])Sin(?![a-z])|\bSocialInsurance\w*\b|\bRecipientIdentifier\b" },
+        { "masking or redaction helper", @"\bSafeDiagnosticText\b|\bMask(?:ed|ing)?\s*\(|\bRedact\w*\b|\bScrub\w*\b|\bSanitiz\w*\b" },
+        { "taxpayer name or address field", @"\bEmployeeName\b|\bEmployerName\b|\bEmployeeAddress\b|\bEmployerAddress\b|\bRecipientName\b" },
+    };
+
+    [Theory] // AC-36
+    [MemberData(nameof(PiiPatterns))]
+    public void ProductionSource_ContainsNoPiiToken(string kind, string pattern)
+    {
+        AssertNoProductionMatch(kind, pattern);
+    }
+
+    [Fact]
+    public void ProductionSource_ContainsNoNineDigitLiteral() // AC-36
+    {
+        foreach (var file in ProductionSourceFiles())
+        {
+            var offending = ExecutableLines(file).Where(line => NineDigitRun.IsMatch(line)).ToArray();
+
+            Assert.True(
+                offending.Length == 0,
+                $"{Path.GetFileName(file)} contains a nine-digit run: {string.Join(" | ", offending)}");
+        }
+    }
+
+    // ------------------------------------------------- AC-38: no request logging
+
+    public static TheoryData<string, string> LoggingPatterns() => new()
+    {
+        { "HTTP logging middleware", @"\bAddHttpLogging\b|\bUseHttpLogging\b|\bAddW3CLogging\b|\bUseW3CLogging\b" },
+        { "request content in a log statement", @"Log\w*\s*\([^)]*(?:Request|Path|QueryString|Headers|Cookies|Body)" },
+        { "telemetry exporter", @"\bApplicationInsights\b|\bOpenTelemetry\b|\bAddTelemetry\b" },
+    };
+
+    [Theory] // AC-38
+    [MemberData(nameof(LoggingPatterns))]
+    public void ProductionSource_LogsNoRequestContent(string kind, string pattern)
+    {
+        // What may be logged once this process holds taxpayer data is Class A
+        // and reserved for the human. v1 answers it by logging nothing.
+        AssertNoProductionMatch(kind, pattern);
+    }
+
+    // -------------------------------------------- AC-39: no auth or session
+
+    public static TheoryData<string, string> AuthenticationPatterns() => new()
+    {
+        { "authentication wiring", @"\bAddAuthentication\b|\bUseAuthentication\b" },
+        { "authorization wiring", @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b" },
+        { "identity", @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b" },
+        { "session or cookie state", @"\bAddSession\b|\bUseSession\b|\bAddDataProtection\b|Response\s*\.\s*Cookies" },
+    };
+
+    [Theory] // AC-39
+    [MemberData(nameof(AuthenticationPatterns))]
+    public void ProductionSource_DeclaresNoAuthenticationSurface(string kind, string pattern)
+    {
+        // An exclusion, not a security design. The security design is Class A
+        // and is reserved for the human; v1 is safe only because it exposes
+        // nothing worth protecting.
+        AssertNoProductionMatch(kind, pattern);
+    }
+
+    // ---------------------------------------------- no infrastructure at all
+
+    public static TheoryData<string, string> InfrastructurePatterns() => new()
+    {
+        { "database / ORM", @"\bDbContext\b|\bDbSet\s*<|\bSqlConnection\b|\bSystem\.Data\b|EntityFrameworkCore" },
+        { "outbound HTTP", @"\bHttpClient\b|\bAddHttpClient\b|\bWebRequest\b|\bSocket\b" },
+        { "OCR / LLM / cloud / email", @"\bOcr\b|\bTesseract\b|\bOpenAi\b|\bAnthropic\b|\bLlm\b|\bSmtp\b|\bMailMessage\b|\bAmazon\b|\bAzure\b|\bS3\b" },
+        { "system clock", @"DateTime\s*\.\s*(?:Now|UtcNow)|DateTimeOffset\s*\.\s*(?:Now|UtcNow)|\bTimeProvider\b" },
+        { "background work", @"\bAddHostedService\b|\bBackgroundService\b|\bIHostedService\b|\bTimer\b" },
+        { "file system", @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bUseStaticFiles\b|\bwwwroot\b" },
+    };
+
+    [Theory] // supports AC-40's posture at source level
+    [MemberData(nameof(InfrastructurePatterns))]
+    public void ProductionSource_TakesNoInfrastructureDependency(string kind, string pattern)
+    {
+        AssertNoProductionMatch(kind, pattern);
+    }
+
+    // ------------------------------- AC-41: no secret, no non-local binding
+
+    public static TheoryData<string> TrackedConfigurationFiles() => new()
+    {
+        "appsettings.json",
+        Path.Combine("Properties", "launchSettings.json"),
+    };
+
+    [Theory] // AC-41
+    [MemberData(nameof(TrackedConfigurationFiles))]
+    public void TrackedConfiguration_CarriesNoSecret(string relativePath)
+    {
+        var path = Path.Combine(PortalRoot, relativePath);
+        Assert.True(File.Exists(path), $"{path} must exist.");
+
+        var text = File.ReadAllText(path);
+
+        foreach (var secret in new[]
+                 {
+                     @"\bConnectionStrings?\b",
+                     @"\bpassword\b",
+                     @"\bsecret\b",
+                     @"\bapi[-_]?key\b",
+                     @"\btoken\b",
+                     @"\bcertificate\b",
+                     @"\bpfx\b",
+                     @"\bBEGIN [A-Z ]*PRIVATE KEY\b",
+                 })
+        {
+            Assert.False(
+                Regex.IsMatch(text, secret, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)),
+                $"{relativePath} matches /{secret}/, which looks like a secret.");
+        }
+    }
+
+    [Theory] // AC-41
+    [MemberData(nameof(TrackedConfigurationFiles))]
+    public void TrackedConfiguration_BindsOnlyToLocalhost(string relativePath)
+    {
+        var text = File.ReadAllText(Path.Combine(PortalRoot, relativePath));
+
+        // Hosting exposure, TLS, and deployment are deliberately out of scope
+        // (PRD Open question E). v1 is a local development host only.
+        foreach (Match match in Regex.Matches(
+                     text, @"https?://[^""\s]+", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)))
+        {
+            var url = new Uri(match.Value);
+
+            Assert.True(
+                url.Host is "localhost" or "127.0.0.1" or "[::1]",
+                $"{relativePath} declares a non-local URL: {match.Value}");
+        }
+    }
+
+    // ------------------------------------------- AC-42: no client-side stack
+
+    [Fact]
+    public void TheRepositoryHasNoClientSideStack() // AC-42
+    {
+        // Taxpayer data must never be shipped to a browser as data. Establishing
+        // that posture before a screen exists is far cheaper than retrofitting
+        // it after one does.
+        var offending = Directory
+            .EnumerateFiles(RepositoryRoot, "*", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path) && !IsGitInternal(path))
+            .Where(path =>
+            {
+                var name = Path.GetFileName(path);
+                return name.Equals("package.json", StringComparison.OrdinalIgnoreCase)
+                    || name.Equals("package-lock.json", StringComparison.OrdinalIgnoreCase)
+                    || name.Equals("angular.json", StringComparison.OrdinalIgnoreCase)
+                    || name.EndsWith(".min.js", StringComparison.OrdinalIgnoreCase)
+                    || name.EndsWith(".min.css", StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(path => Path.GetRelativePath(RepositoryRoot, path))
+            .ToArray();
+
+        Assert.True(offending.Length == 0, $"Client-side artifacts found: {string.Join(", ", offending)}");
+
+        Assert.False(
+            Directory.Exists(Path.Combine(RepositoryRoot, "node_modules")),
+            "node_modules must not exist.");
+
+        Assert.False(
+            Directory.Exists(Path.Combine(PortalRoot, "wwwroot")),
+            "wwwroot must not exist: the portal serves constants, not files.");
+    }
+
+    // -------------------------------------------------------------- guard
+
+    [Fact]
+    public void TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern()
+    {
+        // Without this, a broken walk or an over-eager comment filter would make
+        // every negative assertion in this file pass for free.
+        var files = ProductionSourceFiles();
+
+        Assert.Equal(
+            ExpectedProductionFiles,
+            files.Select(Path.GetFileName).OrderBy(name => name, StringComparer.Ordinal).ToArray());
+
+        var allExecutable = string.Join("\n", files.SelectMany(ExecutableLines));
+
+        Assert.True(
+            allExecutable.Length > 500,
+            $"Implausibly little executable source: {allExecutable.Length} chars.");
+
+        Assert.Matches(new Regex(@"\bMapGet\b"), allExecutable);
+        Assert.Matches(new Regex(@"\bAddServerHeader\b"), allExecutable);
+
+        // And prove the filter really is removing comments, so "executable lines
+        // only" is not silently scanning the whole file.
+        var raw = File.ReadAllText(Path.Combine(PortalRoot, "Program.cs"));
+        Assert.Contains("IsDevelopment", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsDevelopment", allExecutable, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every assertion above is negative — it passes when a pattern finds
+    /// nothing. A typo'd or over-escaped regex would therefore pass silently and
+    /// forever. Each pattern is paired here with a line it MUST match, so a
+    /// regex that has stopped working fails loudly instead of quietly approving
+    /// whatever it was meant to catch.
+    /// </summary>
+    public static TheoryData<string, string> PatternsAndLinesTheyMustMatch() => new()
+    {
+        { @"\[From(?:Body|Query|Route|Form|Header|Services)\]", "app.MapGet(\"/x\", ([FromQuery] string q) => q);" },
+        { @"Request\s*\.\s*Body|\bReadFromJsonAsync\b|\bReadAsStringAsync\b", "var body = await context.Request.Body.ReadAsStringAsync();" },
+        { @"Request\s*\.\s*Form|\bIFormFile\b|\bIFormCollection\b", "app.MapPost(\"/u\", (IFormFile file) => file.Length);" },
+        { @"Request\s*\.\s*Headers", "var agent = context.Request.Headers[\"User-Agent\"];" },
+        { @"(?<![A-Za-z])Sin(?![a-z])|\bSocialInsurance\w*\b|\bRecipientIdentifier\b", "var sin = slip.Sin;" },
+        { @"\bSafeDiagnosticText\b|\bMask(?:ed|ing)?\s*\(|\bRedact\w*\b|\bScrub\w*\b|\bSanitiz\w*\b", "return Mask(value);" },
+        { @"\bAddHttpLogging\b|\bUseHttpLogging\b|\bAddW3CLogging\b|\bUseW3CLogging\b", "builder.Services.AddHttpLogging(o => { });" },
+        { @"Log\w*\s*\([^)]*(?:Request|Path|QueryString|Headers|Cookies|Body)", "logger.LogInformation(\"path {Path}\", context.Request.Path);" },
+        { @"\bAddAuthentication\b|\bUseAuthentication\b", "builder.Services.AddAuthentication();" },
+        { @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b", "app.MapGet(\"/x\", () => 1).RequireAuthorization();" },
+        { @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b", "var user = context.User as ClaimsPrincipal;" },
+        { @"\bDbContext\b|\bDbSet\s*<|\bSqlConnection\b|\bSystem\.Data\b|EntityFrameworkCore", "public sealed class AppDb : DbContext { }" },
+        { @"\bHttpClient\b|\bAddHttpClient\b|\bWebRequest\b|\bSocket\b", "using var client = new HttpClient();" },
+        { @"DateTime\s*\.\s*(?:Now|UtcNow)|DateTimeOffset\s*\.\s*(?:Now|UtcNow)|\bTimeProvider\b", "var now = DateTime.UtcNow;" },
+        { @"\bAddHostedService\b|\bBackgroundService\b|\bIHostedService\b|\bTimer\b", "builder.Services.AddHostedService<Worker>();" },
+        { @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bUseStaticFiles\b|\bwwwroot\b", "app.UseStaticFiles();" },
+    };
+
+    [Theory]
+    [MemberData(nameof(PatternsAndLinesTheyMustMatch))]
+    public void EveryForbiddenPattern_ActuallyMatchesAViolatingLine(string pattern, string violatingLine)
+    {
+        Assert.Matches(new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), violatingLine);
+    }
+
+    [Fact]
+    public void TheNineDigitRunPattern_MatchesASinShapedLiteral()
+    {
+        Assert.Matches(NineDigitRun, "var planted = \"123456789\";");
+        Assert.DoesNotMatch(NineDigitRun, "initial-scale=1");
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private static void AssertNoProductionMatch(string label, string pattern)
+    {
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+        var violations = ProductionSourceFiles()
+            .Select(path => new { Name = Path.GetFileName(path), Text = string.Join("\n", ExecutableLines(path)) })
+            .Where(source => regex.IsMatch(source.Text))
+            .Select(source => source.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"Forbidden {label} pattern /{pattern}/ found in: {string.Join(", ", violations)}");
+    }
+
+    private static string[] ProductionSourceFiles() =>
+        Directory.EnumerateFiles(PortalRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+    private static bool IsBuildOutput(string path) =>
+        path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsGitInternal(string path) =>
+        path.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
+
+    private static IEnumerable<string> ExecutableLines(string path) =>
+        File.ReadAllLines(path)
+            .Select(line => line.Trim())
+            .Where(line =>
+                line.Length > 0 &&
+                !line.StartsWith("///", StringComparison.Ordinal) &&
+                !line.StartsWith("//", StringComparison.Ordinal) &&
+                !line.StartsWith("*", StringComparison.Ordinal) &&
+                !line.StartsWith("/*", StringComparison.Ordinal));
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TaxAI.sln")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName
+            ?? throw new DirectoryNotFoundException("Could not find the repository root containing TaxAI.sln.");
+    }
+}
