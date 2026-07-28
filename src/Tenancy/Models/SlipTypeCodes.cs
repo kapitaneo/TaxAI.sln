@@ -9,10 +9,6 @@ namespace Tenancy.Models;
 /// TaxLogicEngine's mapping config, and duplicating any part of it here would
 /// create a second authority.
 /// </para>
-/// <para>
-/// Wave 0 contract stage: the code is declared; recognition is implemented in a
-/// later task.
-/// </para>
 /// </summary>
 public static class SlipTypeCodes
 {
@@ -23,5 +19,6 @@ public static class SlipTypeCodes
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[] { T4 });
 
     /// <summary>An unrecognized code is refused; it is never stored "as given".</summary>
-    public static bool IsRecognized(string? code) => throw new NotImplementedException();
+    public static bool IsRecognized(string? code) =>
+        string.Equals(code, T4, StringComparison.Ordinal);
 }

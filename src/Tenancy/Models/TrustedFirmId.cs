@@ -16,8 +16,8 @@ namespace Tenancy.Models;
 /// case-folded to make a candidate pass.
 /// </para>
 /// <para>
-/// Wave 0 contract stage: the shape is declared; the strict parse and the
-/// ordinal equality are implemented in a later task.
+/// The canonical representation is the lower-case, hyphenated <c>D</c> format.
+/// Candidates must already equal that representation ordinally.
 /// </para>
 /// </summary>
 public sealed class TrustedFirmId : IEquatable<TrustedFirmId>
@@ -28,24 +28,38 @@ public sealed class TrustedFirmId : IEquatable<TrustedFirmId>
     public Guid Value { get; }
 
     /// <summary>Wraps a firm identifier the server itself resolved.</summary>
-    public static TrustedFirmId FromGuid(Guid value) => throw new NotImplementedException();
+    public static TrustedFirmId FromGuid(Guid value) => new(value);
 
     /// <summary>
     /// Parses a canonical firm identifier strictly. Returns false — never a
     /// coerced value — for anything that is not already canonical.
     /// </summary>
-    public static bool TryParse(string? candidate, out TrustedFirmId? firmId) =>
-        throw new NotImplementedException();
+    public static bool TryParse(string? candidate, out TrustedFirmId? firmId)
+    {
+        firmId = null;
+
+        if (candidate is null ||
+            !Guid.TryParseExact(candidate, "D", out var value) ||
+            !string.Equals(candidate, value.ToString("D"), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        firmId = new TrustedFirmId(value);
+        return true;
+    }
 
     /// <summary>The exact canonical string form, for the application-issued claim.</summary>
-    public string ToCanonicalString() => throw new NotImplementedException();
+    public string ToCanonicalString() => Value.ToString("D");
 
-    public bool Equals(TrustedFirmId? other) => throw new NotImplementedException();
+    public bool Equals(TrustedFirmId? other) =>
+        other is not null && Value.Equals(other.Value);
 
-    public override bool Equals(object? obj) => throw new NotImplementedException();
+    public override bool Equals(object? obj) =>
+        obj is TrustedFirmId other && Equals(other);
 
-    public override int GetHashCode() => throw new NotImplementedException();
+    public override int GetHashCode() => Value.GetHashCode();
 
     /// <summary>Fixed type identity only; the firm identifier is never rendered.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(TrustedFirmId);
 }
