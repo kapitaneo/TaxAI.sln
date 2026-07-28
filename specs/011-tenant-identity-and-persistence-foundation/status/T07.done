@@ -1,0 +1,24 @@
+TaskID: T07
+PR: #102
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/102
+Implementation commit: 2770a78868ac7c11bf88f7433a5a10a92aa2206e
+Branch: feat/011-w1-t07
+Base commit: 872aacadd5b24693c963e5b666dd3a449fa09b0d
+
+Build:
+- PASS: dotnet build TaxAI.sln (0 errors; 4 pre-existing warnings)
+
+Focused tests:
+- PASS: RetentionPolicyTests — 7 passed, 0 failed, 0 skipped, 7 total
+
+Repository tests:
+- PASS: dotnet test TaxAI.sln — 2778 passed, 0 failed, 0 skipped, 2778 total
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1 — all 8 expected test projects ran and met their floors; 2778 passed, 0 failed, 0 skipped, 2778 total
+- PASS: git diff --check
+
+Scope:
+- Implementation commit changes exactly the two T07-allowlisted files:
+  - src/Tenancy/Services/RetentionPolicy.cs
+  - tests/Tenancy.Tests/Services/RetentionPolicyTests.cs
+- Completion commit adds only this T07.done marker.
+- No spec document, sibling task file, sibling status marker, or other-task-owned file changed.
