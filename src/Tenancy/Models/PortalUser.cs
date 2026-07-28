@@ -18,7 +18,6 @@ namespace Tenancy.Models;
 /// the three that carry no firm column — they cannot be tenant-scoped without
 /// circularity. None of them may carry taxpayer content.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class PortalUser
 {
@@ -33,7 +32,15 @@ public sealed class PortalUser
         string subject,
         bool isActive,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc) => throw new NotImplementedException();
+        DateTimeOffset updatedAtUtc)
+    {
+        UserId = userId;
+        Issuer = issuer;
+        Subject = subject;
+        IsActive = isActive;
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+    }
 
     public Guid UserId { get; private set; }
 
@@ -51,5 +58,5 @@ public sealed class PortalUser
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     /// <summary>Fixed structural facts only; never the issuer or the subject.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PortalUser);
 }

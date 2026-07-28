@@ -17,7 +17,6 @@ namespace Tenancy.Services;
 /// other: a live, unrevoked, in-bounds session whose membership was disabled is
 /// still refused.
 /// </para>
-/// <para>Wave 0 contract stage: behaviour is implemented in a later task.</para>
 /// </summary>
 public static class MembershipVerificationPolicy
 {
@@ -28,5 +27,42 @@ public static class MembershipVerificationPolicy
     public static MembershipVerification Verify(
         PortalUser? user,
         FirmMembership? membership,
-        AuthenticationSession session) => throw new NotImplementedException();
+        AuthenticationSession session)
+    {
+        if (session is null ||
+            user is null ||
+            !user.IsActive ||
+            user.UserId == Guid.Empty ||
+            session.UserId == Guid.Empty ||
+            user.UserId != session.UserId)
+        {
+            return Refused(TenancyErrors.UserNotActive);
+        }
+
+        if (membership is null ||
+            membership.MembershipId == Guid.Empty ||
+            membership.UserId == Guid.Empty ||
+            membership.UserId != session.UserId)
+        {
+            return Refused(TenancyErrors.MembershipNotFound);
+        }
+
+        if (!membership.IsActive)
+        {
+            return Refused(TenancyErrors.MembershipNotActive);
+        }
+
+        if (membership.FirmId == Guid.Empty ||
+            session.ActiveFirmId is null ||
+            session.ActiveFirmId == Guid.Empty ||
+            membership.FirmId != session.ActiveFirmId.Value)
+        {
+            return Refused(TenancyErrors.MembershipFirmMismatch);
+        }
+
+        return new MembershipVerification(isVerified: true, refusalReason: null);
+    }
+
+    private static MembershipVerification Refused(string reason) =>
+        new(isVerified: false, refusalReason: reason);
 }

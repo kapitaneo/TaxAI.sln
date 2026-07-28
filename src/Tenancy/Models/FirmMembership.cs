@@ -14,7 +14,6 @@ namespace Tenancy.Models;
 /// One of the three identity tables. It carries a non-nullable firm column and
 /// is looked up by user.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class FirmMembership
 {
@@ -29,7 +28,15 @@ public sealed class FirmMembership
         Guid userId,
         bool isActive,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc) => throw new NotImplementedException();
+        DateTimeOffset updatedAtUtc)
+    {
+        MembershipId = membershipId;
+        FirmId = firmId;
+        UserId = userId;
+        IsActive = isActive;
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+    }
 
     /// <summary>
     /// The opaque selector a member may present when switching firms. It is only
@@ -49,5 +56,5 @@ public sealed class FirmMembership
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     /// <summary>Fixed structural facts only; never an identifier.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(FirmMembership);
 }
