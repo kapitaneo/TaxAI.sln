@@ -10,7 +10,6 @@ namespace Tenancy.Models;
 /// distinguishable from one that was never stored. Dropping these would hide
 /// exactly the boxes an accountant must look at.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class PersistedUnmappedBoxCode
 {
@@ -24,7 +23,14 @@ public sealed class PersistedUnmappedBoxCode
         Guid firmId,
         Guid slipId,
         int ordinal,
-        string boxCode) => throw new NotImplementedException();
+        string boxCode)
+    {
+        UnmappedBoxCodeId = unmappedBoxCodeId;
+        FirmId = firmId;
+        SlipId = slipId;
+        Ordinal = ordinal;
+        BoxCode = boxCode;
+    }
 
     public Guid UnmappedBoxCodeId { get; private set; }
 
@@ -38,5 +44,5 @@ public sealed class PersistedUnmappedBoxCode
     public string BoxCode { get; private set; } = string.Empty;
 
     /// <summary>Fixed type identity only; no box code is rendered.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PersistedUnmappedBoxCode);
 }

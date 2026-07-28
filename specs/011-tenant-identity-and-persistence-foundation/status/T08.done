@@ -1,0 +1,65 @@
+TaskID: T08
+PR: #109
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/109
+Implementation commit: 70d357ced9fd8967cbe6c1c28cf5d4f5fa1d76b6
+Branch: feat/011-w2-t08
+Base commit: 4935a4e037149b7c1245a608dd2d51ee9b6ad515
+
+Focused tests:
+- PASS: dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj --filter "FullyQualifiedName~ReviewPackageProjectionTests|FullyQualifiedName~ReviewPackageProjectionRejectionTests|FullyQualifiedName~PersistedReadModelTests"
+  - Passed: 38
+  - Failed: 0
+  - Skipped: 0
+  - Total: 38
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Warnings: 0
+  - Errors: 0
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,824
+  - Failed: 0
+  - Skipped: 0
+  - Total: 2,824
+  - TaxLogicEngine.Tests: 261 passed
+  - TaxCases.Tests: 337 passed
+  - DocumentExtraction.Tests: 673 passed
+  - CaseProcessing.Tests: 594 passed
+  - CaseReview.Tests: 482 passed
+  - TaxAI.Portal.Tests: 224 passed
+  - Tenancy.Tests: 228 passed
+  - Persistence.Tests: 25 passed
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - Passed: 2,824
+  - Failed: 0
+  - Skipped: 0
+
+Additional verification:
+- PASS: git diff --check
+
+File-scope confirmation:
+- The implementation commit changes exactly the eleven T08-allowed files:
+  - src/Tenancy/Services/ReviewPackageProjection.cs
+  - src/Tenancy/Models/PersistedReviewRecord.cs
+  - src/Tenancy/Models/PersistedSlip.cs
+  - src/Tenancy/Models/PersistedBoxAmount.cs
+  - src/Tenancy/Models/PersistedLineEntry.cs
+  - src/Tenancy/Models/PersistedSourceBoxCode.cs
+  - src/Tenancy/Models/PersistedUnmappedBoxCode.cs
+  - tests/Tenancy.Tests/Services/ReviewPackageProjectionTests.cs
+  - tests/Tenancy.Tests/Services/ReviewPackageProjectionRejectionTests.cs
+  - tests/Tenancy.Tests/Models/PersistedReadModelTests.cs
+  - tests/Tenancy.Tests/Support/SyntheticPackages.cs
+- This completion commit adds only this T08.done marker.
+- No specification, tasks.md, architecture, project file, sibling task file,
+  sibling marker, or other-task-owned file changed.
+- No Wave 3 task was started.
+
+Not done here, by rule:
+- Merging. A human merges; no agent merges or approves its own work.

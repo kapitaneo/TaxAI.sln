@@ -8,16 +8,22 @@ namespace Tenancy.Models;
 /// The slip's SIN is not here, not masked, not flagged, and not derivable. The
 /// projection never reads it.
 /// </para>
-/// <para>
-/// Wave 0 contract stage: the shape is declared; construction and
-/// <see cref="ToString"/> are implemented in a later task.
-/// </para>
 /// </summary>
 public sealed class PersistedSlip
 {
+    private readonly List<PersistedBoxAmount> _boxAmounts = [];
+    private readonly List<PersistedLineEntry> _lineEntries = [];
+    private readonly List<PersistedUnmappedBoxCode> _unmappedBoxCodes = [];
+    private readonly IReadOnlyList<PersistedBoxAmount> _boxAmountView;
+    private readonly IReadOnlyList<PersistedLineEntry> _lineEntryView;
+    private readonly IReadOnlyList<PersistedUnmappedBoxCode> _unmappedBoxCodeView;
+
     /// <summary>Materialization seam for the storage layer.</summary>
     private PersistedSlip()
     {
+        _boxAmountView = _boxAmounts.AsReadOnly();
+        _lineEntryView = _lineEntries.AsReadOnly();
+        _unmappedBoxCodeView = _unmappedBoxCodes.AsReadOnly();
     }
 
     internal PersistedSlip(
@@ -31,7 +37,21 @@ public sealed class PersistedSlip
         string employerDisplayName,
         IReadOnlyList<PersistedBoxAmount> boxAmounts,
         IReadOnlyList<PersistedLineEntry> lineEntries,
-        IReadOnlyList<PersistedUnmappedBoxCode> unmappedBoxCodes) => throw new NotImplementedException();
+        IReadOnlyList<PersistedUnmappedBoxCode> unmappedBoxCodes)
+        : this()
+    {
+        SlipId = slipId;
+        FirmId = firmId;
+        RecordId = recordId;
+        Ordinal = ordinal;
+        SlipTypeCode = slipTypeCode;
+        DocumentReference = documentReference;
+        TaxpayerDisplayName = taxpayerDisplayName;
+        EmployerDisplayName = employerDisplayName;
+        _boxAmounts.AddRange(boxAmounts);
+        _lineEntries.AddRange(lineEntries);
+        _unmappedBoxCodes.AddRange(unmappedBoxCodes);
+    }
 
     public Guid SlipId { get; private set; }
 
@@ -59,17 +79,14 @@ public sealed class PersistedSlip
     public string EmployerDisplayName { get; private set; } = string.Empty;
 
     [JsonIgnore]
-    public IReadOnlyList<PersistedBoxAmount> BoxAmounts { get; private set; } =
-        Array.Empty<PersistedBoxAmount>();
+    public IReadOnlyList<PersistedBoxAmount> BoxAmounts => _boxAmountView;
 
     [JsonIgnore]
-    public IReadOnlyList<PersistedLineEntry> LineEntries { get; private set; } =
-        Array.Empty<PersistedLineEntry>();
+    public IReadOnlyList<PersistedLineEntry> LineEntries => _lineEntryView;
 
     [JsonIgnore]
-    public IReadOnlyList<PersistedUnmappedBoxCode> UnmappedBoxCodes { get; private set; } =
-        Array.Empty<PersistedUnmappedBoxCode>();
+    public IReadOnlyList<PersistedUnmappedBoxCode> UnmappedBoxCodes => _unmappedBoxCodeView;
 
     /// <summary>Fixed structural facts only.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PersistedSlip);
 }

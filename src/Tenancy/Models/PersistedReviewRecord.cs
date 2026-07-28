@@ -16,16 +16,16 @@ namespace Tenancy.Models;
 /// Construction is internal so only the fail-closed projection can create one.
 /// A record assembled around the guards would be a record nobody validated.
 /// </para>
-/// <para>
-/// Wave 0 contract stage: the shape is declared; construction and
-/// <see cref="ToString"/> are implemented in a later task.
-/// </para>
 /// </summary>
 public sealed class PersistedReviewRecord
 {
+    private readonly List<PersistedSlip> _slips = [];
+    private readonly IReadOnlyList<PersistedSlip> _slipView;
+
     /// <summary>Materialization seam for the storage layer.</summary>
     private PersistedReviewRecord()
     {
+        _slipView = _slips.AsReadOnly();
     }
 
     internal PersistedReviewRecord(
@@ -38,7 +38,20 @@ public sealed class PersistedReviewRecord
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc,
         DateTimeOffset retentionUntilUtc,
-        IReadOnlyList<PersistedSlip> slips) => throw new NotImplementedException();
+        IReadOnlyList<PersistedSlip> slips)
+        : this()
+    {
+        RecordId = recordId;
+        FirmId = firmId;
+        CaseId = caseId;
+        ParticipantId = participantId;
+        TaxYear = taxYear;
+        PackageVersion = packageVersion;
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+        RetentionUntilUtc = retentionUntilUtc;
+        _slips.AddRange(slips);
+    }
 
     /// <summary>A TaxAI-generated opaque identifier. Never derived from taxpayer content.</summary>
     public Guid RecordId { get; private set; }
@@ -83,11 +96,11 @@ public sealed class PersistedReviewRecord
 
     /// <summary>In the package's own order. Never sorted, filtered, or merged.</summary>
     [JsonIgnore]
-    public IReadOnlyList<PersistedSlip> Slips { get; private set; } = Array.Empty<PersistedSlip>();
+    public IReadOnlyList<PersistedSlip> Slips => _slipView;
 
     /// <summary>
     /// Fixed structural facts only; never an identifier, name, amount, box code,
     /// CRA line code, or caller string.
     /// </summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PersistedReviewRecord);
 }
