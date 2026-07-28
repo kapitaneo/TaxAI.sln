@@ -7,7 +7,7 @@ approved. Never edit it. Never check a box in it.** Completion is recorded by
 creating `specs/011-tenant-identity-and-persistence-foundation/status/<TaskID>.done`
 containing the PR number and commit SHA.
 
-11 waves, 21 tasks. Each wave merges to `master` before the next begins. Every
+11 waves, 22 tasks. Each wave merges to `master` before the next begins. Every
 task ships its tests in the same pass.
 
 ---
@@ -46,6 +46,17 @@ real Azure key ring becomes an obligation of the later deployment specification.
 only, and may not be deployed anywhere that can receive real taxpayer data until
 that deployment spec exists.
 
+**B-4 — the T03 UTC contract: CLARIFIED — zero offset is authoritative.**
+`UtcInstantGuard` accepts a `DateTimeOffset` only when
+`Offset == TimeSpan.Zero`, rejects every non-zero offset, never normalizes one,
+and does not infer originating `DateTime.Kind`. `DateTimeOffset` does not retain
+whether an equal zero-offset value originated from `DateTimeKind.Utc` or
+`DateTimeKind.Unspecified`; AC-154 therefore does not require rejecting such a
+value based on unavailable provenance. A future API accepting `DateTime`
+directly may reject `DateTimeKind.Unspecified` before constructing a
+`DateTimeOffset`, but that is outside T03. This Class A clarification supersedes
+the ambiguous earlier wording and does not change T03's public signature.
+
 ---
 
 ## Rules that bind every task below
@@ -70,10 +81,15 @@ that deployment spec exists.
 ## Wave 0 — contract wave
 
 Declares every public and internal signature with `NotImplementedException`
-bodies, plus the constants (which are declarations, not behaviour). Everything
-downstream codes against it.
+bodies, plus the constants (which are declarations, not behaviour). These
+sentinels are temporary scaffolding: as concrete behaviours land, durable tests
+must assert public contract and boundary invariants rather than require
+implemented members to keep throwing. Everything downstream codes against the
+declared surface.
 
 - [ ] **T01** — Create `Tenancy` and `Persistence` (production + test projects), append them to the solution, register both test projects in the test-execution manifest with initial **floor** counts, and declare every type, port, guard, policy, and constant with `NotImplementedException` bodies. Ship contract tests that enumerate the declared surface, boundary tests asserting the two modules' reference sets and forbidden-token scans, and the solution/manifest assertions. Covers AC-1…AC-9, AC-14…AC-23, AC-27, AC-105, AC-106, AC-182. — files: `src/Tenancy/Tenancy.csproj`, `src/Tenancy/AssemblyInfo.cs`, `src/Tenancy/Models/TrustedFirmId.cs`, `src/Tenancy/Models/PersistedReviewRecord.cs`, `src/Tenancy/Models/PersistedSlip.cs`, `src/Tenancy/Models/PersistedBoxAmount.cs`, `src/Tenancy/Models/PersistedLineEntry.cs`, `src/Tenancy/Models/PersistedSourceBoxCode.cs`, `src/Tenancy/Models/PersistedUnmappedBoxCode.cs`, `src/Tenancy/Models/PortalUser.cs`, `src/Tenancy/Models/Firm.cs`, `src/Tenancy/Models/FirmMembership.cs`, `src/Tenancy/Models/AuthenticationSession.cs`, `src/Tenancy/Models/SessionBoundaries.cs`, `src/Tenancy/Models/SessionEvaluation.cs`, `src/Tenancy/Models/MembershipVerification.cs`, `src/Tenancy/Models/PurgeOutcome.cs`, `src/Tenancy/Models/PersistedSchema.cs`, `src/Tenancy/Models/SlipTypeCodes.cs`, `src/Tenancy/Models/TenancyFields.cs`, `src/Tenancy/Models/TenancyErrors.cs`, `src/Tenancy/Models/FirmScopeExemptions.cs`, `src/Tenancy/Contracts/IReviewRecordRepository.cs`, `src/Tenancy/Contracts/IAuthenticationSessionStore.cs`, `src/Tenancy/Contracts/IIdentityDirectory.cs`, `src/Tenancy/Contracts/IReviewRecordPurgeService.cs`, `src/Tenancy/Contracts/IOpaqueIdentifierSource.cs`, `src/Tenancy/Contracts/IDevelopmentFixtureSeeder.cs`, `src/Tenancy/Services/UtcInstantGuard.cs`, `src/Tenancy/Services/OpaqueTokenGuard.cs`, `src/Tenancy/Services/TaxpayerTextGuard.cs`, `src/Tenancy/Services/MonetaryValueGuard.cs`, `src/Tenancy/Services/RetentionPolicy.cs`, `src/Tenancy/Services/SessionLifetimePolicy.cs`, `src/Tenancy/Services/MembershipVerificationPolicy.cs`, `src/Tenancy/Services/ReviewPackageProjection.cs`, `src/Persistence/Persistence.csproj`, `src/Persistence/AssemblyInfo.cs`, `src/Persistence/TaxAiDbContext.cs`, `src/Persistence/PersistenceRegistration.cs`, `tests/Tenancy.Tests/Tenancy.Tests.csproj`, `tests/Tenancy.Tests/Contracts/TenancyContractTests.cs`, `tests/Tenancy.Tests/Boundaries/TenancyBoundaryTests.cs`, `tests/Persistence.Tests/Persistence.Tests.csproj`, `tests/Persistence.Tests/Contracts/PersistenceContractTests.cs`, `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs`, `TaxAI.sln`, `scripts/test-projects.json` — depends on: none (gated by B-1 only)
+
+- [ ] **T01A** — Correct the Wave 0 scaffold transition before any Wave 1 PR merges: record the Class A T03 UTC clarification without changing its signature; replace Tenancy's all-behaviours-throw and global `NotImplementedException` scanner sentinels with durable public-contract and boundary coverage; and replace Persistence's all-behaviours-throw and frozen-production-file sentinels with durable coverage now, so T11–T16 neither require nor own an unplanned scaffold-test transition. No T02–T07 or T11–T16 production behaviour is implemented here. — files: `specs/011-tenant-identity-and-persistence-foundation/prd.md`, `specs/011-tenant-identity-and-persistence-foundation/architecture.md`, `specs/011-tenant-identity-and-persistence-foundation/tasks.md`, `tests/Tenancy.Tests/Contracts/TenancyContractTests.cs`, `tests/Tenancy.Tests/Boundaries/TenancyBoundaryTests.cs`, `tests/Persistence.Tests/Contracts/PersistenceContractTests.cs`, `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs` — depends on: T01
 
 ---
 
@@ -82,17 +98,17 @@ downstream codes against it.
 No task in this wave references a type another one implements. Each edits only
 the W0-declared file it owns, plus its own new test file.
 
-- [ ] **T02** — Implement `TrustedFirmId` (strict canonical GUID parse, ordinal equality, no normalization or trimming) and `SlipTypeCodes` (structural `"T4"` only, asserting no CRA semantics; unrecognized values refused). Covers AC-51 (guard level), AC-54. — files: `src/Tenancy/Models/TrustedFirmId.cs`, `src/Tenancy/Models/SlipTypeCodes.cs`, `tests/Tenancy.Tests/Models/TrustedFirmIdTests.cs`, `tests/Tenancy.Tests/Models/SlipTypeCodeTests.cs` — depends on: T01
+- [ ] **T02** — Implement `TrustedFirmId` (strict canonical GUID parse, ordinal equality, no normalization or trimming) and `SlipTypeCodes` (structural `"T4"` only, asserting no CRA semantics; unrecognized values refused). Covers AC-51 (guard level), AC-54. — files: `src/Tenancy/Models/TrustedFirmId.cs`, `src/Tenancy/Models/SlipTypeCodes.cs`, `tests/Tenancy.Tests/Models/TrustedFirmIdTests.cs`, `tests/Tenancy.Tests/Models/SlipTypeCodeTests.cs` — depends on: T01, T01A
 
-- [ ] **T03** — Implement `UtcInstantGuard`: any `DateTimeOffset` whose offset is not zero, or whose kind is ambiguous, is **refused — never converted, never coerced, never assumed UTC**. Covers AC-153, AC-154. — files: `src/Tenancy/Services/UtcInstantGuard.cs`, `tests/Tenancy.Tests/Services/UtcInstantGuardTests.cs` — depends on: T01
+- [ ] **T03** — Implement `UtcInstantGuard` without changing its public signature: accept a `DateTimeOffset` only when `Offset == TimeSpan.Zero`; reject every non-zero offset; **never convert, coerce, normalize, or assume UTC**. Do not infer originating `DateTime.Kind`: `DateTimeOffset` does not retain whether an equal zero-offset value came from `DateTimeKind.Utc` or `DateTimeKind.Unspecified`, so both are accepted. A future API accepting `DateTime` directly may reject `DateTimeKind.Unspecified` before construction, but that is outside T03. Covers AC-153, AC-154 as clarified by B-4. — files: `src/Tenancy/Services/UtcInstantGuard.cs`, `tests/Tenancy.Tests/Services/UtcInstantGuardTests.cs` — depends on: T01, T01A
 
-- [ ] **T04** — Implement `OpaqueTokenGuard`: non-empty, bounded length, restricted character set (`A–Z a–z 0–9 - _`); **nothing trimmed, normalized, case-folded, or truncated to pass**. Covers AC-49, AC-50 (guard level). — files: `src/Tenancy/Services/OpaqueTokenGuard.cs`, `tests/Tenancy.Tests/Services/OpaqueTokenGuardTests.cs` — depends on: T01
+- [ ] **T04** — Implement `OpaqueTokenGuard`: non-empty, bounded length, restricted character set (`A–Z a–z 0–9 - _`); **nothing trimmed, normalized, case-folded, or truncated to pass**. Covers AC-49, AC-50 (guard level). — files: `src/Tenancy/Services/OpaqueTokenGuard.cs`, `tests/Tenancy.Tests/Services/OpaqueTokenGuardTests.cs` — depends on: T01, T01A
 
-- [ ] **T05** — Implement `TaxpayerTextGuard`: refuse any value exceeding its declared column length (**never truncate**) and any value containing nine consecutive digits. Covers AC-47, AC-48 (guard level). — files: `src/Tenancy/Services/TaxpayerTextGuard.cs`, `tests/Tenancy.Tests/Services/TaxpayerTextGuardTests.cs` — depends on: T01
+- [ ] **T05** — Implement `TaxpayerTextGuard`: refuse any value exceeding its declared column length (**never truncate**) and any value containing nine consecutive digits. Covers AC-47, AC-48 (guard level). — files: `src/Tenancy/Services/TaxpayerTextGuard.cs`, `tests/Tenancy.Tests/Services/TaxpayerTextGuardTests.cs` — depends on: T01, T01A
 
-- [ ] **T06** — Implement `MonetaryValueGuard`: refuse any `decimal` that would not survive a `decimal(19,4)` round trip exactly, by inspecting the invariant-culture string form — **no arithmetic on a monetary value, no rounding, no truncation, no re-scaling**. Must accept `1.005m`, `-1.005m`, and `0m`. Covers AC-46, AC-78–AC-80 (guard level), AC-113 (module level). — files: `src/Tenancy/Services/MonetaryValueGuard.cs`, `tests/Tenancy.Tests/Services/MonetaryValueGuardTests.cs` — depends on: T01
+- [ ] **T06** — Implement `MonetaryValueGuard`: refuse any `decimal` that would not survive a `decimal(19,4)` round trip exactly, by inspecting the invariant-culture string form — **no arithmetic on a monetary value, no rounding, no truncation, no re-scaling**. Must accept `1.005m`, `-1.005m`, and `0m`. Covers AC-46, AC-78–AC-80 (guard level), AC-113 (module level). — files: `src/Tenancy/Services/MonetaryValueGuard.cs`, `tests/Tenancy.Tests/Services/MonetaryValueGuardTests.cs` — depends on: T01, T01A
 
-- [ ] **T07** — Implement `RetentionPolicy`: `ComputeRetentionUntilUtc(taxYear)` = 1 January of `taxYear + TaxYearEndOffsetYears + RetentionYears` at `00:00:00 +00:00`, and `IsPurgeEligible` = `evaluationInstantUtc >= retentionUntilUtc`. **Exclusive boundary, documented as exclusive at the declaration.** No year literal, no clock read, no inclusive end-of-day value. The seven-year period is an **engineering product default, explicitly not a CRA statutory statement** — say so in the XML doc. Covers AC-105, AC-107, AC-108, AC-148–AC-152. — files: `src/Tenancy/Services/RetentionPolicy.cs`, `tests/Tenancy.Tests/Services/RetentionPolicyTests.cs` — depends on: T01
+- [ ] **T07** — Implement `RetentionPolicy`: `ComputeRetentionUntilUtc(taxYear)` = 1 January of `taxYear + TaxYearEndOffsetYears + RetentionYears` at `00:00:00 +00:00`, and `IsPurgeEligible` = `evaluationInstantUtc >= retentionUntilUtc`. **Exclusive boundary, documented as exclusive at the declaration.** No year literal, no clock read, no inclusive end-of-day value. The seven-year period is an **engineering product default, explicitly not a CRA statutory statement** — say so in the XML doc. Covers AC-105, AC-107, AC-108, AC-148–AC-152. — files: `src/Tenancy/Services/RetentionPolicy.cs`, `tests/Tenancy.Tests/Services/RetentionPolicyTests.cs` — depends on: T01, T01A
 
 ---
 
@@ -110,6 +126,13 @@ the W0-declared file it owns, plus its own new test file.
 
 Single task by design: `DbContext`, configurations, and migration converge on one
 model snapshot, so parallel siblings would conflict on it.
+
+T01A already owns the Persistence scaffold-test transition:
+`PersistenceContractTests.cs` now pins the registration contract without
+requiring a stub exception, and `PersistenceBoundaryTests.cs` scans a required
+baseline without freezing the complete future file list. T11–T16 therefore do
+not need either file in their scopes, and no later task may revive an
+implementation-state or all-files-exactly sentinel.
 
 - [ ] **T11** — Implement `TaxAiDbContext` and one `IEntityTypeConfiguration<>` per entity (backing-field navigations so `Tenancy`'s types stay sealed and immutable), and generate the initial repository-owned migration. Every tenant-owned table gets a non-nullable `FirmId`; `FirmId` leads every tenant index and unique constraint; `FirmId` is `uniqueidentifier`; every string identifier column declares an explicit binary collation; every monetary column declares explicit precision and scale; `(FirmId, CaseId, ParticipantId, TaxYear, PackageVersion)` is unique; the identity carve-out is **exactly three** tables and none carries taxpayer content; the migration's `Down` drops exactly what `Up` created, **including the session table**; the exclusive meaning of `RetentionUntilUtc` is documented in the configuration and in the migration. Also ship the relational test harness (SQLite context factory) that Wave 4 consumes, and the migration-scan guard that excludes **only** the `[Migration("…")]` id token from the nine-digit scan while proving a planted nine-digit run elsewhere in the same file is still caught. Covers AC-86, AC-87, AC-100, AC-115–AC-125, AC-155, AC-156, AC-162, AC-183, AC-184. — files: `src/Persistence/TaxAiDbContext.cs`, `src/Persistence/Configurations/PersistedReviewRecordConfiguration.cs`, `src/Persistence/Configurations/PersistedSlipConfiguration.cs`, `src/Persistence/Configurations/PersistedBoxAmountConfiguration.cs`, `src/Persistence/Configurations/PersistedLineEntryConfiguration.cs`, `src/Persistence/Configurations/PersistedSourceBoxCodeConfiguration.cs`, `src/Persistence/Configurations/PersistedUnmappedBoxCodeConfiguration.cs`, `src/Persistence/Configurations/FirmConfiguration.cs`, `src/Persistence/Configurations/PortalUserConfiguration.cs`, `src/Persistence/Configurations/FirmMembershipConfiguration.cs`, `src/Persistence/Configurations/AuthenticationSessionConfiguration.cs`, `src/Persistence/Migrations/` (generated initial migration, its designer file, and the model snapshot), `tests/Persistence.Tests/Support/RelationalTestContext.cs`, `tests/Persistence.Tests/Support/SyntheticFixtures.cs`, `tests/Persistence.Tests/Schema/ModelShapeTests.cs`, `tests/Persistence.Tests/Schema/TenantIsolationSchemaTests.cs`, `tests/Persistence.Tests/Schema/PiiSchemaTests.cs`, `tests/Persistence.Tests/Schema/MigrationTests.cs` — depends on: T08, T09, T10
 

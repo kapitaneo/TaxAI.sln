@@ -416,28 +416,65 @@ public sealed class TenancyContractTests
         Assert.Empty(offenders);
     }
 
-    // ------------------------------------------ the contract wave ships no behaviour
+    // ---------------------------------------------- durable behaviour contracts
 
     [Fact]
-    public void EveryDeclaredBehaviourStillThrowsNotImplemented()
+    public void DeclaredBehaviourMembersRetainTheirPublicContract()
     {
-        // The proof that Wave 0 is a contract and not a half-built feature. If one
-        // of these ever silently returned a value, a later wave would be coding
-        // against an accident.
-        Assert.Throws<NotImplementedException>(() => UtcInstantGuard.Validate(default, "f"));
-        Assert.Throws<NotImplementedException>(() => OpaqueTokenGuard.Validate(null, 1, "f"));
-        Assert.Throws<NotImplementedException>(() => TaxpayerTextGuard.Validate(null, 1, "f"));
-        Assert.Throws<NotImplementedException>(() => MonetaryValueGuard.Validate(0m, "f"));
-        Assert.Throws<NotImplementedException>(() => RetentionPolicy.ComputeRetentionUntilUtc(1));
-        Assert.Throws<NotImplementedException>(() => RetentionPolicy.IsPurgeEligible(default, default));
-        Assert.Throws<NotImplementedException>(() => SlipTypeCodes.IsRecognized(null));
-        Assert.Throws<NotImplementedException>(() => TrustedFirmId.FromGuid(Guid.Empty));
-        Assert.Throws<NotImplementedException>(() => TrustedFirmId.TryParse(null, out _));
-        Assert.Throws<NotImplementedException>(() => SessionLifetimePolicy.CreateBoundaries(default));
-        Assert.Throws<NotImplementedException>(
-            () => MembershipVerificationPolicy.Verify(null, null, null!));
-        Assert.Throws<NotImplementedException>(
-            () => ReviewPackageProjection.Project(null!, null!, default, null!));
+        // Contract tests pin callable shape, not temporary implementation state.
+        // A task may replace a Wave 0 body without having to weaken this test.
+        var contracts = new (Type Type, string Method, Type Result, Type[] Parameters)[]
+        {
+            (typeof(UtcInstantGuard), nameof(UtcInstantGuard.Validate),
+                typeof(ValidationError), new[] { typeof(DateTimeOffset), typeof(string) }),
+            (typeof(OpaqueTokenGuard), nameof(OpaqueTokenGuard.Validate),
+                typeof(ValidationError), new[] { typeof(string), typeof(int), typeof(string) }),
+            (typeof(TaxpayerTextGuard), nameof(TaxpayerTextGuard.Validate),
+                typeof(ValidationError), new[] { typeof(string), typeof(int), typeof(string) }),
+            (typeof(MonetaryValueGuard), nameof(MonetaryValueGuard.Validate),
+                typeof(ValidationError), new[] { typeof(decimal), typeof(string) }),
+            (typeof(RetentionPolicy), nameof(RetentionPolicy.ComputeRetentionUntilUtc),
+                typeof(DateTimeOffset), new[] { typeof(int) }),
+            (typeof(RetentionPolicy), nameof(RetentionPolicy.IsPurgeEligible),
+                typeof(bool), new[] { typeof(DateTimeOffset), typeof(DateTimeOffset) }),
+            (typeof(SlipTypeCodes), nameof(SlipTypeCodes.IsRecognized),
+                typeof(bool), new[] { typeof(string) }),
+            (typeof(TrustedFirmId), nameof(TrustedFirmId.FromGuid),
+                typeof(TrustedFirmId), new[] { typeof(Guid) }),
+            (typeof(TrustedFirmId), nameof(TrustedFirmId.TryParse),
+                typeof(bool), new[] { typeof(string), typeof(TrustedFirmId).MakeByRefType() }),
+            (typeof(TrustedFirmId), nameof(TrustedFirmId.ToCanonicalString),
+                typeof(string), Type.EmptyTypes),
+            (typeof(SessionLifetimePolicy), nameof(SessionLifetimePolicy.CreateBoundaries),
+                typeof(ParseResult<SessionBoundaries>), new[] { typeof(DateTimeOffset) }),
+            (typeof(SessionLifetimePolicy), nameof(SessionLifetimePolicy.Touch),
+                typeof(ParseResult<SessionBoundaries>),
+                new[] { typeof(AuthenticationSession), typeof(DateTimeOffset) }),
+            (typeof(SessionLifetimePolicy), nameof(SessionLifetimePolicy.Evaluate),
+                typeof(SessionEvaluation),
+                new[] { typeof(AuthenticationSession), typeof(DateTimeOffset) }),
+            (typeof(MembershipVerificationPolicy), nameof(MembershipVerificationPolicy.Verify),
+                typeof(MembershipVerification),
+                new[] { typeof(PortalUser), typeof(FirmMembership), typeof(AuthenticationSession) }),
+            (typeof(ReviewPackageProjection), nameof(ReviewPackageProjection.Project),
+                typeof(ParseResult<PersistedReviewRecord>),
+                new[]
+                {
+                    typeof(TrustedFirmId),
+                    typeof(AccountantReviewPackage),
+                    typeof(DateTimeOffset),
+                    typeof(IOpaqueIdentifierSource),
+                }),
+        };
+
+        foreach (var contract in contracts)
+        {
+            var method = contract.Type.GetMethod(contract.Method, contract.Parameters);
+
+            Assert.NotNull(method);
+            Assert.True(method.IsPublic, $"{contract.Type.Name}.{contract.Method} must stay public.");
+            Assert.Equal(contract.Result, method.ReturnType);
+        }
     }
 
     // ------------------------------------------------------------------ helpers

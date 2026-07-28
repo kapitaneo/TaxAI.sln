@@ -14,14 +14,13 @@ below rather than dropped.
 
 ---
 
-## 0. Read this first — two Class A items the PRD did not settle, now answered
+## 0. Read this first — three Class A items, now answered or clarified
 
 The PRD states, correctly, that it makes **zero Class A assumptions**. Designing
-against it surfaced two places where the requirements as written cannot all hold
-at once. Per root `CLAUDE.md`, a domain / PII / tenant-isolation ambiguity is
-**Class A: never assume, stop and ask.** Both were put to the human during
-planning and **both are now answered on record**. Neither may be reopened by an
-implementing agent.
+against it surfaced places where the requirements needed a human decision or
+clarification. Per root `CLAUDE.md`, a domain / PII / tenant-isolation ambiguity
+is **Class A: never assume, stop and ask.** All three items below are now
+answered or clarified on record. None may be reopened by an implementing agent.
 
 ### A-1 — The firm-scope exemption list cannot contain exactly one entry
 
@@ -105,6 +104,21 @@ only. That is the intended, conservative outcome and matches the PRD's own Out
 of scope — this build may not be deployed anywhere that can receive real
 taxpayer data until the deployment specification exists. `README.md`, the
 portal's `CLAUDE.md`, and `NEXT.md` must say so (T20).
+
+### A-3 — `DateTimeOffset` does not retain originating `DateTime.Kind`
+
+> **CLARIFIED by the human:** `UtcInstantGuard` accepts a `DateTimeOffset` only
+> when `Offset == TimeSpan.Zero`. It rejects every non-zero offset, never
+> normalizes one, and does not infer unavailable originating `DateTime.Kind`
+> provenance. This Class A clarification supersedes the ambiguous earlier
+> wording and does not change T03's public signature.
+
+Equal zero-offset `DateTimeOffset` values may have been constructed from either
+`DateTimeKind.Utc` or `DateTimeKind.Unspecified`, but the resulting value does
+not retain that distinction. AC-154 therefore cannot require the guard to reject
+a zero-offset value based on provenance it cannot observe. A future API that
+accepts `DateTime` directly may reject `DateTimeKind.Unspecified` before
+constructing a `DateTimeOffset`; that separate API is outside T03.
 
 ---
 
@@ -407,9 +421,14 @@ value (FR-56, AC-92).
 
 **`UtcInstantGuard`**
 `static ValidationError? Validate(DateTimeOffset instant, string field)`
-Refuses any instant whose offset is not zero. **Never converts, never coerces,
-never assumes UTC** (FR-34, AC-153, AC-154). Every `Tenancy` entry point that
-takes an instant calls it first.
+Accepts only an instant whose `Offset` is exactly `TimeSpan.Zero`; refuses every
+non-zero offset. **Never converts, never coerces, never normalizes, never assumes
+UTC.** It does not infer the originating `DateTime.Kind`, which a
+`DateTimeOffset` does not retain, so equal zero-offset values are treated alike
+regardless of whether their source was `DateTimeKind.Utc` or
+`DateTimeKind.Unspecified` (FR-34, AC-153, AC-154). A future direct-`DateTime`
+API may perform a kind check before construction, but that is outside T03. Every
+`Tenancy` entry point that takes an instant calls this guard first.
 
 **`OpaqueTokenGuard`**
 `static ValidationError? Validate(string? value, int maxLength, string field)`
@@ -781,7 +800,7 @@ both pass before the next begins.
 
 | Wave | What lands |
 |---|---|
-| **0** | Four projects, solution entries, manifest registration, every `Tenancy`/`Persistence` signature with `NotImplementedException` bodies, constants, and the boundary/contract test suites. |
+| **0** | Four projects, solution entries, manifest registration, every `Tenancy`/`Persistence` signature with temporary `NotImplementedException` scaffold bodies, constants, and the boundary/contract test suites. T01A then transitions implementation-state sentinels and frozen Persistence file lists to durable contract/boundary coverage before any Wave 1 PR merges. |
 | **1** | `Tenancy` leaf guards and policies: UTC instant, opacity, taxpayer text, monetary round-trip, retention boundary, trusted firm id, slip-type code. |
 | **2** | `Tenancy` composed behaviour: the allowlist projection, the session lifetime rules, the R-1 membership decision. |
 | **3** | `Persistence` EF model: `DbContext`, entity configurations, the initial migration, the relational test harness. |
