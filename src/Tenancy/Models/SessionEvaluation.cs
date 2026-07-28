@@ -7,12 +7,14 @@ namespace Tenancy.Models;
 /// background service. A session that has passed a boundary is refused whether
 /// or not anything ever got round to deleting its row.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class SessionEvaluation
 {
-    internal SessionEvaluation(bool isUsable, string? refusalReason) =>
-        throw new NotImplementedException();
+    internal SessionEvaluation(bool isUsable, string? refusalReason)
+    {
+        IsUsable = isUsable;
+        RefusalReason = refusalReason;
+    }
 
     /// <summary>True only when the session is unrevoked and within both bounds.</summary>
     public bool IsUsable { get; private set; }
@@ -24,5 +26,6 @@ public sealed class SessionEvaluation
     public string? RefusalReason { get; private set; }
 
     /// <summary>Fixed structural facts only.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() =>
+        $"{nameof(SessionEvaluation)} {{ IsUsable = {IsUsable} }}";
 }
