@@ -1,0 +1,25 @@
+TaskID: T04
+PR: #100
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/100
+Implementation commit: beb30aac87d10a09c075114cb59d5a3b697dad6f
+Branch: feat/011-w1-t04
+Base commit: 4e0d83658e39db2a38adeb76e7ca5dc70608fb73
+
+Build:
+- PASS: dotnet build TaxAI.sln (0 errors; 4 pre-existing warnings)
+
+Focused tests:
+- PASS: dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj --filter "FullyQualifiedName~OpaqueTokenGuardTests" - 28 passed, 0 failed, 0 skipped, 28 total
+
+Repository tests:
+- PASS: dotnet test TaxAI.sln - 2745 passed, 0 failed, 0 skipped, 2745 total
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1 - all 8 expected test projects ran and met their floors; 2745 passed, 0 failed, 0 skipped, 2745 total
+- PASS: git diff --check
+- PASS: the obsolete Wave 0 assertion requiring OpaqueTokenGuard to throw NotImplementedException is absent.
+
+Scope:
+- Implementation commit changes exactly the two T04-allowlisted files:
+  - src/Tenancy/Services/OpaqueTokenGuard.cs
+  - tests/Tenancy.Tests/Services/OpaqueTokenGuardTests.cs
+- Completion commit adds only this T04.done marker.
+- No spec document, sibling task file, sibling status marker, or other-task-owned file changed.
