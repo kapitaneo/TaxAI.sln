@@ -57,12 +57,21 @@ Each module under `src/` carries its own `CLAUDE.md` describing its boundary.
 # Build
 dotnet build TaxAI.sln
 
-# Run all tests
+# Run the full suite through the execution gate (preferred)
+pwsh ./scripts/Invoke-SolutionTests.ps1
+
+# Run all tests directly
 dotnet test TaxAI.sln
 
 # Run a single test
 dotnet test tests/TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
 ```
+
+`dotnet test` returns exit code 0 even when an entire test assembly is skipped,
+so a green result is not by itself proof that the suite ran.
+`scripts/Invoke-SolutionTests.ps1` fails unless every project listed in
+`scripts/test-projects.json` actually ran, reported no failures, skipped nothing,
+and met its recorded minimum test count.
 
 ## Run the application
 

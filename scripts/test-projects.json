@@ -1,0 +1,24 @@
+{
+  "$comment": [
+    "The test-execution manifest. Every test project in TaxAI.sln must be listed here.",
+    "",
+    "minimumTests is a FLOOR, not an expected value. It is the count the project was",
+    "known to run when it was last updated. Counts only ever grow, so a run below the",
+    "floor means tests were lost, filtered out, or silently not executed.",
+    "",
+    "Raise a floor when a spec adds tests. Never lower one to make a run pass: a falling",
+    "count is the defect this file exists to catch.",
+    "",
+    "Adding a new test project? Add it here in the same PR. The gate fails on an",
+    "unregistered project on purpose - a project nobody registered is a project nobody",
+    "would notice failing to run."
+  ],
+  "projects": [
+    { "name": "TaxLogicEngine.Tests", "minimumTests": 261, "establishedBy": "spec 005" },
+    { "name": "TaxCases.Tests", "minimumTests": 337, "establishedBy": "spec 006" },
+    { "name": "DocumentExtraction.Tests", "minimumTests": 673, "establishedBy": "spec 007" },
+    { "name": "CaseProcessing.Tests", "minimumTests": 594, "establishedBy": "spec 008" },
+    { "name": "CaseReview.Tests", "minimumTests": 482, "establishedBy": "spec 009" },
+    { "name": "TaxAI.Portal.Tests", "minimumTests": 224, "establishedBy": "spec 010" }
+  ]
+}
