@@ -1,0 +1,25 @@
+TaskID: T05
+PR: #101
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/101
+Implementation commit: 29634cb9f7fa634d7e714eab37c719f23f96da94
+Branch: feat/011-w1-t05
+Base commit: 181a97dab53f1d235ae594432915d9e30459e73f
+
+Build:
+- PASS: dotnet build TaxAI.sln (0 errors; 4 pre-existing warnings)
+
+Focused tests:
+- PASS: dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj --filter "FullyQualifiedName~TaxpayerTextGuardTests" - 10 passed, 0 failed, 0 skipped, 10 total
+
+Repository tests:
+- PASS: dotnet test TaxAI.sln - 2755 passed, 0 failed, 0 skipped, 2755 total
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1 - all 8 expected test projects ran and met their floors; 2755 passed, 0 failed, 0 skipped, 2755 total
+- PASS: git diff --check
+- PASS: the obsolete Wave 0 assertion requiring TaxpayerTextGuard to throw NotImplementedException is absent.
+
+Scope:
+- Implementation commit changes exactly the two T05-allowlisted files:
+  - src/Tenancy/Services/TaxpayerTextGuard.cs
+  - tests/Tenancy.Tests/Services/TaxpayerTextGuardTests.cs
+- Completion commit adds only this T05.done marker.
+- No spec document, sibling task file, sibling status marker, or other-task-owned file changed.
