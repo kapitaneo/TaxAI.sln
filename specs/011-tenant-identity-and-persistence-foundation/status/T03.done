@@ -1,0 +1,31 @@
+TaskID: T03
+PR: #105
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/105
+Implementation commit: e34519397caf64f484acdfe1c48c034882c39cec
+Branch: feat/011-w1-t03
+Base commit: 872aacadd5b24693c963e5b666dd3a449fa09b0d
+
+Build:
+- PASS: dotnet build TaxAI.sln (0 errors; 4 pre-existing warnings)
+
+Focused tests:
+- PASS: UtcInstantGuardTests — 8 passed, 0 failed, 0 skipped, 8 total
+
+Repository tests:
+- PASS: dotnet test TaxAI.sln — 2779 passed, 0 failed, 0 skipped, 2779 total
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1 — all 8 expected test projects ran and met their floors; 2779 passed, 0 failed, 0 skipped, 2779 total
+- PASS: git diff --check
+
+Clarified UTC contract:
+- Accepts DateTimeOffset values whose Offset is exactly TimeSpan.Zero.
+- Rejects every non-zero offset without converting, coercing, or normalizing it.
+- Does not infer the originating DateTime.Kind because DateTimeOffset does not retain that provenance.
+- Accepts a zero-offset DateTimeOffset created from DateTimeKind.Unspecified.
+- The stale Wave 0 NotImplemented scaffold assertion is absent and the full suite is green.
+
+Scope:
+- Implementation commit changes exactly the two T03-allowlisted files:
+  - src/Tenancy/Services/UtcInstantGuard.cs
+  - tests/Tenancy.Tests/Services/UtcInstantGuardTests.cs
+- Completion commit adds only this T03.done marker.
+- No spec document, sibling task file, sibling status marker, or other-task-owned file changed.
