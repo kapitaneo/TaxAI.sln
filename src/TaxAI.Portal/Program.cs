@@ -1,3 +1,5 @@
+using TaxAI.Portal;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Probing the app should leak nothing about it. TestServer does not use Kestrel,
@@ -14,12 +16,17 @@ builder.Host.UseDefaultServiceProvider(options =>
     options.ValidateScopes = true;
 });
 
+// The one and only place modules are wired in. Every Add* registration lives
+// behind this call, in ModuleRegistration.cs.
+builder.Services.AddTaxAiModules();
+
 var app = builder.Build();
 
-// Wave 0 deliberately registers no service and maps no route. The composition
-// root is declared but not yet called (T02), and the two endpoints arrive in
-// T02 and T03. A host that starts and serves nothing is honest; a host wired to
-// a NotImplementedException would build clean and throw on run.
+// A probe that describes the system is a disclosure surface, so the body is a
+// fixed literal and nothing else: no version, environment, dependency status,
+// or timestamp.
+app.MapGet("/health", () => Results.Text(PortalContent.HealthBody, PortalContent.PlainTextContentType));
+
 app.Run();
 
 /// <summary>

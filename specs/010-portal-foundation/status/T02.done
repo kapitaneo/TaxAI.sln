@@ -1,0 +1,83 @@
+T02 — Implement the composition root, force provider validation, and map
+GET /health.
+
+Spec:   010-portal-foundation (Wave 1 — composition root and the health endpoint)
+PR:     #91  https://github.com/kapitaneo/TaxAI.sln/pull/91
+Branch: feat/010-w1-t02
+Commit: 2a5ccf6
+Depends on: T01 (marker present; PR #90 merged 2026-07-27)
+
+Files changed (exactly the task's declared list):
+  src/TaxAI.Portal/ModuleRegistration.cs
+  src/TaxAI.Portal/Program.cs
+  tests/TaxAI.Portal.Tests/CompositionRootTests.cs      (new)
+  tests/TaxAI.Portal.Tests/HealthEndpointTests.cs       (new)
+  specs/010-portal-foundation/status/T02.done
+
+Registrations — exactly three, all singleton:
+  IT4LineMapProvider -> EmbeddedT4LineMapProvider
+  IT5LineMapProvider -> EmbeddedT5LineMapProvider
+  T4CaseProcessor    (concrete)
+Not registered: IDocumentExtractionIngress (spec 007 ships the signature
+without an implementation), T4LineMapper, T5LineMapper.
+No endpoint resolves or invokes T4CaseProcessor.
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests. None from the portal.
+
+  dotnet test TaxAI.sln
+    -> Exit code 0. 2060 passed, 0 failed, 0 skipped ACROSS FIVE OF SIX TEST
+       PROJECTS. The sixth could not be executed — see the blocker below.
+       TaxLogicEngine.Tests      261 passed
+       DocumentExtraction.Tests  673 passed
+       CaseProcessing.Tests      594 passed
+       CaseReview.Tests          482 passed
+       TaxAI.Portal.Tests         50 passed  (24 from T01, 26 added here)
+       TaxCases.Tests            NOT RUN — blocked, see below
+
+ENVIRONMENT BLOCKER — TaxCases.Tests cannot be executed on this machine:
+  "Skipping: TaxCases.Tests (could not load dependent assembly
+   'TaxCases.Tests'): ... An Application Control policy has blocked this file.
+   (0x800711C7)"
+  A Windows Application Control / Smart App Control policy is blocking that one
+  assembly. Deleting bin/ and obj/ and rebuilding from clean does not clear it,
+  and no other test assembly is affected. Resolving it means changing a machine
+  security policy, which is the human's call, not an agent's — no workaround was
+  attempted.
+
+  This is unrelated to spec 010: TaxCases.Tests ran green (337 passed) twice
+  earlier in this same session, and the only file changed between that green run
+  and this blocked one is tests/TaxAI.Portal.Tests/HealthEndpointTests.cs. No
+  file under src/ or tests/TaxCases.Tests/ has been touched by T01 or T02 at all.
+  So the 337 tests are believed green, but that is an inference, not a
+  verification, and it is recorded here as such.
+
+  SEPARATE HAZARD WORTH FIXING: `dotnet test TaxAI.sln` returned EXIT CODE 0
+  while silently skipping an entire 337-test project. A green exit code that is
+  not green defeats every "the full suite must pass" gate in this repository's
+  workflow. Consider adding --blame or a per-project test-count floor so a
+  skipped assembly fails the run.
+
+Acceptance criteria verified by this task: AC-17, AC-18, AC-19, AC-20, AC-21,
+AC-23, AC-24, AC-29.
+
+Non-vacuity check (AC-18): both validation flags were temporarily set to false
+and the suite re-run. All three AC-18 assertions failed as intended
+(ValidateOnBuild, ValidateScopes, and the source assertion), confirming they
+would catch a regression rather than pass either way. The flags were then
+restored to true and the full suite re-run green.
+
+Notes for later waves:
+  - The AC-18 probes (ScopedProbe, MissingDependency, NeedsMissingDependency)
+    are private nested types in CompositionRootTests. They must never move into
+    ModuleRegistration.
+  - Route matching is case-insensitive by default, so /Health reaches the health
+    endpoint. Recorded as an explicit test rather than left to be discovered.
+  - HealthEndpointTests deliberately asserts nothing about GET / being unmapped.
+    A first draft did, which would have broken the moment T03 mapped the root —
+    in a file T03 does not own and therefore could not fix. The full endpoint
+    inventory is AC-26 and belongs to T03.
+
+Merged by: not merged — awaiting human review. Agents never merge.
