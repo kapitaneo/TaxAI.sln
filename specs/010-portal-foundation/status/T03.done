@@ -1,0 +1,57 @@
+T03 — Map GET / to the fixed shell document.
+
+Spec:   010-portal-foundation (Wave 2 — the static shell page)
+PR:     #92  https://github.com/kapitaneo/TaxAI.sln/pull/92
+Branch: feat/010-w2-t03
+Commit: 015c53f
+Depends on: T01 (PR #90, merged), T02 (PR #91, merged). Both markers present on
+            master before this task started.
+
+Files changed (exactly the task's declared list):
+  src/TaxAI.Portal/Program.cs
+  tests/TaxAI.Portal.Tests/ShellPageTests.cs            (new)
+  specs/010-portal-foundation/status/T03.done
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests. None from the portal.
+
+  dotnet test TaxAI.sln
+    -> Exit code 0. 2404 passed, 0 failed, 0 skipped, across ALL SIX test
+       projects.
+       TaxLogicEngine.Tests      261 passed
+       TaxCases.Tests            337 passed
+       DocumentExtraction.Tests  673 passed
+       CaseProcessing.Tests      594 passed
+       CaseReview.Tests          482 passed
+       TaxAI.Portal.Tests         57 passed  (50 from T01/T02, 7 added here)
+
+Acceptance criteria verified by this task: AC-25, AC-26.
+
+Non-vacuity check (AC-26): a third route with a route parameter
+("/probe/{id}") was temporarily mapped and the suite re-run.
+TheHostMapsExactlyTwoGetEndpoints and NoMappedEndpointTakesARouteParameter both
+failed as intended. The route was removed and the full suite re-run green. This
+is the assertion that drove the minimal-APIs-over-Razor-Pages decision in
+architecture.md, so it had to be shown to bite.
+
+Kestrel smoke test (beyond the in-process suite):
+  GET /        -> 200, text/html; charset=utf-8, 252 bytes
+  GET /health  -> 200, text/plain; charset=utf-8, 7 bytes
+  No Server header emitted — this validates AddServerHeader = false over the
+  wire, which TestServer structurally cannot check because it does not use
+  Kestrel. Until now that setting was only asserted in source.
+
+Resolved from T02:
+  The Windows Application Control policy that blocked TaxCases.Tests during T02
+  (0x800711C7) is no longer in effect. The project executes normally and its 337
+  tests pass. The block was transient and environmental; nothing in the
+  repository was changed to clear it. T02's marker records those 337 as inferred
+  rather than verified — they are now verified.
+
+  The underlying hazard T02 flagged still stands and is NOT fixed by this task:
+  `dotnet test TaxAI.sln` returns exit code 0 when an assembly is skipped, so a
+  green exit code is not proof that every test ran. Worth addressing separately.
+
+Merged by: not merged — awaiting human review. Agents never merge.
