@@ -20,12 +20,31 @@ The future-module *pattern* is documented here; it is **not scaffolded**. Do not
 # Build
 dotnet build TaxAI.sln
 
-# Run all tests
+# Run all tests — the gate. Use this to satisfy any "full suite must pass" rule.
+pwsh ./scripts/Invoke-SolutionTests.ps1
+
+# Run all tests (raw; see the warning below)
 dotnet test TaxAI.sln
 
 # Run a single test
 dotnet test tests/TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
 ```
+
+**A green `dotnet test TaxAI.sln` is not proof that the suite ran.** It returns
+exit code 0 even when an entire test assembly is skipped — during spec 010 T02 a
+Windows Application Control policy blocked `TaxCases.Tests.dll`, 337 tests
+silently did not run, and the command still reported success.
+
+`scripts/Invoke-SolutionTests.ps1` closes that hole: it runs the suite with a TRX
+logger and then fails unless **every** project in `scripts/test-projects.json`
+actually ran, reported no failures, skipped nothing, and met its recorded minimum
+count. Every workflow rule in this file that says "the full suite must pass"
+means this script, not the raw command.
+
+`minimumTests` in that manifest is a **floor**, not an expected value. Raise it
+when a spec adds tests; **never lower it to make a run pass** — a falling count
+is the defect the gate exists to catch. A new test project must be registered in
+the same PR that introduces it, or the gate fails on it by design.
 
 ## Repository layout
 
