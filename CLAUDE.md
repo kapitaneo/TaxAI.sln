@@ -33,9 +33,24 @@ dotnet test tests/TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodNa
 - **`src/TaxCases/`** — the implemented deterministic Tax Case Core module
   (net8.0, nullable enabled). Its local `CLAUDE.md` owns the approved module
   boundary and public-contract inventory.
+- **`src/DocumentExtraction/`** — the deterministic, provider-independent
+  ingestion contract between future OCR/LLM adapters and the tax domain.
+- **`src/CaseProcessing/`** — the deterministic T4 case processor.
+- **`src/CaseReview/`** — the deterministic accountant review package.
+- **`src/TaxAI.Portal/`** — the ASP.NET Core host: the repository's only
+  executable project, and its single dependency-injection composition root. Its
+  local `CLAUDE.md` owns the portal boundary and the gate that keeps every
+  taxpayer-data surface out until the reserved Class A questions are answered.
+  **ASP.NET Core lives here and in its test project, and nowhere else.**
 - **`tests/TaxLogicEngine.Tests/`** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
 - **`tests/TaxCases.Tests/`** — xUnit contract, model, service, boundary, and
   end-to-end verification for Tax Case Core.
+- **`tests/DocumentExtraction.Tests/`**, **`tests/CaseProcessing.Tests/`**,
+  **`tests/CaseReview.Tests/`** — the matching suites for those modules.
+- **`tests/TaxAI.Portal.Tests/`** — xUnit host, composition-root, boundary,
+  security, and repository-verification suites for the portal. Adds
+  `Microsoft.AspNetCore.Mvc.Testing` for in-process host testing; no network
+  port is bound.
 - **`specs/NNN-<slug>/`** — spec artifacts (`prd.md`, `architecture.md`, `tasks.md`, `status/`).
 - **`.claude/`** — commands, agents, settings for the feature workflow.
 
@@ -170,8 +185,37 @@ mapped-amount dispute mechanism. The module invokes no parser, mapper, mapping
 provider, mapping resource, arithmetic, or rounding. PII is protected by the
 engine's existing masked `RecipientIdentifier` plus omission of caller strings
 and reviewed content from defensive output. AC-1 through AC-54 are recorded in
-`specs/009-accountant-review-package/verification.md`. The next feature is
-Portal Foundation.
+`specs/009-accountant-review-package/verification.md`.
+
+Spec 010 (Portal Foundation) is complete. `src/TaxAI.Portal/` is the
+repository's first runnable application: an ASP.NET Core host whose single
+composition root (`ModuleRegistration.AddTaxAiModules`) registers
+`IT4LineMapProvider`, `IT5LineMapProvider`, and `T4CaseProcessor` as singletons
+and nothing else, with the service provider validated on build and with scope
+validation forced on unconditionally — `WebApplication.CreateBuilder` enables
+those only in Development, so a config-free host would ship to Production
+unvalidated. It exposes exactly two GET routes, `/health` returning the literal
+`Healthy` and `/` returning a fixed shell document, both compile-time constants;
+neither accepts a body, route value, query value, form value, header, or cookie.
+**No endpoint resolves or invokes `T4CaseProcessor`: the portal runs no tax
+logic.** It contains no CRA line number, box code, box→line table, tax-year
+literal, taxpayer type, SIN, masking helper, or arithmetic token, and its PII
+posture is **omission, not masking — the data never enters the process.**
+Production references are exactly `TaxLogicEngine` and `CaseProcessing`;
+`CaseReview` is deliberately not referenced, because an
+`AccountantReviewPackage` is taxpayer data. AC-1 through AC-50 are recorded in
+`specs/010-portal-foundation/verification.md`.
+
+**The portal is a foundation, not a product surface.** No endpoint, page,
+component, or middleware that renders taxpayer data, accepts user input, uploads
+a document, persists data, reads a session or identity, or crosses a
+firm/case/participant boundary may be added to it until the Class A questions in
+`specs/010-portal-foundation/prd.md` (Open questions A–F: authentication and
+authorization; tenant/firm isolation at the HTTP boundary; what a UI may render
+and at what masking level; logging and telemetry policy; hosting, TLS, exposure,
+and data residency; deployable topology) are answered in a separate
+specification. Adding any of those makes the feature `tax-domain`, and that
+reclassification is not a downstream design decision.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

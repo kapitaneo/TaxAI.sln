@@ -1,0 +1,87 @@
+T07 — Update the repository's documentation and record AC-by-AC verification.
+
+Spec:   010-portal-foundation (Wave 4 — documentation and final verification)
+PR:     #96  https://github.com/kapitaneo/TaxAI.sln/pull/96
+Branch: feat/010-w4-t07
+Commit: 1211337
+Depends on: T01 (#90), T02 (#91), T03 (#92), T04 (#93), T05 (#94), T06 (#95) —
+            all merged, all six markers present on master before this task
+            started.
+
+RESULT: ALL 50 ACCEPTANCE CRITERIA PASS.
+
+Files changed (exactly the task's declared list):
+  tests/TaxAI.Portal.Tests/EndToEnd/RepositoryVerificationTests.cs   (new)
+  specs/010-portal-foundation/verification.md                        (new)
+  README.md                                                          (modified)
+  CLAUDE.md                                                          (modified)
+  NEXT.md                                                            (modified)
+  specs/010-portal-foundation/status/T07.done
+
+The three state documents were modified only after AC-1 through AC-50 had all
+passed, as the task requires.
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests (CS0649 x2, xUnit2008 x2). ZERO warnings from
+       TaxAI.Portal or TaxAI.Portal.Tests.
+
+  dotnet test TaxAI.sln
+    -> Exit code 0. 2571 passed, 0 failed, 0 skipped, across ALL SIX test
+       projects, with no assembly skipped.
+       TaxLogicEngine.Tests      261 passed  (unchanged)
+       TaxCases.Tests            337 passed  (unchanged)
+       DocumentExtraction.Tests  673 passed  (unchanged)
+       CaseProcessing.Tests      594 passed  (unchanged)
+       CaseReview.Tests          482 passed  (unchanged)
+       TaxAI.Portal.Tests        224 passed  (185 from T01-T06, 39 added here)
+       Pre-feature total 2347 -> 2571. No pre-existing test was removed,
+       skipped, renamed, or weakened.
+
+  git diff --name-only 48fefb7 origin/master   (48fefb7 = last master commit
+    before spec 010)
+    -> No path under src/ or tests/ for TaxLogicEngine, TaxCases,
+       DocumentExtraction, CaseProcessing, or CaseReview. (AC-11)
+
+  git ls-files, filtered for bin/, obj/, .vs/, *.user, *.pfx, *.key, .env,
+    settings.local.json
+    -> No matches. (AC-43)
+
+  dotnet run --project src/TaxAI.Portal
+    -> "Now listening on: http://localhost:5199", "Application started."
+       GET /       -> 200, text/html; charset=utf-8, 252 bytes
+       GET /health -> 200, text/plain; charset=utf-8, 7 bytes
+       No Server header emitted.
+
+Acceptance criteria verified by this task's own tests: AC-46, AC-47, AC-48,
+AC-49. Verified by recorded command evidence: AC-7, AC-11, AC-13, AC-43. Full
+AC-1..AC-50 traceability is in verification.md.
+
+One test was corrected during the task rather than left as written. Asserting
+that README.md never mentions "OCR" or "LLM integration" failed twice, for the
+right reason: the extraction-contract bullet legitimately describes the boundary
+future OCR/LLM adapters will sit behind, and the disclaimer sentence uses the
+exact phrase "OCR/LLM integration" to say the portal has none. A substring test
+cannot distinguish a claim from its negation. The assertion now checks only
+affirmative phrasings that could not appear in a disclaimer, and separately
+requires the explicit "No adapter implementation ships" statement. Weakening the
+README to satisfy a blunt test would have made the documentation worse.
+
+Recorded in verification.md, not fixed here:
+  - `dotnet test TaxAI.sln` returns exit code 0 when a test assembly is skipped.
+    During T02 a Windows Smart App Control policy blocked TaxCases.Tests.dll and
+    337 tests silently did not run while the command still reported success.
+    Every wave gate in this workflow trusts that exit code. A per-project
+    test-count floor, or --blame, would make a skipped assembly loud. This is a
+    workflow defect, not a spec 010 defect.
+  - Two documentation errors found while re-grounding the spec against master
+    after spec 009 merged: the InternalsVisibleTo grant count and pair were
+    wrong (three grants in two declaration forms, one of them a source-level
+    attribute), and AC-50 was unsatisfiable as originally written. Both were
+    corrected before implementation began.
+
+Spec 010 is complete pending the merge of this PR. Every task marker T01..T07
+exists.
+
+Merged by: not merged — awaiting human review. Agents never merge.
