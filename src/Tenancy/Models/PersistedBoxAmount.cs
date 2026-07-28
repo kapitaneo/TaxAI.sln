@@ -9,7 +9,6 @@ namespace Tenancy.Models;
 /// rounding on it: an amount that could not be stored exactly is refused before
 /// anything is written, never re-scaled to fit.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class PersistedBoxAmount
 {
@@ -24,7 +23,15 @@ public sealed class PersistedBoxAmount
         Guid slipId,
         int ordinal,
         string boxCode,
-        decimal amount) => throw new NotImplementedException();
+        decimal amount)
+    {
+        BoxAmountId = boxAmountId;
+        FirmId = firmId;
+        SlipId = slipId;
+        Ordinal = ordinal;
+        BoxCode = boxCode;
+        Amount = amount;
+    }
 
     public Guid BoxAmountId { get; private set; }
 
@@ -42,5 +49,5 @@ public sealed class PersistedBoxAmount
     public decimal Amount { get; private set; }
 
     /// <summary>Fixed type identity only; no box code or amount is rendered.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PersistedBoxAmount);
 }

@@ -4,7 +4,6 @@ namespace Tenancy.Models;
 
 /// <summary>
 /// One box code that fed a CRA line entry, in the engine's own order.
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class PersistedSourceBoxCode
 {
@@ -18,7 +17,14 @@ public sealed class PersistedSourceBoxCode
         Guid firmId,
         Guid lineEntryId,
         int ordinal,
-        string boxCode) => throw new NotImplementedException();
+        string boxCode)
+    {
+        SourceBoxCodeId = sourceBoxCodeId;
+        FirmId = firmId;
+        LineEntryId = lineEntryId;
+        Ordinal = ordinal;
+        BoxCode = boxCode;
+    }
 
     public Guid SourceBoxCodeId { get; private set; }
 
@@ -32,5 +38,5 @@ public sealed class PersistedSourceBoxCode
     public string BoxCode { get; private set; } = string.Empty;
 
     /// <summary>Fixed type identity only; no box code is rendered.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PersistedSourceBoxCode);
 }

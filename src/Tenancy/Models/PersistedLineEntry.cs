@@ -11,13 +11,16 @@ namespace Tenancy.Models;
 /// carrying the same line code are stored as two rows and are never combined
 /// into a total.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class PersistedLineEntry
 {
+    private readonly List<PersistedSourceBoxCode> _sourceBoxCodes = [];
+    private readonly IReadOnlyList<PersistedSourceBoxCode> _sourceBoxCodeView;
+
     /// <summary>Materialization seam for the storage layer.</summary>
     private PersistedLineEntry()
     {
+        _sourceBoxCodeView = _sourceBoxCodes.AsReadOnly();
     }
 
     internal PersistedLineEntry(
@@ -27,7 +30,17 @@ public sealed class PersistedLineEntry
         int ordinal,
         string lineCode,
         decimal amount,
-        IReadOnlyList<PersistedSourceBoxCode> sourceBoxCodes) => throw new NotImplementedException();
+        IReadOnlyList<PersistedSourceBoxCode> sourceBoxCodes)
+        : this()
+    {
+        LineEntryId = lineEntryId;
+        FirmId = firmId;
+        SlipId = slipId;
+        Ordinal = ordinal;
+        LineCode = lineCode;
+        Amount = amount;
+        _sourceBoxCodes.AddRange(sourceBoxCodes);
+    }
 
     public Guid LineEntryId { get; private set; }
 
@@ -46,9 +59,8 @@ public sealed class PersistedLineEntry
 
     /// <summary>SIN-free provenance: the box codes that fed this line.</summary>
     [JsonIgnore]
-    public IReadOnlyList<PersistedSourceBoxCode> SourceBoxCodes { get; private set; } =
-        Array.Empty<PersistedSourceBoxCode>();
+    public IReadOnlyList<PersistedSourceBoxCode> SourceBoxCodes => _sourceBoxCodeView;
 
     /// <summary>Fixed type identity only; no line code or amount is rendered.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(PersistedLineEntry);
 }
