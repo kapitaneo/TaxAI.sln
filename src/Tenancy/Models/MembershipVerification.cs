@@ -8,12 +8,14 @@ namespace Tenancy.Models;
 /// in-bounds session whose membership has been disabled must still be refused —
 /// two checks that cannot reach each other cannot short-circuit each other.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class MembershipVerification
 {
-    internal MembershipVerification(bool isVerified, string? refusalReason) =>
-        throw new NotImplementedException();
+    internal MembershipVerification(bool isVerified, string? refusalReason)
+    {
+        IsVerified = isVerified;
+        RefusalReason = refusalReason;
+    }
 
     public bool IsVerified { get; private set; }
 
@@ -24,5 +26,8 @@ public sealed class MembershipVerification
     public string? RefusalReason { get; private set; }
 
     /// <summary>Fixed structural facts only.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() =>
+        IsVerified
+            ? "MembershipVerification(Verified)"
+            : "MembershipVerification(Refused)";
 }

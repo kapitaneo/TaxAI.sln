@@ -9,7 +9,6 @@ namespace Tenancy.Models;
 /// A firm's display name is not taxpayer data and may be rendered to a signed-in
 /// member. Nothing about a taxpayer is stored here.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class Firm
 {
@@ -22,7 +21,13 @@ public sealed class Firm
         Guid firmId,
         string displayName,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc) => throw new NotImplementedException();
+        DateTimeOffset updatedAtUtc)
+    {
+        FirmId = firmId;
+        DisplayName = displayName;
+        CreatedAtUtc = createdAtUtc;
+        UpdatedAtUtc = updatedAtUtc;
+    }
 
     public Guid FirmId { get; private set; }
 
@@ -34,5 +39,5 @@ public sealed class Firm
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     /// <summary>Fixed type identity only; the firm's name is never rendered here.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() => nameof(Firm);
 }
