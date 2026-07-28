@@ -1,0 +1,71 @@
+T04 — Enforce dependency direction and the line the portal may not cross.
+
+Spec:   010-portal-foundation (Wave 3 — proving the boundaries; parallel with
+        T05 and T06)
+PR:     #93  https://github.com/kapitaneo/TaxAI.sln/pull/93
+Branch: feat/010-w3-t04
+Commit: fbb73c7
+Depends on: T01 (PR #90), T02 (PR #91), T03 (PR #92) — all merged, all three
+            markers present on master before this task started.
+
+Files changed (exactly the task's declared list):
+  tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs   (new)
+  specs/010-portal-foundation/status/T04.done
+
+No production file was touched. T04 is a test-only task: a failing assertion
+here means the design is wrong, and the fix belongs in a re-opened earlier task,
+never in a weakened assertion.
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests. None from the portal.
+
+  dotnet test TaxAI.sln
+    -> Exit code 0. 2427 passed, 0 failed, 0 skipped, across ALL SIX test
+       projects, with no assembly skipped.
+       TaxLogicEngine.Tests      261 passed
+       TaxCases.Tests            337 passed
+       DocumentExtraction.Tests  673 passed
+       CaseProcessing.Tests      594 passed
+       CaseReview.Tests          482 passed
+       TaxAI.Portal.Tests         80 passed  (57 from T01-T03, 23 added here)
+
+Acceptance criteria verified by this task: AC-10, AC-22, AC-31, AC-32, AC-33,
+AC-34, AC-35, AC-40.
+
+Non-vacuity: unlike T02 and T03, this task did NOT prove its assertions by
+temporarily breaking production code — T04 does not own any production file, and
+mutating one would violate its declared-file ownership. The equivalent
+protection is built into the suite itself, which is why tasks.md required it:
+  - the scanner guard asserts the walk sees exactly Program.cs,
+    ModuleRegistration.cs, and PortalContent.cs, and that known-present patterns
+    (AddTaxAiModules, MapGet, IT4LineMapProvider) still match — so a broken walk
+    or an over-eager comment filter cannot make every negative assertion pass
+    for free;
+  - the comment-filter guard proves the filter removes documentation naming a
+    forbidden concept (IDocumentExtractionIngress) while leaving code
+    (AddSingleton) intact, in both directions;
+  - the AC-22 assertion checks not only that no registration lives outside the
+    composition root, but that the composition root contains exactly three — so
+    it cannot pass by the registrations having quietly disappeared.
+
+ENVIRONMENT — resolved during this task:
+  The suite could not execute at first. Windows Smart App Control was in
+  enforcement mode (HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy\
+  VerifiedAndReputablePolicyState = 1) and blocked the freshly built
+  TaxAI.Portal.dll with 0x800711C7, skipping the entire portal suite. The same
+  policy had blocked TaxCases.Tests.dll during T02. Three retries over several
+  minutes did not clear it, and no workaround was attempted: clearing it means
+  changing a machine security policy, which is the human's call. The human
+  turned Smart App Control off (state now 0) and the suite ran green on its
+  first execution afterwards. Note that turning SAC off is not reversible
+  without a Windows reset.
+
+  The related hazard first flagged in T02 is still NOT fixed and is not this
+  task's to fix: `dotnet test TaxAI.sln` returns exit code 0 when an assembly is
+  skipped, so a green exit code alone is not proof that every test ran. Every
+  wave gate in this workflow trusts that exit code. A per-project test-count
+  floor would make a skipped assembly loud instead of silent.
+
+Merged by: not merged — awaiting human review. Agents never merge.
