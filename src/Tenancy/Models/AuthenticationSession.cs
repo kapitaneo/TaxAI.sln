@@ -23,7 +23,6 @@ namespace Tenancy.Models;
 /// legitimately has no active firm, and the application never picks one on the
 /// user's behalf.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class AuthenticationSession
 {
@@ -40,21 +39,37 @@ public sealed class AuthenticationSession
         DateTimeOffset lastSeenAtUtc,
         DateTimeOffset idleExpiresAtUtc,
         DateTimeOffset absoluteExpiresAtUtc,
-        DateTimeOffset? revokedAtUtc) => throw new NotImplementedException();
+        DateTimeOffset? revokedAtUtc)
+    {
+        SessionId = sessionId;
+        UserId = userId;
+        ActiveFirmId = activeFirmId;
+        CreatedAtUtc = createdAtUtc;
+        LastSeenAtUtc = lastSeenAtUtc;
+        IdleExpiresAtUtc = idleExpiresAtUtc;
+        AbsoluteExpiresAtUtc = absoluteExpiresAtUtc;
+        RevokedAtUtc = revokedAtUtc;
+    }
 
     /// <summary>The opaque key the protected cookie carries, and nothing more.</summary>
+    [JsonIgnore]
     public Guid SessionId { get; private set; }
 
+    [JsonIgnore]
     public Guid UserId { get; private set; }
 
     /// <summary>Null when the user holds zero or several active memberships.</summary>
+    [JsonIgnore]
     public Guid? ActiveFirmId { get; private set; }
 
+    [JsonIgnore]
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
+    [JsonIgnore]
     public DateTimeOffset LastSeenAtUtc { get; private set; }
 
     /// <summary>Advanced by activity, and never beyond the absolute boundary.</summary>
+    [JsonIgnore]
     public DateTimeOffset IdleExpiresAtUtc { get; private set; }
 
     /// <summary>
@@ -62,14 +77,17 @@ public sealed class AuthenticationSession
     /// moves the idle boundary only; reauthentication is required once this
     /// instant is reached.
     /// </summary>
+    [JsonIgnore]
     public DateTimeOffset AbsoluteExpiresAtUtc { get; private set; }
 
     /// <summary>Non-null once revoked. The security-bearing fact of sign-out.</summary>
+    [JsonIgnore]
     public DateTimeOffset? RevokedAtUtc { get; private set; }
 
     /// <summary>
     /// Fixed structural facts only; never the session identifier, the user
     /// identifier, or the firm.
     /// </summary>
-    public override string ToString() => throw new NotImplementedException();
+    public override string ToString() =>
+        $"{nameof(AuthenticationSession)} {{ IsRevoked = {RevokedAtUtc.HasValue} }}";
 }

@@ -1,0 +1,44 @@
+TaskID: T09
+PR: #108
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/108
+Implementation commit: 561b3f6612a732ffc9d5891514180aea139c9179
+Branch: feat/011-w2-t09
+Base commit: 4935a4e037149b7c1245a608dd2d51ee9b6ad515
+
+Focused tests:
+- PASS: SessionLifetimePolicyTests — 24 passed, 0 failed, 0 skipped, 24 total
+
+Build:
+- PASS: dotnet build TaxAI.sln — 0 errors; 4 pre-existing out-of-scope warnings
+
+Repository tests:
+- PASS: dotnet test TaxAI.sln — 2,810 passed, 0 failed, 0 skipped, 2,810 total
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1 — all 8 expected test projects
+  ran and met their manifest floors; 2,810 passed, 0 failed, 0 skipped,
+  2,810 total
+  - TaxLogicEngine.Tests: 261 passed
+  - TaxCases.Tests: 337 passed
+  - DocumentExtraction.Tests: 673 passed
+  - CaseProcessing.Tests: 594 passed
+  - CaseReview.Tests: 482 passed
+  - TaxAI.Portal.Tests: 224 passed
+  - Tenancy.Tests: 214 passed
+  - Persistence.Tests: 25 passed
+- PASS: git diff --check
+
+Scope confirmation:
+- Implementation commit changes exactly the five T09-allowed files:
+  - src/Tenancy/Services/SessionLifetimePolicy.cs
+  - src/Tenancy/Models/AuthenticationSession.cs
+  - src/Tenancy/Models/SessionBoundaries.cs
+  - src/Tenancy/Models/SessionEvaluation.cs
+  - tests/Tenancy.Tests/Services/SessionLifetimePolicyTests.cs
+- The completion commit adds only this T09.done marker.
+- No PRD, architecture, tasks.md, project file, sibling-task file, or other
+  task's status marker changed.
+- No browser authentication ticket content, OIDC provider token, claims
+  payload, taxpayer data, or production feature outside T09 was added.
+
+Not done:
+- No merge or self-approval was performed.
+- T11 was not started.
