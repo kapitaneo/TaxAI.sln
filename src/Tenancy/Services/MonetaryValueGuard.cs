@@ -1,4 +1,6 @@
+using System.Globalization;
 using TaxLogicEngine.Models;
+using Tenancy.Models;
 
 namespace Tenancy.Services;
 
@@ -22,10 +24,45 @@ namespace Tenancy.Services;
 /// <strong>no arithmetic on the amount</strong> — arithmetic on a monetary value
 /// is the thing this module must not be able to do at all.
 /// </para>
-/// <para>Wave 0 contract stage: behaviour is implemented in a later task.</para>
 /// </summary>
 public static class MonetaryValueGuard
 {
-    public static ValidationError? Validate(decimal amount, string field) =>
-        throw new NotImplementedException();
+    private const int MaximumWholeNumberDigits =
+        PersistedSchema.MonetaryPrecision - PersistedSchema.MonetaryScale;
+
+    public static ValidationError? Validate(decimal amount, string field)
+    {
+        var invariantValue = amount.ToString(CultureInfo.InvariantCulture);
+        var wholeNumberDigits = 0;
+        var fractionalDigits = 0;
+        var afterDecimalSeparator = false;
+
+        foreach (var character in invariantValue)
+        {
+            if (character == '-')
+            {
+                continue;
+            }
+
+            if (character == '.')
+            {
+                afterDecimalSeparator = true;
+                continue;
+            }
+
+            if (afterDecimalSeparator)
+            {
+                fractionalDigits++;
+            }
+            else
+            {
+                wholeNumberDigits++;
+            }
+        }
+
+        return wholeNumberDigits <= MaximumWholeNumberDigits &&
+               fractionalDigits <= PersistedSchema.MonetaryScale
+            ? null
+            : new ValidationError(field, TenancyErrors.AmountNotExactlyStorable);
+    }
 }
