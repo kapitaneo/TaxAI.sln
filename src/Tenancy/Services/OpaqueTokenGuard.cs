@@ -1,3 +1,4 @@
+using Tenancy.Models;
 using TaxLogicEngine.Models;
 
 namespace Tenancy.Services;
@@ -12,10 +13,35 @@ namespace Tenancy.Services;
 /// longer identifies what the caller meant, and it would then be compared
 /// ordinally against the original everywhere else.
 /// </para>
-/// <para>Wave 0 contract stage: behaviour is implemented in a later task.</para>
 /// </summary>
 public static class OpaqueTokenGuard
 {
-    public static ValidationError? Validate(string? value, int maxLength, string field) =>
-        throw new NotImplementedException();
+    public static ValidationError? Validate(string? value, int maxLength, string field)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return new ValidationError(field, TenancyErrors.TokenEmpty);
+        }
+
+        if (value.Length > maxLength)
+        {
+            return new ValidationError(field, TenancyErrors.TokenTooLong);
+        }
+
+        foreach (var character in value)
+        {
+            if (!IsPermitted(character))
+            {
+                return new ValidationError(field, TenancyErrors.TokenCharacterNotPermitted);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsPermitted(char character) =>
+        (character >= 'A' && character <= 'Z') ||
+        (character >= 'a' && character <= 'z') ||
+        (character >= '0' && character <= '9') ||
+        character is '-' or '_';
 }
