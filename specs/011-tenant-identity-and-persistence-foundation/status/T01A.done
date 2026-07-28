@@ -1,0 +1,53 @@
+TaskID:              T01A
+Task:                Wave 0 scaffold contract transition (spec 011)
+PR:                  #106  https://github.com/kapitaneo/TaxAI.sln/pull/106
+Implementation SHA:  356e29319ce6aa29edc395ce5af96f67544bea30
+Branch:               fix/011-wave0-scaffold-transition
+Base:                 42571a279626eb5b4a9db3d1e0a003945fd88183 (origin/master)
+
+Verification
+  dotnet build TaxAI.sln
+    → Passed: 0 errors, 4 warnings.
+
+  dotnet test TaxAI.sln
+    → Passed: 2,695; Failed: 0; Skipped: 0; Total: 2,695.
+        TaxLogicEngine.Tests        261
+        TaxCases.Tests              337
+        DocumentExtraction.Tests    673
+        CaseProcessing.Tests        594
+        CaseReview.Tests            482
+        TaxAI.Portal.Tests          224
+        Tenancy.Tests                99
+        Persistence.Tests            25
+
+  pwsh ./scripts/Invoke-SolutionTests.ps1
+    → PowerShell 7.6.4; exit code 0.
+    → Passed all 8 expected test projects; 2,695 tests passed.
+    → Test execution gate passed: every expected project ran and met its floor.
+
+  git diff --check
+    → Passed with no whitespace errors.
+
+Focused tests
+  dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj
+    → Passed: 99; Failed: 0; Skipped: 0; Total: 99.
+
+  dotnet test tests/Persistence.Tests/Persistence.Tests.csproj
+    → Passed: 25; Failed: 0; Skipped: 0; Total: 25.
+
+Changed-file confirmation
+  The implementation commit changes exactly these seven T01A allowlisted files:
+    specs/011-tenant-identity-and-persistence-foundation/architecture.md
+    specs/011-tenant-identity-and-persistence-foundation/prd.md
+    specs/011-tenant-identity-and-persistence-foundation/tasks.md
+    tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs
+    tests/Persistence.Tests/Contracts/PersistenceContractTests.cs
+    tests/Tenancy.Tests/Boundaries/TenancyBoundaryTests.cs
+    tests/Tenancy.Tests/Contracts/TenancyContractTests.cs
+
+  No production file, T02–T07 implementation, T11–T16 implementation,
+  taxpayer data, package, dependency, project, or Wave 1 branch was changed.
+  This completion marker is the only post-PR file and is committed separately.
+
+Not done here, by rule
+  - Merging. A human merges; no agent merges or approves its own work.
