@@ -1,0 +1,37 @@
+TaskID: T06
+PR: #104 https://github.com/kapitaneo/TaxAI.sln/pull/104
+Implementation commit: 257478ab06eb58975ec7a1f8a864bcf73633584f
+Branch: feat/011-w1-t06
+Base commit: 181a97dab53f1d235ae594432915d9e30459e73f (origin/master after rebase)
+
+Test results:
+  dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj --filter "FullyQualifiedName~MonetaryValueGuardTests"
+    Passed: 16, Failed: 0, Skipped: 0
+
+  dotnet build TaxAI.sln
+    Build succeeded: 0 errors, 4 warnings.
+
+  dotnet test TaxAI.sln
+    Passed: 2761, Failed: 0, Skipped: 0, across 8 test projects.
+
+  pwsh ./scripts/Invoke-SolutionTests.ps1
+    Test execution gate passed: all 8 expected projects ran, no tests failed or
+    skipped, and every project met its recorded floor.
+    TaxLogicEngine.Tests: 261 passed
+    TaxCases.Tests: 337 passed
+    DocumentExtraction.Tests: 673 passed
+    CaseProcessing.Tests: 594 passed
+    CaseReview.Tests: 482 passed
+    TaxAI.Portal.Tests: 224 passed
+    Tenancy.Tests: 165 passed
+    Persistence.Tests: 25 passed
+
+  git diff --check
+    Passed.
+
+Scope confirmation:
+  The implementation commit differs from its rebased origin/master base only in:
+    src/Tenancy/Services/MonetaryValueGuard.cs
+    tests/Tenancy.Tests/Services/MonetaryValueGuardTests.cs
+
+  This completion commit adds only this T06.done marker.
