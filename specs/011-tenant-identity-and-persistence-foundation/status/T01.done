@@ -1,0 +1,51 @@
+Task:    T01 — Tenancy and Persistence contract wave (spec 011, Wave 0)
+PR:      #99  https://github.com/kapitaneo/TaxAI.sln/pull/99
+Commit:  4b3f458
+Branch:  feat/011-w0-t01
+Base:    983fa23 (master, after PR #97 and PR #98)
+
+Delivered
+  src/Tenancy/            20 model types, 6 ports, 8 guards/policies — all
+                          signatures declared with NotImplementedException bodies
+  src/Persistence/        TaxAiDbContext + PersistenceRegistration, declared only
+  tests/Tenancy.Tests/     99 tests
+  tests/Persistence.Tests/ 25 tests
+  TaxAI.sln               4 projects appended (66 insertions, 0 deletions)
+  scripts/test-projects.json  Tenancy.Tests and Persistence.Tests registered
+                              with floor counts 99 and 25
+
+Test commands run
+  dotnet build TaxAI.sln --no-incremental
+    → Build succeeded, 0 errors.
+
+  dotnet test TaxAI.sln
+    → Passed: 2695, Failed: 0, Skipped: 0, across 8 test projects.
+        TaxLogicEngine.Tests        261
+        TaxCases.Tests              337
+        DocumentExtraction.Tests    673
+        CaseProcessing.Tests        594
+        CaseReview.Tests            482
+        TaxAI.Portal.Tests          224
+        Tenancy.Tests                99   (new)
+        Persistence.Tests            25   (new)
+      2571 pre-existing tests unchanged; 124 added.
+
+  scripts/Invoke-SolutionTests.ps1
+    → Test execution gate passed: every expected project ran and met its floor.
+      Exit code 0.
+
+Class A decisions applied (from tasks.md; given by the human, not assumed here)
+  B-2  FirmScopeExemptions.All ships as exactly three enumerated entries.
+  B-3  Not reached by this task; applies to T17.
+
+Notes for the reviewer
+  - No file under src/TaxLogicEngine, src/TaxCases, src/DocumentExtraction,
+    src/CaseProcessing, src/CaseReview, or their five test trees was edited.
+  - No total project count is asserted in any test or document.
+  - The pre-existing worktree for this task had been created from dc243c6,
+    before PR #97 and #98 merged. It was fast-forwarded to 983fa23 before any
+    work began, so this branch registers into the merged test manifest rather
+    than recreating it.
+
+Not done here, by rule
+  - Merging. A human merges; no agent merges or approves its own work.

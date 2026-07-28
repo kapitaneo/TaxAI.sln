@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- The ONLY project in this repository that may reference EF Core. Confining
+       the ORM here is what makes "tax-domain code must not depend on EF Core" a
+       fact about the reference graph rather than a rule someone has to remember.
+       One provider, pinned: a second would mean two answers about how a decimal
+       column round-trips. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
+  </ItemGroup>
+
+</Project>
