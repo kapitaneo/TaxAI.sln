@@ -84,9 +84,38 @@
   - AC-1…AC-54 verification recorded in
     `specs/009-accountant-review-package/verification.md`.
 
+- Spec 010 — Portal Foundation:
+  - the repository's first runnable application: `src/TaxAI.Portal/`, an
+    ASP.NET Core host and the single deployable the modular-monolith decision
+    committed to;
+  - one composition root registering `IT4LineMapProvider`,
+    `IT5LineMapProvider`, and `T4CaseProcessor` as singletons and nothing else,
+    with validate-on-build and scope validation forced on unconditionally;
+  - exactly two GET routes — `/health` returning a fixed literal and `/`
+    returning a static shell document — with no input surface of any kind;
+  - the inward dependency rule proved in both directions: the portal reaches
+    modules only through contracts, and no module references the portal;
+  - the web layer proved to contain no tax computation, CRA line number,
+    mapping table, taxpayer type, PII, or tax-year policy; PII is handled by
+    omission — the data never enters the process;
+  - AC-1…AC-50 verification recorded in
+    `specs/010-portal-foundation/verification.md`.
+
 ## Next
 
-Create the **Portal Foundation** spec.
+Decide the **first taxpayer-data surface** for the portal. It is blocked, by
+design, on the Class A questions recorded in
+`specs/010-portal-foundation/prd.md` (Open questions A–F): authentication and
+authorization; tenant/firm isolation at the HTTP boundary; what taxpayer data a
+UI may render and at what masking level; logging, telemetry, and error-reporting
+policy; hosting, TLS, public exposure, and data residency; and whether this host
+also exposes the untrusted document-extraction ingress.
+
+Those answers are a human's to give. Until they exist, no endpoint, page,
+component, or middleware that renders taxpayer data, accepts user input, uploads
+a document, persists data, reads a session or identity, or crosses a
+firm/case/participant boundary may be added to the portal — adding one makes the
+feature `tax-domain`.
 
 ## Explicitly not now
 
