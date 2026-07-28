@@ -1,0 +1,81 @@
+T06 — Verify solution shape and existing-module regression.
+
+Spec:   010-portal-foundation (Wave 3 — proving the boundaries; parallel with
+        T04 and T05)
+PR:     #95  https://github.com/kapitaneo/TaxAI.sln/pull/95
+Branch: feat/010-w3-t06
+Commit: 202e18a
+Depends on: T01 (PR #90), T02 (PR #91), T03 (PR #92) — all merged, all three
+            markers present on master before this task started. T04 and T05 are
+            Wave 3 siblings, not dependencies; this task shares no file with
+            either.
+
+Files changed (exactly the task's declared list):
+  tests/TaxAI.Portal.Tests/EndToEnd/SolutionAndRegressionTests.cs   (new)
+  specs/010-portal-foundation/status/T06.done
+
+No production file was touched.
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests. None from the portal. This task briefly introduced
+       a fifth (xUnit2013: Assert.Equal used for collection size); it was fixed
+       to Assert.Single rather than left in.
+
+  dotnet test TaxAI.sln
+    -> Exit code 0. 2532 passed, 0 failed, 0 skipped, across ALL SIX test
+       projects, with no assembly skipped.
+       TaxLogicEngine.Tests      261 passed
+       TaxCases.Tests            337 passed
+       DocumentExtraction.Tests  673 passed
+       CaseProcessing.Tests      594 passed
+       CaseReview.Tests          482 passed
+       TaxAI.Portal.Tests        185 passed  (133 from T01-T05, 52 added here)
+
+Acceptance criteria verified by this task: AC-6, AC-12, AC-14, AC-15, AC-16,
+AC-50.
+
+Public-surface snapshot recorded (AC-14): TaxLogicEngine 34 types, TaxCases 27,
+DocumentExtraction 8, CaseProcessing 4, CaseReview 9.
+
+Implementation notes:
+  - Module assemblies are loaded BY PATH through a private AssemblyLoadContext,
+    not by type reference. The portal test project references only the portal,
+    and TaxCases and CaseReview are deliberately off its reference graph; adding
+    project references merely to inspect them would have defeated the boundary
+    this task exists to verify.
+  - The internals-grant scan matches the ATTRIBUTE, not the word. A substring
+    scan reported src/CaseProcessing/Services/PayloadStructureGuard.cs as a
+    grant, which it is not — it documents the concept in a doc comment while
+    granting nothing. The scan now requires "[assembly: InternalsVisibleTo(" on
+    an executable line. The failing test caught the imprecision, which is the
+    right direction for a scan to fail in.
+  - AC-12 deliberately does NOT list CaseReview as a forbidden speculative
+    project. Spec 009 shipped it; it is a real module. The check matches an
+    exact file name so "Review" cannot accidentally catch CaseReview.csproj.
+
+Non-vacuity: the AC-14 snapshot was confirmed to bite by temporarily removing
+one entry (CaseProcessing.Services.T4CaseProcessor) from this file's OWN
+snapshot table — the CaseProcessing theory case failed, and the entry was
+restored. As in T04 and T05, production code was not touched to prove this.
+A guard additionally asserts that all five modules are covered, that no snapshot
+is empty, and that every entry is namespaced to its own module, so a snapshot
+silently emptied or a module quietly dropped cannot make AC-14 pass while
+checking nothing.
+
+FOR THE REVIEWER — a coupling this task introduces on purpose: the AC-14
+snapshot means TaxAI.Portal.Tests now gates the public surface of all five
+modules. A future spec that legitimately extends one of them must update this
+snapshot in the same PR. That appears correct — a deliberate change to a public
+tax contract should be visible in a diff — but it is a real coupling, and the
+assertion's failure message states what to do.
+
+  Unrelated and still unfixed, first flagged in T02: `dotnet test TaxAI.sln`
+  returns exit code 0 when an assembly is skipped, so a green exit code alone is
+  not proof that every test ran. Not this task's to fix.
+
+Wave 3 is complete once T04, T05, and T06 are merged. T07 (documentation and
+final AC-1..AC-50 verification) is the only remaining task.
+
+Merged by: not merged — awaiting human review. Agents never merge.
