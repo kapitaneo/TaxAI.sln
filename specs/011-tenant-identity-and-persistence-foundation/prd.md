@@ -127,6 +127,21 @@ and what was derived from it. **Every question this PRD raised has been
 answered**; the answers are folded into the requirements below and the reasoning
 is preserved in [Open questions](#open-questions).
 
+### UTC `DateTimeOffset` provenance (Class A clarification)
+
+**This clarification supersedes the ambiguous earlier wording in FR-34 and
+AC-154.** `UtcInstantGuard` accepts a `DateTimeOffset` only when its `Offset` is
+exactly `TimeSpan.Zero`; it rejects every non-zero offset and never silently
+normalizes one. The guard does not attempt to infer the originating
+`DateTime.Kind`. A `DateTimeOffset` does not retain whether an equal zero-offset
+value originated from `DateTimeKind.Utc` or `DateTimeKind.Unspecified`, so
+AC-154 does not require rejecting a zero-offset value based on unavailable
+`DateTime.Kind` provenance.
+
+A future API that accepts `DateTime` directly may reject
+`DateTimeKind.Unspecified` before constructing a `DateTimeOffset`. Such an API
+is outside T03. T03's current public signature remains unchanged.
+
 ### SIN — an intentional reversal of the earlier "masked last three" answer
 
 **No SIN or partial SIN may reach the browser or the persisted read model.** Not
@@ -242,9 +257,9 @@ Therefore `2032-12-31T23:59:59.9999999Z` is **not** purge-eligible;
 
 **No inclusive end-of-day value (`23:59:59.9999999` or similar) is ever
 modelled**, and the exclusive meaning of the name is documented wherever the
-field is declared. All instants are UTC `DateTimeOffset`; **a non-UTC or
-ambiguous instant is rejected at the application boundary, never silently
-converted.**
+field is declared. All instants are UTC `DateTimeOffset`; **a supplied value
+whose offset is not exactly zero is rejected at the application boundary,
+never silently converted.**
 
 Normal portal users cannot delete retained packages in 011. A deterministic
 **privileged purge service/command** deletes only records whose
@@ -537,8 +552,8 @@ of which is replaced by a strictly stronger one.
 6. As a **taxpayer**, the amounts and CRA line codes stored about me are exactly
    the ones the engine produced: the storage layer cannot round, truncate,
    reorder, or re-derive a single one of them.
-7. As a **taxpayer**, my record is kept until an unambiguous, documented,
-   exclusive UTC boundary and is then deleted by an explicit, privileged,
+7. As a **taxpayer**, my record is kept until a documented, exclusive UTC
+   boundary and is then deleted by an explicit, privileged,
    firm-scoped operation that logs counts, not contents.
 8. As a **firm principal at firm X**, a request authenticated at firm Y that
    guesses one of my record identifiers gets exactly the same answer as a request
@@ -816,11 +831,16 @@ purge SHALL be supplied to the contract as an explicit parameter; **no clock is
 read inside `Tenancy` or inside the projection**, so the same inputs always
 produce the same record.
 
-**FR-34 `[new]`** — All instants SHALL be UTC `DateTimeOffset`. Any supplied
-instant whose offset is not zero, or whose kind is unspecified or otherwise
-ambiguous, SHALL be **rejected at the application boundary** — never coerced,
-never converted, never assumed to be UTC. Every persisted instant SHALL be stored
-with a zero offset.
+**FR-34 `[new]`** — All instants SHALL be UTC `DateTimeOffset`.
+`UtcInstantGuard` SHALL accept a value only when its `Offset` is exactly
+`TimeSpan.Zero`; it SHALL reject every non-zero offset and SHALL **never coerce,
+convert, normalize, or assume a non-zero offset is UTC**. The guard SHALL NOT
+attempt to infer the originating `DateTime.Kind`: `DateTimeOffset` does not
+retain whether an equal zero-offset value originated from `DateTimeKind.Utc` or
+`DateTimeKind.Unspecified`. Every persisted instant SHALL be stored with a zero
+offset. A future API that accepts `DateTime` directly may reject
+`DateTimeKind.Unspecified` before constructing a `DateTimeOffset`; that separate
+API is outside T03, whose public signature remains unchanged.
 
 **FR-35 `[new]`** — A **privileged purge operation** SHALL delete a record when
 `evaluationInstantUtc >= RetentionUntilUtc`, and SHALL delete no other record. It
@@ -1169,7 +1189,10 @@ Any deviation is a defect, not a delivered outcome.
   1. `Tenancy` contracts (Wave 0): identity/membership/session records, the
      review read-model types, repository and session-store interfaces, the
      projection signature, the retention policy signature, the UTC-instant guard,
-     the field-name constants — `NotImplementedException` bodies.
+     the field-name constants — initially with temporary
+     `NotImplementedException` scaffold bodies. Before Wave 1 can complete,
+     T01A replaces implementation-state sentinels with durable contract and
+     boundary coverage that remains valid as concrete behaviours land.
   2. `Tenancy` behaviour: the allowlist projection, every fail-closed guard, the
      UTC-instant rejection, the session lifetime rules, the exclusive retention
      boundary calculation, and their tests.
@@ -1841,10 +1864,14 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
      whose offset is not zero, When it is supplied to any `Tenancy` operation,
      Then the operation is refused and nothing is written or deleted — never
      converted.
-154. **Ambiguous instant is rejected.** Given an instant whose kind is unspecified
-     or otherwise ambiguous, When it is supplied to any `Tenancy` operation, Then
-     the operation is refused and nothing is written or deleted — never assumed to
-     be UTC.
+154. **Unavailable `DateTime.Kind` provenance is not inferred.** Given two equal
+     zero-offset `DateTimeOffset` values, one constructed from
+     `DateTimeKind.Utc` and one constructed from `DateTimeKind.Unspecified`, When
+     each is supplied to `UtcInstantGuard`, Then both are accepted because
+     `DateTimeOffset` retains no originating-kind provenance. A non-zero offset
+     remains refused under AC-153 and is never normalized. A future API accepting
+     `DateTime` directly may reject `DateTimeKind.Unspecified` before construction;
+     that separate API is outside T03.
 155. **Persisted instants are UTC.** Given every stored `CreatedAtUtc`,
      `UpdatedAtUtc`, `RetentionUntilUtc`, `LastSeenAtUtc`, `IdleExpiresAtUtc`,
      `AbsoluteExpiresAtUtc`, and `RevokedAtUtc`, When each is read back, Then its
@@ -2017,9 +2044,11 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
   record is purge-eligible when `evaluationInstantUtc >= RetentionUntilUtc`, so
   `2032-12-31T23:59:59.9999999Z` is not eligible and `2033-01-01T00:00:00Z` is.
   No inclusive end-of-day value is modelled, and the exclusive meaning is
-  documented at the declaration. All instants are UTC `DateTimeOffset`, and
-  non-UTC or ambiguous instants are **rejected at the application boundary rather
-  than converted** (FR-33, FR-34, FR-35; AC-148–AC-156). Still a v1
+  documented at the declaration. All instants are UTC `DateTimeOffset`; values
+  with a non-zero offset are **rejected at the application boundary rather than
+  converted**, while zero-offset values are accepted without attempting to infer
+  unavailable originating `DateTime.Kind` provenance (FR-33, FR-34, FR-35;
+  AC-148–AC-156). Still a v1
   product-retention rule, **not** a statutory CRA assertion.
 - **R-1 — per-request membership verification: CONFIRMED.** Every protected
   taxpayer-data request re-verifies the local user's active state, the
@@ -2195,10 +2224,10 @@ That is a claim about scope, and it is enforced rather than promised:
       assertions this feature invalidates
 - [x] Every AC is mechanically checkable by a single test
 - [x] **Zero Class A assumptions made, and zero unanswered Class A questions.**
-      BQ-1 is answered (exclusive UTC boundary, `>=` comparison, non-UTC
-      rejected); R-1 is confirmed; R-2 is overridden into scope; R-3 is accepted
-      with hard prohibitions. Every one is folded into requirements and acceptance
-      criteria.
+      BQ-1 is answered (exclusive UTC boundary, `>=` comparison, non-zero
+      offset rejected without inferring unavailable `DateTime.Kind` provenance);
+      R-1 is confirmed; R-2 is overridden into scope; R-3 is accepted with hard
+      prohibitions. Every one is folded into requirements and acceptance criteria.
 
 **`tax-domain`, additionally:**
 

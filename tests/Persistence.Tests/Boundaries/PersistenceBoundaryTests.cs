@@ -18,8 +18,11 @@ public sealed class PersistenceBoundaryTests
     private static readonly string PersistenceProject =
         Path.Combine(PersistenceRoot, "Persistence.csproj");
 
-    /// <summary>Named rather than counted, so the scanner guard can prove the walk.</summary>
-    private static readonly string[] ExpectedProductionFiles =
+    /// <summary>
+    /// The baseline surface that every persistence implementation must retain.
+    /// Later waves add files without invalidating this scanner guard.
+    /// </summary>
+    private static readonly string[] RequiredProductionFiles =
     {
         "AssemblyInfo.cs",
         "PersistenceRegistration.cs",
@@ -162,13 +165,16 @@ public sealed class PersistenceBoundaryTests
     // -------------------------------------------------------------- guards
 
     [Fact]
-    public void TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern()
+    public void TheScanner_SeesTheRequiredProductionSurfaceAndStillMatchesKnownPatterns()
     {
         var files = ProductionSourceFiles();
+        var fileNames = files.Select(Path.GetFileName).ToArray();
 
-        Assert.Equal(
-            ExpectedProductionFiles,
-            files.Select(Path.GetFileName).OrderBy(name => name, StringComparer.Ordinal).ToArray());
+        Assert.All(
+            RequiredProductionFiles,
+            required => Assert.Contains(required, fileNames, StringComparer.Ordinal));
+        Assert.All(files, path => Assert.False(IsBuildOutput(path)));
+        Assert.Equal(files.Length, files.Distinct(StringComparer.Ordinal).Count());
 
         var allExecutable = string.Join("\n", files.SelectMany(ExecutableLines));
 

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Persistence;
@@ -6,8 +7,8 @@ using Persistence;
 namespace Persistence.Tests.Contracts;
 
 /// <summary>
-/// The Wave 0 contract for the storage layer: one way in, no queryable out, and
-/// no behaviour yet.
+/// The durable contract for the storage layer: one way in and no queryable out.
+/// These assertions remain valid as later waves replace scaffold bodies.
 /// </summary>
 public sealed class PersistenceContractTests
 {
@@ -88,10 +89,16 @@ public sealed class PersistenceContractTests
     }
 
     [Fact]
-    public void EveryDeclaredBehaviourStillThrowsNotImplemented()
+    public void TheRegistrationEntryPointRemainsTheSingleExtensionMethod()
     {
-        // The proof that Wave 0 is a contract and not a half-built feature.
-        Assert.Throws<NotImplementedException>(
-            () => new ServiceCollection().AddTaxAiPersistence("unused"));
+        var method = Assert.Single(typeof(PersistenceRegistration).GetMethods(
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
+
+        Assert.Equal(nameof(PersistenceRegistration.AddTaxAiPersistence), method.Name);
+        Assert.True(method.IsDefined(typeof(ExtensionAttribute), inherit: false));
+        Assert.Equal(
+            new[] { typeof(IServiceCollection), typeof(string) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+        Assert.Equal(typeof(IServiceCollection), method.ReturnType);
     }
 }

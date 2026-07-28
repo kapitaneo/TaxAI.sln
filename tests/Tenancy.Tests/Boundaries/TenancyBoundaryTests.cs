@@ -372,7 +372,7 @@ public sealed class TenancyBoundaryTests
             $"Implausibly little executable source: {allExecutable.Length} chars.");
 
         // Patterns that must match, proving the regex path works end to end.
-        Assert.Matches(new Regex(@"\bNotImplementedException\b"), allExecutable);
+        Assert.Matches(new Regex(@"\bValidationError\b"), allExecutable);
         Assert.Matches(new Regex(@"\bTrustedFirmId\b"), allExecutable);
         Assert.Matches(new Regex(@"\bIReviewRecordRepository\b"), allExecutable);
     }
