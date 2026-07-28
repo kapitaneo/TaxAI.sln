@@ -1,0 +1,69 @@
+T05 — Enforce the PII, input, and security posture.
+
+Spec:   010-portal-foundation (Wave 3 — proving the boundaries; parallel with
+        T04 and T06)
+PR:     #94  https://github.com/kapitaneo/TaxAI.sln/pull/94
+Branch: feat/010-w3-t05
+Commit: 89b580a
+Depends on: T01 (PR #90), T02 (PR #91), T03 (PR #92) — all merged, all three
+            markers present on master before this task started. T04 is a Wave 3
+            sibling, not a dependency; it happens to be merged already, and this
+            task shares no file with it or with T06.
+
+Files changed (exactly the task's declared list):
+  tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs   (new)
+  specs/010-portal-foundation/status/T05.done
+
+No production file was touched.
+
+Commands run:
+  dotnet build TaxAI.sln --no-incremental
+    -> Build succeeded. 0 Error(s), 4 Warning(s) — all four pre-existing in
+       TaxLogicEngine.Tests. None from the portal.
+
+  dotnet test TaxAI.sln
+    -> Exit code 0. 2480 passed, 0 failed, 0 skipped, across ALL SIX test
+       projects, with no assembly skipped.
+       TaxLogicEngine.Tests      261 passed
+       TaxCases.Tests            337 passed
+       DocumentExtraction.Tests  673 passed
+       CaseProcessing.Tests      594 passed
+       CaseReview.Tests          482 passed
+       TaxAI.Portal.Tests        133 passed  (80 from T01-T04, 53 added here)
+
+Acceptance criteria verified by this task: AC-27, AC-28, AC-30, AC-36, AC-37,
+AC-38, AC-39, AC-41, AC-42.
+
+PII posture: omission, not masking. The portal names no taxpayer type and holds
+no SIN, so there is nothing to mask; a second masking helper is what every
+module's instructions forbid. AC-37 checks the live response bodies, not just
+the source.
+
+Non-vacuity. Every assertion in this suite is negative — it passes when a
+pattern finds nothing — so a typo'd or over-escaped regex would pass silently
+and forever while approving exactly what it was written to catch. Three
+protections:
+  - EveryForbiddenPattern_ActuallyMatchesAViolatingLine pairs sixteen patterns
+    with a line each MUST match;
+  - the nine-digit pattern is checked in both directions: it must match a
+    SIN-shaped literal and must NOT match the shell's "initial-scale=1";
+  - the scanner guard proves the walk sees exactly Program.cs,
+    ModuleRegistration.cs, and PortalContent.cs, and that the comment filter is
+    really stripping comments rather than "executable lines only" silently
+    scanning whole files.
+As in T04, production code was NOT temporarily broken to prove these: T05 owns
+no production file and mutating one would violate declared-file ownership.
+
+AddServerHeader = false is asserted twice — once on the wire (no Server header
+on the response) and once in source, because TestServer does not use Kestrel and
+structurally cannot verify the real deployment behaviour.
+
+ENVIRONMENT: the Smart App Control block that stopped T02 and T04 did not recur.
+The human turned Smart App Control off during T04 (state now 0), and every suite
+in this task ran on first execution.
+
+  The hazard first flagged in T02 remains unfixed and is not this task's to fix:
+  `dotnet test TaxAI.sln` returns exit code 0 when an assembly is skipped, so a
+  green exit code alone is not proof that every test ran.
+
+Merged by: not merged — awaiting human review. Agents never merge.
