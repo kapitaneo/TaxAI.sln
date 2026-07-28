@@ -1,0 +1,27 @@
+TaskID: T02
+PR: #103
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/103
+Implementation commit: d4ea08bff49e6f3f63515220106aa64e02465696
+Branch: feat/011-w1-t02
+Base commit: e3aec1f203c74b27eeea0d162637051027a50a54
+
+Build:
+- PASS: dotnet build TaxAI.sln (0 errors; 4 pre-existing warnings)
+
+Focused tests:
+- PASS: TrustedFirmIdTests — 14 passed, 0 failed, 0 skipped, 14 total
+- PASS: SlipTypeCodeTests — 8 passed, 0 failed, 0 skipped, 8 total
+
+Repository tests:
+- PASS: dotnet test TaxAI.sln — 2717 passed, 0 failed, 0 skipped, 2717 total
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1 — all 8 expected test projects ran and met their floors; 2717 passed, 0 failed, 0 skipped, 2717 total
+- PASS: git diff --check
+
+Scope:
+- Implementation commit changes exactly the four T02-allowlisted files:
+  - src/Tenancy/Models/TrustedFirmId.cs
+  - src/Tenancy/Models/SlipTypeCodes.cs
+  - tests/Tenancy.Tests/Models/TrustedFirmIdTests.cs
+  - tests/Tenancy.Tests/Models/SlipTypeCodeTests.cs
+- Completion commit adds only this T02.done marker.
+- No spec document, sibling task file, sibling status marker, or other-task-owned file changed.
