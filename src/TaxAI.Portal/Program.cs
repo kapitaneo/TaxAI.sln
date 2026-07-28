@@ -22,6 +22,11 @@ builder.Services.AddTaxAiModules();
 
 var app = builder.Build();
 
+// Server-rendered constant content: no view engine, no static-file middleware,
+// no wwwroot, and no external asset. The shell states what this application is
+// and that it serves no taxpayer data — it binds no data of any kind.
+app.MapGet("/", () => Results.Content(PortalContent.ShellHtml, PortalContent.HtmlContentType));
+
 // A probe that describes the system is a disclosure surface, so the body is a
 // fixed literal and nothing else: no version, environment, dependency status,
 // or timestamp.
