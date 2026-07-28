@@ -1,4 +1,5 @@
 using TaxLogicEngine.Models;
+using Tenancy.Models;
 
 namespace Tenancy.Services;
 
@@ -10,7 +11,11 @@ namespace Tenancy.Services;
 /// correct, and a retention boundary computed from a misread instant deletes a
 /// taxpayer's record on the wrong day.
 /// </para>
-/// <para>Wave 0 contract stage: behaviour is implemented in a later task.</para>
+/// <para>
+/// <see cref="DateTimeOffset"/> does not retain the originating
+/// <see cref="DateTime.Kind"/>. At this boundary, an offset of zero is therefore
+/// the enforceable UTC representation.
+/// </para>
 /// </summary>
 public static class UtcInstantGuard
 {
@@ -19,5 +24,7 @@ public static class UtcInstantGuard
     /// validation error otherwise. Never coerces, never converts, never assumes.
     /// </summary>
     public static ValidationError? Validate(DateTimeOffset instant, string field) =>
-        throw new NotImplementedException();
+        instant.Offset == TimeSpan.Zero
+            ? null
+            : new ValidationError(field, TenancyErrors.InstantNotUtc);
 }
