@@ -1,3 +1,4 @@
+using Tenancy.Models;
 using TaxLogicEngine.Models;
 
 namespace Tenancy.Services;
@@ -15,10 +16,41 @@ namespace Tenancy.Services;
 /// name is precisely how one would — pasted into the wrong field upstream, then
 /// stored as a "name" nobody scans.
 /// </para>
-/// <para>Wave 0 contract stage: behaviour is implemented in a later task.</para>
 /// </summary>
 public static class TaxpayerTextGuard
 {
-    public static ValidationError? Validate(string? value, int maxLength, string field) =>
-        throw new NotImplementedException();
+    private const int ForbiddenConsecutiveDigitCount = 9;
+
+    public static ValidationError? Validate(string? value, int maxLength, string field)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value.Length > maxLength)
+        {
+            return new ValidationError(field, TenancyErrors.TextTooLong);
+        }
+
+        var consecutiveDigitCount = 0;
+
+        foreach (var character in value)
+        {
+            if (!char.IsDigit(character))
+            {
+                consecutiveDigitCount = 0;
+                continue;
+            }
+
+            consecutiveDigitCount++;
+
+            if (consecutiveDigitCount == ForbiddenConsecutiveDigitCount)
+            {
+                return new ValidationError(field, TenancyErrors.TextContainsDigitRun);
+            }
+        }
+
+        return null;
+    }
 }
