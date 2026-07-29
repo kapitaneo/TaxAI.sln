@@ -225,8 +225,8 @@ public sealed class ReviewPackagePiiTests
         var reviewed = Assert.Single(
             accepted.SignedPackage.ReviewedSlips);
         var amount = Assert.Single(
-            reviewed.BoxAmounts.Where(
-                item => item.BoxCode == T4BoxCodes.EmploymentIncome));
+            reviewed.BoxAmounts,
+            item => item.BoxCode == T4BoxCodes.EmploymentIncome);
         var signOff = accepted.SignedPackage.SignOff!;
 
         Assert.Equal(

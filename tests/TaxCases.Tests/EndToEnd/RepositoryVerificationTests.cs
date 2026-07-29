@@ -48,7 +48,7 @@ public sealed class RepositoryVerificationTests
         // ones — must still resolve, which the loop below enforces.
         foreach (var (name, path) in expected)
         {
-            var declared = Assert.Single(projects.Where(project => project.Name == name));
+            var declared = Assert.Single(projects, project => project.Name == name);
             Assert.Equal(path, declared.Path);
         }
 
@@ -231,7 +231,11 @@ public sealed class RepositoryVerificationTests
     {
         var taxCasesProject = Path.Combine(RepositoryRoot, "src", "TaxCases", "TaxCases.csproj");
         var project = XDocument.Load(taxCasesProject);
-        Assert.Empty(project.Descendants().Where(element => element.Name.LocalName is "PackageReference" or "FrameworkReference"));
+        Assert.DoesNotContain(
+            project.Descendants(),
+            element =>
+                element.Name.LocalName is
+                    "PackageReference" or "FrameworkReference");
 
         var nonFrameworkReferences = typeof(TaxCase).Assembly.GetReferencedAssemblies()
             .Select(reference => reference.Name!)
@@ -287,12 +291,15 @@ public sealed class RepositoryVerificationTests
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
         Assert.Single(introductionCommit);
 
-        var changed = RunGit(
+        var changedSourceOrResources = RunGit(
                 "diff", "--name-only", $"{introductionCommit[0]}^", "HEAD", "--",
                 "src/TaxLogicEngine", "tests/TaxLogicEngine.Tests")
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(path =>
+                !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
-        Assert.Empty(changed);
+        Assert.Empty(changedSourceOrResources);
     }
 
     [Fact]

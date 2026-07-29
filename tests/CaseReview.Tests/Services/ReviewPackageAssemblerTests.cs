@@ -248,23 +248,21 @@ public sealed class ReviewPackageAssemblerTests
                 new T4RawBox(T4BoxCodes.EmploymentIncome, rawAmount),
             ]);
         var engineAmount = Assert.Single(
-            T4SlipBoxAmounts
-                .Enumerate(processed.Slip)
-                .Where(amount => string.Equals(
+            T4SlipBoxAmounts.Enumerate(processed.Slip),
+            amount => string.Equals(
                     amount.BoxCode,
                     T4BoxCodes.EmploymentIncome,
-                    StringComparison.Ordinal)));
+                    StringComparison.Ordinal));
 
         var result = ReviewPackageAssembler.Assemble([processed]);
 
         Assert.True(result.IsSuccess);
         var reviewedAmount = Assert.Single(
-            Assert.Single(result.Value!.ReviewedSlips)
-                .BoxAmounts
-                .Where(amount => string.Equals(
+            Assert.Single(result.Value!.ReviewedSlips).BoxAmounts,
+            amount => string.Equals(
                     amount.BoxCode,
                     T4BoxCodes.EmploymentIncome,
-                    StringComparison.Ordinal)));
+                    StringComparison.Ordinal));
         Assert.Equal(engineAmount.Amount, reviewedAmount.Amount);
         Assert.Equal(processed.Slip.EmploymentIncome, reviewedAmount.Amount);
     }

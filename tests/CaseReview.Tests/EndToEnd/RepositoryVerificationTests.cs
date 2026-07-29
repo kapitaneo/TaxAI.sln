@@ -84,8 +84,8 @@ public sealed class RepositoryVerificationTests
                 $"\"{name}\", \"{directory}\\{name}\\{name}.csproj\"";
 
             Assert.Single(
-                SolutionProjectLines().Where(line =>
-                    line.Contains(declaration, StringComparison.Ordinal)));
+                SolutionProjectLines(),
+                line => line.Contains(declaration, StringComparison.Ordinal));
         }
     }
 
