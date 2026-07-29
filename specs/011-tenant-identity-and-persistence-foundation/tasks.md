@@ -7,7 +7,7 @@ approved. Never edit it. Never check a box in it.** Completion is recorded by
 creating `specs/011-tenant-identity-and-persistence-foundation/status/<TaskID>.done`
 containing the PR number and commit SHA.
 
-11 waves, 23 tasks. Each wave merges to `master` before the next begins. Every
+11 waves, 24 tasks. Each wave merges to `master` before the next begins. Every
 task ships its tests in the same pass.
 
 ---
@@ -76,6 +76,46 @@ T12, T13, or T15 may resume:
   public construction seams for valid purge outcomes. Counts are constrained,
   setters remain non-public, and `ToString()` emits fixed structural identity
   only.
+
+**B-6 — B-3's registration half is binding: DECIDED by the human after T17's
+first pass.** That first implementation checked only that the two key-ring
+**configuration values** were present, and proposed to carry the registration
+half as documentation. **That is rejected. Documentation saying "do not deploy"
+is not a runtime safety control.**
+
+Outside Development, startup SHALL fail closed unless the **built service
+provider** contains all of:
+
+- `IDataProtectionProvider`;
+- a non-null `KeyManagementOptions.XmlRepository`;
+- a non-null `KeyManagementOptions.XmlEncryptor`;
+- a repository whose implementation is **not** supplied by the ASP.NET Core Data
+  Protection framework assembly;
+- an encryptor whose implementation is **not** supplied by the ASP.NET Core Data
+  Protection framework assembly.
+
+This intentionally rejects `EphemeralXmlRepository`, `FileSystemXmlRepository`,
+`ReadOnlyFileSystemXmlRepository`, `RegistryXmlRepository`, `NullXmlEncryptor`,
+`InvalidEncryptor`, `DpapiXmlEncryptor`, `DpapiNGXmlEncryptor`,
+`CertificateXmlEncryptor`, and the framework's **default local fallback
+behaviour**. None is approved for this MVP. The intended production provider is
+**Azure Blob Storage for the key repository and Azure Key Vault for key
+encryption.** **Configuration values alone do not satisfy the requirement.**
+Development may continue to use the explicitly approved local development
+behaviour.
+
+Why a null repository must be treated as a failure: on ASP.NET Core 8 a bare
+`WebApplication` registers no `IDataProtectionProvider` at all, and even after
+`AddDataProtection()` the `XmlRepository` stays **null** while the framework
+resolves a machine-local key directory plus DPAPI lazily. A null repository *is*
+the fallback, not an undecided state.
+
+**Consequence for T17's scope.** Once that guard exists, every portal suite that
+starts a **Production** host must register an approved durable provider itself.
+Four do — `CompositionRootTests`, `PortalSecurityTests`, `HealthEndpointTests`,
+and `ShellPageTests` — and the last two were absent from T17's file allowlist,
+so no task in this specification could adapt them. That is a planning defect,
+corrected by **T17A** below, which also widens T17's authoritative allowlist.
 
 ---
 
@@ -184,11 +224,29 @@ not reopened.
 
 ---
 
-## Wave 6 — portal composition and startup refusal (1 task)
+## Wave 6 — portal composition and startup refusal (1 task + corrective prerequisite)
 
 Single task: `Program.cs` and `ModuleRegistration.cs` are the convergence point.
 
-- [ ] **T17** — Add `Tenancy` and `Persistence` project references to the portal, call `AddTaxAiPersistence` from `ModuleRegistration.cs` (still the only place any `Add*` appears in portal source, now calling exactly one registration extension per contributing module), add `PortalStartupGuards` (connection string present; outside Development also encrypted transport with certificate validation, a configured Data Protection key ring, and the durable session store — the environment test compares `EnvironmentName` ordinally so the `IsDevelopment` token stays confined to its three approved uses), and invoke the environment-gated development seeder. The connection string is required in every environment and is supplied only by configuration providers outside source control; SQL Server registration opens no connection at startup, so portal tests supply a syntactically valid, never-opened string in memory and substitute SQLite when they exercise storage. **Amendments landing here:** `PortalProject_ReferencesExactlyCaseProcessingAndTaxLogicEngine` → the exact four-entry inward set plus proof the portal references neither `TaxCases`, `CaseReview`, nor `DocumentExtraction`; `TheCompiledPortal_ReferencesExactlyCaseProcessingAndTaxLogicEngine` → the exact new referenced-assembly set, still excluding `TaxCases` and `CaseReview`; `EveryServiceRegistrationLivesInTheCompositionRoot` → every `Add*`/`TryAdd*` is in `ModuleRegistration.cs`, which calls exactly the approved per-module extensions; both `ExpectedProductionFiles` scanner lists → the new exact production-file set with the walk-and-comment guards intact; `BothValidationFlagsAreSetOutsideAnyDevelopmentBranch` → validation unconditional **and** every environment-sensitive branch guards one of exactly four approved concerns. Covers AC-10, AC-12, AC-13, AC-31–AC-33, AC-74–AC-77, AC-114, AC-124, AC-134–AC-139, AC-178, AC-179. — files: `src/TaxAI.Portal/TaxAI.Portal.csproj`, `src/TaxAI.Portal/ModuleRegistration.cs`, `src/TaxAI.Portal/Program.cs`, `src/TaxAI.Portal/PortalStartupGuards.cs`, `src/TaxAI.Portal/appsettings.json`, `src/TaxAI.Portal/Properties/launchSettings.json`, `.gitignore`, `tests/TaxAI.Portal.Tests/ProjectStructureTests.cs`, `tests/TaxAI.Portal.Tests/CompositionRootTests.cs`, `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs`, `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs`, `tests/TaxAI.Portal.Tests/Startup/StartupRefusalTests.cs` — depends on: T16
+T17A is a corrective prerequisite. **T17 may not be completed until `T17A.done`
+exists.**
+
+- [ ] **T17A** — Formally correct T17's file scope and record the complete B-3 production decision **before** T17's implementation continues. Record B-6 in the PRD, the architecture, and this plan: outside Development the host fails closed unless the **built service provider** contains `IDataProtectionProvider`, a non-null `KeyManagementOptions.XmlRepository`, and a non-null `KeyManagementOptions.XmlEncryptor`, with **neither the repository nor the encryptor supplied by the ASP.NET Core Data Protection framework assembly** — configuration values alone do not satisfy it. Add T17A to T17's dependency set and add the three test files below to **T17's authoritative allowlist**, because `HealthEndpointTests` and `ShellPageTests` start **Production** hosts and must explicitly register an approved durable test provider once the fail-closed guard exists; neither was reachable from any task in this specification. Ship `DurableDataProtectionTestServices` — a **test-only** approved durable repository and encryptor implemented in the portal test assembly, holding synthetic key material in memory only, writing to no disk, registry, cloud service, or environment variable, and available to no production code — and register it from those two fixtures through `ConfigureTestServices`. **No existing assertion in either suite is added to, changed, weakened, or removed, and no T17 production file is touched here.** Supports FR-42, FR-53, AC-76. — files: `specs/011-tenant-identity-and-persistence-foundation/prd.md`, `specs/011-tenant-identity-and-persistence-foundation/architecture.md`, `specs/011-tenant-identity-and-persistence-foundation/tasks.md`, `tests/TaxAI.Portal.Tests/HealthEndpointTests.cs`, `tests/TaxAI.Portal.Tests/ShellPageTests.cs`, `tests/TaxAI.Portal.Tests/Support/DurableDataProtectionTestServices.cs` — depends on: T16
+
+- [ ] **T17** — Add `Tenancy` and `Persistence` project references to the portal, call `AddTaxAiPersistence` from `ModuleRegistration.cs` (still the only place any `Add*` appears in portal source, now calling exactly one registration extension per contributing module), add `PortalStartupGuards` (connection string present; outside Development also encrypted transport with certificate validation, a **registered** durable Data Protection key ring **per B-6** — both settings present *and* `IDataProtectionProvider`, a non-null non-framework `KeyManagementOptions.XmlRepository`, and a non-null non-framework `KeyManagementOptions.XmlEncryptor` in the built service provider — and the durable session store; the environment test compares `EnvironmentName` ordinally so the `IsDevelopment` token stays confined to its three approved uses), and invoke the environment-gated development seeder. The connection string is required in every environment and is supplied only by configuration providers outside source control; SQL Server registration opens no connection at startup, so portal tests supply a syntactically valid, never-opened string in memory and substitute SQLite when they exercise storage. **Amendments landing here:** `PortalProject_ReferencesExactlyCaseProcessingAndTaxLogicEngine` → the exact four-entry inward set plus proof the portal references neither `TaxCases`, `CaseReview`, nor `DocumentExtraction`; `TheCompiledPortal_ReferencesExactlyCaseProcessingAndTaxLogicEngine` → the exact new referenced-assembly set, still excluding `TaxCases` and `CaseReview`; `EveryServiceRegistrationLivesInTheCompositionRoot` → every `Add*`/`TryAdd*` is in `ModuleRegistration.cs`, which calls exactly the approved per-module extensions; both `ExpectedProductionFiles` scanner lists → the new exact production-file set with the walk-and-comment guards intact; `BothValidationFlagsAreSetOutsideAnyDevelopmentBranch` → validation unconditional **and** every environment-sensitive branch guards one of exactly four approved concerns. Covers AC-10, AC-12, AC-13, AC-31–AC-33, AC-74–AC-77, AC-114, AC-124, AC-134–AC-139, AC-178, AC-179. — files: `src/TaxAI.Portal/TaxAI.Portal.csproj`, `src/TaxAI.Portal/ModuleRegistration.cs`, `src/TaxAI.Portal/Program.cs`, `src/TaxAI.Portal/PortalStartupGuards.cs`, `src/TaxAI.Portal/appsettings.json`, `src/TaxAI.Portal/Properties/launchSettings.json`, `.gitignore`, `tests/TaxAI.Portal.Tests/ProjectStructureTests.cs`, `tests/TaxAI.Portal.Tests/CompositionRootTests.cs`, `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs`, `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs`, `tests/TaxAI.Portal.Tests/Startup/StartupRefusalTests.cs`, **`tests/TaxAI.Portal.Tests/HealthEndpointTests.cs`**, **`tests/TaxAI.Portal.Tests/ShellPageTests.cs`**, **`tests/TaxAI.Portal.Tests/Support/DurableDataProtectionTestServices.cs`** (the three added by T17A) — depends on: T16, T17A
+
+  > **Allowlist correction (T17A).** `HealthEndpointTests` and `ShellPageTests`
+  > each construct `WebApplicationFactory<Program>` with
+  > `UseEnvironment("Production")`. Once B-6's fail-closed guard exists, those
+  > hosts refuse to start unless they explicitly register an approved durable
+  > Data Protection provider, so both files must be editable by T17 — additively
+  > only, through `ConfigureTestServices`, using the shared test-only
+  > `DurableDataProtectionTestServices`. **T17 may not change, remove, or weaken
+  > a single existing assertion in either suite**; the Amendments table's
+  > "preserved unchanged" verdict for both still binds. `ShellPageTests` also
+  > appears in T18's and T19's lists, which is permitted: those are later waves,
+  > not parallel siblings, so the one-file-one-task rule that prevents in-wave
+  > merge conflicts is not engaged.
 
 ---
 

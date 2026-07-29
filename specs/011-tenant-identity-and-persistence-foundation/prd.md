@@ -472,7 +472,7 @@ for four of the six surfaces and five of the six questions.
 | **B — tenant / firm isolation at the HTTP boundary** | **Answered by the human.** One trusted active `FirmId` per session, carried in an application-issued `taxai_firm_id` claim materialized from the server-side session record; never read from URL, query, body, header, or cookie as an authorization boundary; a provider-supplied firm claim is never trusted; every repository requires a trusted `FirmId`; missing and foreign resources are indistinguishable. |
 | **C — what a UI may render, and at what masking level** | **Partly answered, and tightened.** SIN: **nothing, in any form** — the earlier "masked last three" answer is reversed. The wider render inventory is not needed here, because **011 renders no taxpayer data at all**; it remains spec 012's BQ-2. |
 | **D — logging, telemetry, error reporting** | **Not deferred — the problem class is forbidden.** FR-54 bans every taxpayer value, SIN in any form, display name, amount, box code, CRA line code, claim value, session identifier, OIDC token, connection string, and request URL from every log, metric, trace, span, and error response; only structural counts and opaque identifiers may be emitted. That is strictly tighter than any policy the human would later write, so deferring can only lead to a relaxation, never to a leak. |
-| **E — hosting, deployment, TLS, exposure, data residency** | **Answered by the human** for residency and encryption: Canada Central primary, Canada East for Canadian DR/backup only, TDE, encrypted transport, managed identity / Key Vault credentials, Canadian Data Protection key storage. 011 ships **no deployment artefact**; it enforces the posture by **refusing to start** outside Development without encrypted-transport configuration, a configured key ring, and a durable session store (FR-53), and by the hard release constraint in Out of scope. |
+| **E — hosting, deployment, TLS, exposure, data residency** | **Answered by the human** for residency and encryption: Canada Central primary, Canada East for Canadian DR/backup only, TDE, encrypted transport, managed identity / Key Vault credentials, Canadian Data Protection key storage. 011 ships **no deployment artefact**; it enforces the posture by **refusing to start** outside Development without encrypted-transport configuration, a configured key ring, and a durable session store (FR-53), and by the hard release constraint in Out of scope. **B-6:** "a configured key ring" means one **registered in the built service provider**, with a non-framework repository and a non-framework encryptor — Azure Blob Storage plus Azure Key Vault in production. Configuration values alone do not satisfy it, and documentation saying "do not deploy" is not a runtime control. |
 | **F — whether this host also exposes the untrusted extraction ingress** | **Untouched and still reserved.** 011 implements, registers, and resolves no `IDocumentExtractionIngress`, and accepts no uploaded file. |
 
 The gate is opened by a separate `tax-domain` specification with human answers on
@@ -541,7 +541,8 @@ weakened.
 | `RepositoryVerificationTests.cs` (T07) | `TheReadmeMakesNoClaimThePortalCannotBack` (forbids "authentication", "sign in", "database" outside the disclaimer section) | Replace with an exact capability inventory: the README must state what 011 does ship (sign-in, revocable sessions, tenancy, a database, retention) and must still be provably unable to claim what it does not (taxpayer-data screens, upload, OCR/LLM, deployment, provisioning). |
 | `RepositoryVerificationTests.cs` (T07) | `TheReadmeDocumentsEveryProjectTreeThatExists`, `TheRootInstructionsListTheNewTree`, `TheRootInstructionsRecordTheDeliveredScope`, `TheForwardRoadmapRecordsWhatBlocksTheNextPortalFeature` | Extended with the new trees and the new delivered scope. |
 | `RepositoryVerificationTests.cs` (T07) | `TheReadmeSaysPlainlyThatNoTaxpayerDataIsRendered`, `TheReadmeAssertsNoProjectCount`, `TheRootInstructionsStillForbidATotalProjectCount`, `NoExistingModuleInstructionFileWasRewrittenForTheHost` | **All preserved unchanged.** |
-| `HealthEndpointTests.cs` | Every assertion | **Preserved unchanged.** `/health` stays anonymous, fixed, GET-only, disclosure-free, and — per FR-70 — still answers when the session store is unavailable. |
+| `HealthEndpointTests.cs` | Every assertion | **Preserved unchanged.** `/health` stays anonymous, fixed, GET-only, disclosure-free, and — per FR-70 — still answers when the session store is unavailable. **B-6 adds a non-assertion change:** the fixture must register the approved durable Data Protection test provider, because this suite starts a **Production** host and FR-53 now refuses one without it. No assertion is added, changed, weakened, or removed. |
+| `ShellPageTests.cs` | Every assertion | **Preserved** (the route inventory is separately superseded above). **B-6 adds the same non-assertion change:** this suite also starts a Production host and must register the approved durable Data Protection test provider. No assertion is added, changed, weakened, or removed by B-6. |
 
 ### Spec 012's draft PRD
 
@@ -935,6 +936,19 @@ Development the key ring SHALL be a configured Canadian Azure Storage location
 protected by Key Vault; in Development a **developer-local key ring excluded from
 source control** MAY be used. **A host running outside Development without a
 configured key ring SHALL refuse to start.**
+
+> **Corrected by decision B-6.** "Configured" means **registered in the built
+> service provider**, not merely named in configuration. **Configuration values
+> alone SHALL NOT satisfy this requirement.** Outside Development the host SHALL
+> refuse to start unless the built provider contains `IDataProtectionProvider`, a
+> non-null `KeyManagementOptions.XmlRepository`, and a non-null
+> `KeyManagementOptions.XmlEncryptor`, **and neither the repository nor the
+> encryptor is an implementation supplied by the ASP.NET Core Data Protection
+> framework assembly.** The framework's default behaviour leaves `XmlRepository`
+> null and resolves a machine-local key directory lazily, so a null repository is
+> precisely the fallback this rule exists to refuse. The intended production
+> provider is **Azure Blob Storage for the repository and Azure Key Vault for key
+> encryption.** See B-6 in `tasks.md` for the enumerated rejection list.
 
 **FR-43 `[new]`** — Exactly **one trusted active `FirmId` per session**. It SHALL
 be carried by the application-issued claim `taxai_firm_id`, materialized from the
@@ -1608,7 +1622,13 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
     certificate validation, When it starts, Then startup fails.
 76. **Startup refuses without a key ring.** Given the host started as Production
     with no configured Data Protection key ring, When it starts, Then startup
-    fails.
+    fails. **Strengthened by B-6:** it is not enough that the key-ring
+    configuration values are absent — startup SHALL also fail when the values are
+    present but the built service provider has no `IDataProtectionProvider`, when
+    `KeyManagementOptions.XmlRepository` or `XmlEncryptor` is null, or when
+    either is an implementation supplied by the ASP.NET Core Data Protection
+    framework assembly. Startup SHALL succeed, for this criterion, only when both
+    are explicitly registered non-framework implementations.
 77. **Seeding is disabled outside Development.** Given the host started as
     Production with a seedable store, When startup completes (with FR-53's
     prerequisites satisfied), Then no fixture row was written.

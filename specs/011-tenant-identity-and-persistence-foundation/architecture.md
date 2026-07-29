@@ -91,6 +91,22 @@ means AC-74, AC-75, AC-76, AC-77, AC-179, and AC-189 are exercised against a
 host that is *designed* to fail startup outside Development, which is what those
 ACs assert.
 
+> **B-6 — the registration half is binding, and is what T17 must implement.**
+> A first pass at T17 implemented the settings half only and proposed to carry
+> the registration half as documentation. **That is rejected: documentation
+> saying "do not deploy" is not a runtime safety control.** The registration
+> check is the whole of A-2's protection — without it, two configuration values
+> are enough to start a host whose cookies are protected by a machine-local key
+> ring that no second instance can read. See B-6 in `tasks.md` for the binding
+> rule and the enumerated rejection list.
+>
+> Empirically, on ASP.NET Core 8: a bare `WebApplication` registers **no**
+> `IDataProtectionProvider` at all, and even after `AddDataProtection()` the
+> `KeyManagementOptions.XmlRepository` stays **null** while `XmlKeyManager`
+> resolves `%LOCALAPPDATA%\ASP.NET\DataProtection-Keys` plus DPAPI lazily. A null
+> repository is therefore not "not yet decided" — it *is* the local fallback, and
+> the guard must read it as such.
+
 The alternatives considered and **not** chosen were: (a) raising the portal's
 package budget to three and wiring the real Azure providers now — rejected
 because it brings cloud SDK surface into the portal ahead of the deployment
@@ -690,6 +706,27 @@ refuses to start when the connection string is absent, does not require encrypte
 transport with certificate validation, the Data Protection key ring is
 unconfigured, or the registered session store is not the durable implementation
 (FR-53, FR-71; AC-74–AC-76, AC-179). See **A-2**.
+
+> **The key-ring check is a service-provider check, not a configuration check
+> (B-6).** Both settings must be present *and* the built provider must contain
+> `IDataProtectionProvider`, a non-null `KeyManagementOptions.XmlRepository`, and
+> a non-null `KeyManagementOptions.XmlEncryptor`, **neither of which may be an
+> implementation declared in the ASP.NET Core Data Protection framework
+> assembly.** That single assembly rule rejects every built-in local option —
+> `EphemeralXmlRepository`, `FileSystemXmlRepository`,
+> `ReadOnlyFileSystemXmlRepository`, `RegistryXmlRepository`, `NullXmlEncryptor`,
+> `InvalidEncryptor`, `DpapiXmlEncryptor`, `DpapiNGXmlEncryptor`, and
+> `CertificateXmlEncryptor` — while admitting the intended Azure Blob Storage
+> repository and Azure Key Vault encryptor unchanged. Development is exempt and
+> keeps its approved developer-local key ring.
+>
+> **Consequence for the portal test suite.** Every suite that starts a
+> **Production** host must therefore register an approved durable provider
+> itself. Four do: `CompositionRootTests`, `PortalSecurityTests`,
+> `HealthEndpointTests`, and `ShellPageTests`. The last two were absent from
+> T17's file allowlist, which is the scope defect T17A corrects; the shared
+> test-only fake lives in
+> `tests/TaxAI.Portal.Tests/Support/DurableDataProtectionTestServices.cs`.
 
 > **The environment branch is written without the `IsDevelopment` token.**
 > `Program.cs` passes `builder.Environment.EnvironmentName` to the guard, which
