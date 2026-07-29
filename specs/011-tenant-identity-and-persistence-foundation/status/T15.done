@@ -1,0 +1,77 @@
+TaskID: T15
+Task: SQL review-record purge service (spec 011, Wave 4)
+PR: #115
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/115
+Implementation commit: 1811fa6021231ef1a3142203eae2dd7777231ce3
+Branch: feat/011-w4-t15
+Base commit: 0d4f6336129f12209e02c7f2f1277b9deb077c4d
+
+Focused tests:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --filter
+  "FullyQualifiedName~ReviewRecordPurgeServiceTests|FullyQualifiedName~PurgeDiagnosticsTests"
+  - Passed: 11
+  - Failed: 0
+  - Skipped: 0
+
+Persistence suite:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj
+  - Passed: 73
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4 pre-existing warnings in TaxLogicEngine.Tests
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,926
+  - Failed: 0
+  - Skipped: 0
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran and met their recorded floors.
+  - Passed: 2,926
+  - Failed: 0
+  - Skipped: 0
+  - TaxLogicEngine.Tests: 261 passed
+  - TaxCases.Tests: 337 passed
+  - DocumentExtraction.Tests: 673 passed
+  - CaseProcessing.Tests: 594 passed
+  - CaseReview.Tests: 482 passed
+  - TaxAI.Portal.Tests: 224 passed
+  - Tenancy.Tests: 282 passed
+  - Persistence.Tests: 73 passed
+
+Additional verification:
+- PASS: git diff --check
+
+Implemented behavior:
+- The explicit privileged purge requires TrustedFirmId and a zero-offset UTC
+  evaluation instant, with no firm-omitting overload.
+- Candidate discovery and deletion remain independently scoped to the trusted
+  firm. Unexpired rows and every row belonging to another firm survive.
+- RetentionUntilUtc is applied as an exclusive boundary: one tick before
+  survives, the boundary instant and later instants are eligible.
+- Eligible record graphs are deleted under one serializable transaction and
+  returned through PurgeOutcome.NoEligibleRecords() or
+  PurgeOutcome.RecordsPurged(...).
+- Diagnostics carry only structural record/slip counts and the opaque trusted
+  firm identifier; no taxpayer display name, employer name, amount, box code,
+  CRA line code, or nine-digit run is emitted.
+
+Scope:
+- The implementation commit changes exactly the three T15-allowlisted files:
+  - src/Persistence/Services/SqlReviewRecordPurgeService.cs
+  - tests/Persistence.Tests/Services/ReviewRecordPurgeServiceTests.cs
+  - tests/Persistence.Tests/Services/PurgeDiagnosticsTests.cs
+- This completion commit adds only this T15.done marker.
+- No PRD, architecture, tasks.md, PurgeOutcome, other Tenancy/T11A file,
+  sibling-task file or marker, Portal file, or T16 file changed.
+
+Not done here, by rule:
+- No merge or self-approval was performed.
+- No sibling Wave 4 task was resumed.
+- T16 was not started.
