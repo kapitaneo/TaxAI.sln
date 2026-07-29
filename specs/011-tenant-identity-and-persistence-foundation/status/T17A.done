@@ -1,0 +1,122 @@
+TaskID: T17A
+Task: Data Protection scope correction — record B-6 and widen T17's allowlist
+      (spec 011, Wave 6 corrective prerequisite)
+PR: #118
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/118
+Implementation commit: ee96af1337962ba9cfa376119990c2938adb2349
+Branch: fix/011-t17-data-protection-scope
+Base: master (605c009)
+Worktree: ../TaxAI-t17a (isolated)
+
+Focused tests:
+- PASS: dotnet test tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj
+  - Passed: 224
+  - Failed: 0
+  - Skipped: 0
+  - Unchanged from master: this task adds no test and removes none.
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4 (pre-existing xUnit2008 analyzer warnings in
+    tests/TaxLogicEngine.Tests/Services/T4SlipParserPiiTests.cs, a file this
+    task does not touch)
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,983
+  - Failed: 0
+  - Skipped: 0
+  - TaxLogicEngine.Tests 261, TaxCases.Tests 337, DocumentExtraction.Tests 673,
+    CaseProcessing.Tests 594, CaseReview.Tests 482, Tenancy.Tests 282,
+    Persistence.Tests 130, TaxAI.Portal.Tests 224
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - TaxLogicEngine.Tests 261 passed (floor 261)
+  - TaxCases.Tests 337 passed (floor 337)
+  - DocumentExtraction.Tests 673 passed (floor 673)
+  - CaseProcessing.Tests 594 passed (floor 594)
+  - CaseReview.Tests 482 passed (floor 482)
+  - TaxAI.Portal.Tests 224 passed (floor 224)
+  - Tenancy.Tests 282 passed (floor 99)
+  - Persistence.Tests 130 passed (floor 25)
+
+Additional verification:
+- PASS: git diff --check
+
+B-6 decision summary:
+- The registration half of B-3 is binding. Outside Development the host SHALL
+  fail closed unless the BUILT SERVICE PROVIDER contains:
+  - IDataProtectionProvider;
+  - a non-null KeyManagementOptions.XmlRepository;
+  - a non-null KeyManagementOptions.XmlEncryptor;
+  - a repository whose implementation is not supplied by the ASP.NET Core Data
+    Protection framework assembly;
+  - an encryptor whose implementation is not supplied by that assembly.
+- Intentionally rejected: EphemeralXmlRepository, FileSystemXmlRepository,
+  ReadOnlyFileSystemXmlRepository, RegistryXmlRepository, NullXmlEncryptor,
+  InvalidEncryptor, DpapiXmlEncryptor, DpapiNGXmlEncryptor,
+  CertificateXmlEncryptor, and the framework's default local fallback. None is
+  approved for this MVP.
+- The intended production provider is Azure Blob Storage for the key repository
+  and Azure Key Vault for key encryption.
+- Configuration values alone do not satisfy the requirement. Documentation
+  saying "do not deploy" is not a runtime safety control.
+- Development may continue to use the explicitly approved local development
+  behaviour.
+- Recorded in prd.md (FR-42, AC-76, the Amendments table rows for
+  HealthEndpointTests.cs and ShellPageTests.cs, and Open question E),
+  architecture.md (A-2 and the startup-refusal section), and tasks.md (the
+  binding-decisions section, the new T17A entry, and the T17 entry).
+- Measured basis for treating a null repository as a failure: on ASP.NET Core 8
+  a bare WebApplication registers no IDataProtectionProvider at all, and even
+  after AddDataProtection() the XmlRepository stays null while the framework
+  resolves a machine-local key directory plus DPAPI lazily.
+
+T17 allowlist correction:
+- T17's authoritative file list now additionally contains:
+  - tests/TaxAI.Portal.Tests/HealthEndpointTests.cs
+  - tests/TaxAI.Portal.Tests/ShellPageTests.cs
+  - tests/TaxAI.Portal.Tests/Support/DurableDataProtectionTestServices.cs
+- T17's dependency set is now "T16, T17A".
+- Reason: both suites construct WebApplicationFactory<Program> with
+  UseEnvironment("Production"), so once B-6's fail-closed guard exists they must
+  explicitly register an approved durable Data Protection test provider. Neither
+  file appeared in any spec 011 task's list, so no task could adapt them. T17
+  may edit them additively only and may not change, remove, or weaken a single
+  existing assertion.
+- ShellPageTests.cs also appears in T18's and T19's lists. That is permitted:
+  those are later waves, not parallel siblings, so the one-file-one-task rule
+  that prevents in-wave merge conflicts is not engaged.
+- Wave 6 is now "1 task + corrective prerequisite"; the plan header reads
+  24 tasks.
+
+Changed-file confirmation — exactly the six allowed files, plus this marker:
+- specs/011-tenant-identity-and-persistence-foundation/prd.md (modified)
+- specs/011-tenant-identity-and-persistence-foundation/architecture.md (modified)
+- specs/011-tenant-identity-and-persistence-foundation/tasks.md (modified)
+- tests/TaxAI.Portal.Tests/HealthEndpointTests.cs (modified, additive only)
+- tests/TaxAI.Portal.Tests/ShellPageTests.cs (modified, additive only)
+- tests/TaxAI.Portal.Tests/Support/DurableDataProtectionTestServices.cs (new)
+- specs/011-tenant-identity-and-persistence-foundation/status/T17A.done (this
+  marker, committed separately)
+
+No production file was touched. No startup guard was implemented here. PR #117
+was not modified. T17.done was not restored. No test was deleted, and neither
+fixture's assertions were changed, removed, or weakened — the only edit to each
+is two using directives and a ConfigureTestServices call in its constructor.
+
+Test-support posture:
+- DurableDataProtectionTestServices is test-only and internal to the portal test
+  assembly. It holds synthetic key elements in memory only; it writes to no
+  disk, registry, environment variable, cloud service, or other external system;
+  it contains no secret and no taxpayer value; and no production code can reach
+  it. It is approved by B-6 solely because its implementations are declared
+  outside the ASP.NET Core Data Protection framework assembly.
+
+Not done here, by rule:
+- No merge or self-approval was performed. Both remain human-only.
+- T18 was not started.
