@@ -190,7 +190,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
                      Environment.OSVersion.VersionString,
                      "Production",
                      "Development",
-                     "net8.0",
+                     "net10.0",
                      "Version",
                      ":\\",
                      "TaxAI.Portal",
