@@ -253,7 +253,7 @@ public sealed class TenancyContractTests
     }
 
     [Fact]
-    public void TheSaveContractTakesAPackageAndAnExplicitInstant()
+    public void TheSaveContractTakesAnAlreadyProjectedPersistenceRecord()
     {
         var save = typeof(IReviewRecordRepository)
             .GetMethod(nameof(IReviewRecordRepository.SaveAsync))!;
@@ -264,13 +264,17 @@ public sealed class TenancyContractTests
             new[]
             {
                 typeof(TrustedFirmId),
-                typeof(AccountantReviewPackage),
-                typeof(DateTimeOffset),
+                typeof(PersistedReviewRecord),
                 typeof(CancellationToken),
             },
             parameterTypes);
 
         Assert.Equal(typeof(Task<ParseResult<PersistedReviewRecord>>), save.ReturnType);
+        Assert.DoesNotContain(
+            save.GetParameters(),
+            parameter => parameter.ParameterType.Namespace?.StartsWith(
+                "CaseReview",
+                StringComparison.Ordinal) == true);
     }
 
     // ----------------------------------------------------------- the constants
@@ -445,6 +449,13 @@ public sealed class TenancyContractTests
                 typeof(bool), new[] { typeof(string), typeof(TrustedFirmId).MakeByRefType() }),
             (typeof(TrustedFirmId), nameof(TrustedFirmId.ToCanonicalString),
                 typeof(string), Type.EmptyTypes),
+            (typeof(AuthenticationSession), nameof(AuthenticationSession.Create),
+                typeof(ParseResult<AuthenticationSession>),
+                new[] { typeof(Guid), typeof(Guid), typeof(Guid?), typeof(DateTimeOffset) }),
+            (typeof(PurgeOutcome), nameof(PurgeOutcome.NoEligibleRecords),
+                typeof(PurgeOutcome), Type.EmptyTypes),
+            (typeof(PurgeOutcome), nameof(PurgeOutcome.RecordsPurged),
+                typeof(PurgeOutcome), new[] { typeof(int), typeof(int) }),
             (typeof(SessionLifetimePolicy), nameof(SessionLifetimePolicy.CreateBoundaries),
                 typeof(ParseResult<SessionBoundaries>), new[] { typeof(DateTimeOffset) }),
             (typeof(SessionLifetimePolicy), nameof(SessionLifetimePolicy.Touch),
