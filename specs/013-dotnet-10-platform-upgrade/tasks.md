@@ -12,6 +12,10 @@ production resource.
 - `tasks.md` is read-only after approval. Completion is recorded only in that
   task's `specs/013-dotnet-10-platform-upgrade/status/<TaskID>.done` marker,
   containing the PR number and commit SHA.
+- T03/T05 are the sole explicit exception to the normal one-task/one-marker
+  rule. A human invokes T03 only; its one atomic implementation and PR complete
+  both responsibility sets and create both markers with the same real PR
+  number and final implementation SHA. T05 is never invoked independently.
 - A task is unblocked only when every task in every earlier wave has its marker.
   Sibling tasks in the same wave may run in parallel.
 - Change only the exact files listed by the task. A listed conditional source
@@ -30,8 +34,10 @@ production resource.
 
 - Every manifest project must run; failures and skips are zero; every test floor
   is met or raised in the same task that adds tests. A floor is never lowered.
-- No warning is suppressed, disabled, or demoted. A clean build has zero errors
-  and a warning multiset no larger than the PRD FR-21 budget.
+- No warning is suppressed, disabled, demoted, or ignored. `NoWarn`, NuGet
+  audit disabling, test-analyzer disabling, and temporary warning exceptions
+  are forbidden. A clean build has zero errors and a warning multiset no larger
+  than the unchanged PRD FR-21 budget.
 - The three files in `src/Persistence/Migrations/` are immutable and are owned
   by no task in this plan.
 - Historical Specs 001–011 and their status/baseline/verification artifacts are
@@ -89,32 +95,85 @@ production resource.
   `scripts/test-projects.json`,
   `specs/013-dotnet-10-platform-upgrade/status/T02.done` — depends on: T01
 
+## Wave 1A — corrective planning prerequisite
+
+### T02A — Make the Portal and Persistence upgrade atomic
+
+- [ ] **T02A** — Correct the approved task and architecture documents after the
+  T03 dry run proved that a separately green Portal merge boundary is
+  impossible: the net10.0 Portal exposes the vulnerable package graph retained
+  by still-net8.0 Persistence, while net8.0 Portal cannot consume a net10.0
+  Persistence project. Preserve FR-21 unchanged, authorize the exact atomic
+  T03/T05 ownership and marker exception below, and record the preserved T03
+  branch and commit. This task changes no production code, test code, project,
+  package, migration, schema, or behavior. — files:
+  `specs/013-dotnet-10-platform-upgrade/tasks.md`,
+  `specs/013-dotnet-10-platform-upgrade/architecture.md`,
+  `specs/013-dotnet-10-platform-upgrade/status/T02A.done` — depends on: T02
+
 ## Wave 2 — outer consumers (2 parallel)
 
 The two tasks in this wave are independent. Nothing in the solution references
-`TaxCases`; Portal can target `net10.0` while its inward dependencies still
-target `net8.0`.
+`TaxCases`. The host/adapter side is one atomic Portal plus Persistence
+boundary because the direct `TaxAI.Portal → Persistence` reference and FR-21
+make separate green merge boundaries impossible.
 
-### T03 — Upgrade the ASP.NET Core host and its test project
+### T03 — Atomic Portal and Persistence .NET 10 upgrade
 
-- [ ] **T03** — Change the Portal and Portal test projects to exactly
-  `net10.0`; pin OIDC and MVC Testing to `10.0.10` and the four standard test
-  packages to FR-4's exact versions. Replace the existing exact/major-version
-  assertions in `ProjectStructureTests`, and replace the obsolete current-TFM
-  disclosure strings in the two response-safety suites without weakening their
-  no-disclosure behavior. Run the unchanged Wave 0 route/auth comparator and
-  every OIDC, cookie, session, revocation, firm-selection, R-1, antiforgery,
-  authorization, PII, and startup-refusal suite. Assess the .NET 10 cookie
-  API-endpoint behavior without adding/removing endpoint metadata. Modify the
-  listed Portal source files only if a compiler or proved behavioral regression
-  requires a minimal compatibility correction; public/internal contracts and
-  endpoint outcomes must remain equal to baseline. Covers AC-6 (Portal/MVC),
-  AC-7 (Portal test), AC-11, AC-22 (Portal), AC-26, and AC-27. — files:
+- [ ] **T03** — In one green implementation and PR, change Portal,
+  Portal.Tests, Persistence, and Persistence.Tests to exactly `net10.0`; pin
+  OIDC, MVC Testing, EF Core SqlServer/Design/Sqlite, and the standard test
+  packages to the exact FR-3/FR-4 versions. Replace the existing exact/major
+  version and obsolete current-TFM assertions without weakening behavior.
+  Remediate every `xUnit2029` and `xUnit2031` introduced by the test-package
+  upgrade in the authorized files by using the analyzer-approved assertions;
+  remove the reported `NU1902` and `NU1903` diagnostics through the approved
+  Persistence package upgrade. Suppression, `NoWarn`, severity demotion,
+  NuGet-audit disabling, analyzer disabling, ignoring a diagnostic, or a
+  temporary exception is forbidden.
+
+  Run the unchanged Wave 0 route/auth comparator and every OIDC, cookie,
+  session, revocation, firm-selection, R-1, antiforgery, authorization, PII,
+  and startup-refusal suite. Assess the .NET 10 cookie API-endpoint behavior
+  without adding/removing endpoint metadata. Retain the Design
+  `PrivateAssets="all"` and one-production-provider contract; update only the
+  `Persistence.Tests` rows in `TenancyBoundaryTests`. Add and run the focused
+  EF10 proofs for the three inventoried parameterized-collection queries,
+  ordered/firm-scoped results, SQL disposition, `Application Name` behavior,
+  absence of `UseAzureSql`/compatibility-level/`json` remapping, and SQLite
+  DateTimeOffset/affinity/UTC/exclusive-boundary behavior without the pre-10
+  switch. Re-run the Wave 0 EF equivalence comparator unchanged, require no
+  pending model using Persistence plus the Portal startup project, and prove
+  the migration sources, model, relational schema, and DDL remain unchanged.
+
+  Modify listed Portal or Persistence production seams only if a compiler or
+  proved behavioral regression requires the smallest behavior-preserving
+  correction. Public/internal contracts, endpoint outcomes, migration history,
+  schema, and stored-data compatibility remain equal to baseline. Raise only
+  the Persistence test floor if its added tests increase the count.
+
+  This task resumes from the preserved
+  `codex/spec-013-t03-portal` branch at
+  `95d2601f38725d51b390ec8456ecfd6b63a1a6aa` after T02A is human-merged:
+  rebase that branch onto current `master`, retain its valid work, and extend it
+  rather than discarding or restarting it. After every task and full-solution
+  gate passes within the unchanged FR-21 ceiling, the one real atomic PR creates
+  both `T03.done` and `T05.done`; both markers name that PR and the same final
+  implementation SHA, with their respective responsibility summaries. Covers
+  AC-6 (Portal/MVC and EF matrix), AC-7 (Portal and Persistence tests), AC-11,
+  AC-12…AC-22 (Portal and Persistence), AC-24, AC-25, AC-26, and AC-27. — files:
   `src/TaxAI.Portal/TaxAI.Portal.csproj`,
   `tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj`,
   `tests/TaxAI.Portal.Tests/ProjectStructureTests.cs`,
   `tests/TaxAI.Portal.Tests/HealthEndpointTests.cs`,
   `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs`,
+  `tests/TaxAI.Portal.Tests/EndToEnd/SolutionAndRegressionTests.cs`,
+  `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs`,
+  `tests/TaxAI.Portal.Tests/Identity/FirmSelectionTests.cs`,
+  `tests/TaxAI.Portal.Tests/Identity/CookieAndTokenTests.cs`,
+  `tests/TaxAI.Portal.Tests/EndToEnd/AmendmentAuditTests.cs`,
+  `tests/TaxAI.Portal.Tests/ShellPageTests.cs`,
+  `tests/TaxAI.Portal.Tests/Identity/SignInTests.cs`,
   `src/TaxAI.Portal/Program.cs`,
   `src/TaxAI.Portal/ModuleRegistration.cs`,
   `src/TaxAI.Portal/PortalIdentity.cs`,
@@ -122,44 +181,7 @@ target `net8.0`.
   `src/TaxAI.Portal/FirmEndpoints.cs`,
   `src/TaxAI.Portal/SessionTicketStore.cs`,
   `src/TaxAI.Portal/PortalStartupGuards.cs`,
-  `specs/013-dotnet-10-platform-upgrade/status/T03.done` — depends on: T02
-
-### T04 — Upgrade TaxCases and its test project
-
-- [ ] **T04** — Change `TaxCases` and `TaxCases.Tests` to exactly `net10.0`
-  and pin the test project to FR-4's exact package versions. Make no production
-  C# change. Prove the existing immutable aggregate, tax-year, PII, public
-  contract, boundary, and end-to-end suites pass unchanged and that the
-  `TaxCases → TaxLogicEngine` reference remains exact. Covers AC-3 for these
-  projects, AC-7 for this test project, AC-22 for TaxCases, and AC-24. — files:
-  `src/TaxCases/TaxCases.csproj`,
-  `tests/TaxCases.Tests/TaxCases.Tests.csproj`,
-  `specs/013-dotnet-10-platform-upgrade/status/T04.done` — depends on: T02
-
-## Wave 3 — EF Core and SQL Server adapter
-
-### T05 — Upgrade Persistence, SQLite tests, and EF10 compatibility proof
-
-- [ ] **T05** — Change `Persistence` and `Persistence.Tests` to exactly
-  `net10.0`; pin EF Core SqlServer/Design/Sqlite to `10.0.10` and the four test
-  packages to FR-4. Update `PersistenceBoundaryTests` to exact values while
-  retaining the Design `PrivateAssets="all"` and one-production-provider
-  contract. Update only the `Persistence.Tests` rows in the cross-project
-  package matrix held by `TenancyBoundaryTests`; its still-`net8.0`
-  `Tenancy.Tests` rows remain unchanged until T06. Add focused EF10 tests for
-  the three inventoried
-  parameterized-collection queries, ordered/firm-scoped results, SQL
-  disposition, `Application Name` guard/registration behavior, the absence of
-  `UseAzureSql`/compatibility-level/`json` remapping, and SQLite
-  DateTimeOffset/affinity/UTC/exclusive-boundary behavior without the pre-10
-  switch. Re-run the Wave 0 EF equivalence comparator unchanged; migration
-  source files must not change. Modify only the listed production seams if a
-  proved EF10 regression requires the smallest behavior-preserving correction.
-  Run the local pending-model command using Persistence plus the Portal startup
-  project and require no pending changes. Raise only the Persistence test floor
-  to its new actual count. Covers AC-6 (EF matrix), AC-7 (Persistence test),
-  AC-12…AC-21, AC-22 (Persistence), AC-24, AC-25, and AC-26's persistence
-  portion. — files: `src/Persistence/Persistence.csproj`,
+  `src/Persistence/Persistence.csproj`,
   `tests/Persistence.Tests/Persistence.Tests.csproj`,
   `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs`,
   `tests/Tenancy.Tests/Boundaries/TenancyBoundaryTests.cs`,
@@ -181,7 +203,34 @@ target `net8.0`.
   `src/Persistence/Repositories/SqlReviewRecordRepository.cs`,
   `src/Persistence/Services/SqlReviewRecordPurgeService.cs`,
   `scripts/test-projects.json`,
-  `specs/013-dotnet-10-platform-upgrade/status/T05.done` — depends on: T03, T04
+  `specs/013-dotnet-10-platform-upgrade/status/T03.done`,
+  `specs/013-dotnet-10-platform-upgrade/status/T05.done` — depends on: T02A
+
+### T04 — Upgrade TaxCases and its test project
+
+- [ ] **T04** — Change `TaxCases` and `TaxCases.Tests` to exactly `net10.0`
+  and pin the test project to FR-4's exact package versions. Make no production
+  C# change. Prove the existing immutable aggregate, tax-year, PII, public
+  contract, boundary, and end-to-end suites pass unchanged and that the
+  `TaxCases → TaxLogicEngine` reference remains exact. Covers AC-3 for these
+  projects, AC-7 for this test project, AC-22 for TaxCases, and AC-24. — files:
+  `src/TaxCases/TaxCases.csproj`,
+  `tests/TaxCases.Tests/TaxCases.Tests.csproj`,
+  `specs/013-dotnet-10-platform-upgrade/status/T04.done` — depends on: T02A
+
+## Wave 3 — absorbed Persistence traceability
+
+### T05 — Persistence upgrade completed atomically by T03
+
+- [ ] **T05** — Retained in the inventory for traceability only. Its complete
+  former implementation scope, file ownership, checks, and acceptance coverage
+  are absorbed by T03 because no separately green T03/T05 merge boundary
+  exists. T05 has no independent branch, invocation, implementation PR, or
+  file allowlist. The atomic T03 PR is its completion evidence and creates
+  `T05.done` together with `T03.done`; both markers carry the same real PR
+  number and final implementation SHA, while `T05.done` summarizes the
+  Persistence/EF responsibility set. — files: none independently; its marker is
+  owned by T03 — depends on: T03 (satisfied atomically by the same PR)
 
 ## Wave 4 — trusted-firm application boundary
 
@@ -415,8 +464,9 @@ tasks write no product or test code.
 |---|---|---|
 | 0 | T01 | Freeze executable .NET 8 repository, contract, route/auth, and EF baselines |
 | 1 | T02 | Pin SDK 10.0.302 and local dotnet-ef 10.0.10 |
-| 2 | T03, T04 | Upgrade Portal and independent TaxCases in parallel |
-| 3 | T05 | Upgrade EF Core/SQL Server/SQLite Persistence boundary |
+| 1A | T02A | Correct the Portal/Persistence warning ownership and atomic boundary |
+| 2 | T03, T04 | Atomically upgrade Portal/Persistence and independently upgrade TaxCases |
+| 3 | T05 | Retain absorbed Persistence responsibility as T03-owned traceability |
 | 4 | T06 | Upgrade Tenancy |
 | 5 | T07 | Upgrade CaseReview |
 | 6 | T08 | Upgrade CaseProcessing |
@@ -428,8 +478,10 @@ tasks write no product or test code.
 | 12 | T17 | Update active guidance, App Service preflight, and rollback runbook |
 | 13 | T18 | Execute AC-1…AC-32 and record final completion |
 
-**18 tasks across 14 waves.** The only parallel implementation wave is Portal
-plus independent TaxCases; the compatibility and evidence waves parallelize
-read-only proof with disjoint files. Every merge boundary remains buildable and
-fully tested, no migration file is task-owned, and the final wave records exact
-test totals rather than assuming them.
+**19 task IDs across 15 waves.** Eighteen are independently invoked; T05 is the
+one absorbed traceability record completed by the atomic T03 invocation and PR.
+The only parallel implementation wave is atomic Portal/Persistence plus
+independent TaxCases; the compatibility and evidence waves parallelize
+read-only proof with disjoint files. Every merge boundary remains buildable,
+fully tested, and within FR-21; no migration file is task-owned, and the final
+wave records exact test totals rather than assuming them.

@@ -1,0 +1,75 @@
+TaskID: T02A
+Task: Make the Portal and Persistence .NET 10 upgrade atomic
+PR: #127
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/127
+Implementation commit: 146a3dd74add55bb286bd5978e9a84d15b5486fc
+Branch: fix/013-atomic-portal-persistence-upgrade
+Base: d6f69ee769f94e090b6eec28be0f4777ad8b9185 (origin/master)
+
+Delivered:
+- Corrected the Spec 013 task plan and architecture only.
+- T03 now owns the exact union of the former T03 and T05 scopes plus the seven
+  Portal test files that expose xUnit2029/xUnit2031 under the approved test
+  package upgrade.
+- T03 performs the Portal, Portal.Tests, Persistence, and Persistence.Tests
+  migration as one green merge boundary and owns removal of the reported
+  NU1902/NU1903 diagnostics through the approved Persistence package upgrade.
+- T05 remains in the task inventory for traceability, is not independently
+  executable, and has no separate branch, invocation, implementation PR, or
+  file allowlist.
+- The atomic T03 PR is explicitly authorized to create T03.done and T05.done
+  after every gate passes. Both markers must identify the same real PR and
+  final implementation SHA and contain their respective responsibility
+  summaries.
+- T04 remains independent, is not a prerequisite for the atomic T03/T05
+  boundary, and depends only on this merged T02A correction.
+- The preserved T03 branch is codex/spec-013-t03-portal at
+  95d2601f38725d51b390ec8456ecfd6b63a1a6aa. After T02A is human-merged, it
+  must be rebased onto current master and extended without discarding or
+  restarting valid work.
+- FR-21 remains unchanged: zero errors, no new diagnostics, and the warning
+  multiset within the original 11-warning ceiling. Suppression, NoWarn,
+  severity demotion, NuGet-audit disabling, analyzer disabling, ignored
+  diagnostics, and temporary exceptions remain forbidden.
+
+Verification:
+- PASS: applicable upgrade contract tests
+  - TaxAI.Portal.Tests UpgradeBaselineContractTests: 5 passed.
+  - Persistence.Tests EfUpgradeBaselineTests: 4 passed.
+  - Aggregate focused total: 9 passed; 0 failed; 0 skipped.
+- PASS: dotnet build TaxAI.sln
+  - 0 errors; 0 warnings emitted by the incremental command.
+- PASS: dotnet build TaxAI.sln --no-incremental
+  - 0 errors.
+  - Approved warning multiset only: CS0649 x2, xUnit2008 x2,
+    xUnit1031 x6, xUnit2013 x1 (11 total).
+- PASS: dotnet test TaxAI.sln
+  - TaxLogicEngine.Tests: 261 passed.
+  - TaxCases.Tests: 337 passed.
+  - DocumentExtraction.Tests: 673 passed.
+  - CaseProcessing.Tests: 594 passed.
+  - CaseReview.Tests: 482 passed.
+  - TaxAI.Portal.Tests: 410 passed.
+  - Tenancy.Tests: 289 passed.
+  - Persistence.Tests: 137 passed.
+  - Aggregate: 3,183 passed; 0 failed; 0 skipped.
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All eight registered projects ran, met their floors, and reported
+    3,183 passed; 0 failed; 0 skipped.
+- PASS: git diff --check
+- PASS: corrected T03 allowlist comparison
+  - 43 unique paths: exact union of former T03, former T05, and the seven
+    additional Portal analyzer-remediation files; no missing or extra path.
+
+Scope:
+- The implementation commit changes only:
+  - specs/013-dotnet-10-platform-upgrade/tasks.md
+  - specs/013-dotnet-10-platform-upgrade/architecture.md
+- This completion commit adds only this T02A.done marker.
+- No project, package, production, test, migration, schema, T03.done, or
+  T05.done file changed.
+
+Not done:
+- T03 was not resumed and its preserved branch was not modified.
+- T04, T05, and every later task were not started.
+- No merge or self-approval was performed; both remain human-only.
