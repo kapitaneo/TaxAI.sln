@@ -9,8 +9,10 @@ using TaxAI.Portal.Tests.Support;
 namespace TaxAI.Portal.Tests.Security;
 
 /// <summary>
-/// T05 — proves the portal's v1 posture: no input surface, no PII, no
-/// authentication, no infrastructure, no secret, and no client-side stack.
+/// Proves the portal's closed security posture: the one approved membership
+/// selector plus antiforgery token, the exact authentication and authorization
+/// files, no PII, no unapproved infrastructure, no secret, and no client-side
+/// stack.
 /// <para>
 /// The PII protection here is <b>omission, not masking</b>. In v1 the safest
 /// possible posture is available and is therefore mandatory: taxpayer data never
@@ -37,7 +39,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
     private static readonly string[] ExpectedProductionFiles =
     {
+        "FirmEndpoints.cs",
         "ModuleRegistration.cs",
+        "PortalAuthorization.cs",
         "PortalContent.cs",
         "PortalIdentity.cs",
         "PortalStartupGuards.cs",
@@ -64,26 +68,90 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
     public void Dispose() => _factory.Dispose();
 
-    // ------------------------------------------------- AC-27: no input surface
+    // --------------------------------------- FR-49: the exact input allow-list
 
-    public static TheoryData<string, string> InputBindingPatterns() => new()
+    public static TheoryData<string, string, string[]> InputBindingPatterns() => new()
     {
-        { "model binding attribute", @"\[From(?:Body|Query|Route|Form|Header|Services)\]" },
-        { "request body", @"Request\s*\.\s*Body|\bReadFromJsonAsync\b|\bReadAsStringAsync\b" },
-        { "request query", @"Request\s*\.\s*Query|\bQueryString\b" },
-        { "request form", @"Request\s*\.\s*Form|\bIFormFile\b|\bIFormCollection\b" },
-        { "request headers", @"Request\s*\.\s*Headers" },
-        { "request cookies", @"Request\s*\.\s*Cookies|\bCookieOptions\b" },
-        { "route parameter binding", @"\bRouteData\b|\bGetRouteValue\b" },
+        {
+            "model binding attribute",
+            @"\[From(?:Body|Query|Route|Form|Header|Services)\b",
+            new[] { "FirmEndpoints.cs" }
+        },
+        {
+            "request body",
+            @"Request\s*\.\s*Body|\bReadFromJsonAsync\b|\bReadAsStringAsync\b",
+            Array.Empty<string>()
+        },
+        { "request query", @"Request\s*\.\s*Query|\bQueryString\b", Array.Empty<string>() },
+        {
+            "request form",
+            @"Request\s*\.\s*Form|\bIFormFile\b|\bIFormCollection\b",
+            Array.Empty<string>()
+        },
+        { "request headers", @"Request\s*\.\s*Headers", Array.Empty<string>() },
+        {
+            "request cookies",
+            @"Request\s*\.\s*Cookies|\bCookieOptions\b",
+            Array.Empty<string>()
+        },
+        {
+            "route parameter binding",
+            @"\bRouteData\b|\bGetRouteValue\b",
+            Array.Empty<string>()
+        },
     };
 
-    [Theory] // AC-27
+    [Theory] // spec 011 AC-59
     [MemberData(nameof(InputBindingPatterns))]
-    public void ProductionSource_ReadsNoRequestInput(string surface, string pattern)
+    public void RequestInputAppearsOnlyInItsExactApprovedFile(
+        string surface,
+        string pattern,
+        string[] approvedFiles)
     {
-        // v1 has no input surface at all, so there is nothing to validate and
-        // nothing that can be malformed. That is the whole defence.
-        AssertNoProductionMatch(surface, pattern);
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var matching = ProductionSourceFiles()
+            .Where(path => regex.IsMatch(string.Join("\n", ExecutableLines(path))))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        var expected = approvedFiles
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(
+            expected.SequenceEqual(matching, StringComparer.Ordinal),
+            $"{surface} appears in [{string.Join(", ", matching)}], expected [{string.Join(", ", expected)}].");
+    }
+
+    [Fact] // spec 011 FR-49, AC-59
+    public void TheOnlyCallerSuppliedNamesAreTheAntiforgeryTokenAndMembershipSelector()
+    {
+        var endpoints = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "FirmEndpoints.cs")));
+
+        Assert.Single(
+            Regex.Matches(
+                endpoints,
+                @"\[FromForm\s*\(\s*Name\s*=\s*""membershipId""\s*\)\]",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1))
+                .Cast<Match>());
+        Assert.Contains("__RequestVerificationToken", endpoints, StringComparison.Ordinal);
+
+        foreach (var forbidden in new[]
+                 {
+                     "firmId", "userId", "issuer", "subject",
+                     "sessionId", "caseId", "participantId", "recordId",
+                 })
+        {
+            Assert.DoesNotMatch(
+                new Regex(
+                    $@"\[From\w*\s*\([^]]*{forbidden}",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)),
+                endpoints);
+        }
     }
 
     // -------------------------------------- AC-28, AC-37: what goes on the wire
@@ -265,12 +333,18 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         {
             "authorization wiring",
             @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b|\bAllowAnonymous\b",
-            new[] { "PortalIdentity.cs", "Program.cs" }
+            new[] { "FirmEndpoints.cs", "PortalIdentity.cs", "Program.cs" }
         },
         {
             "identity",
             @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b",
-            new[] { "PortalIdentity.cs", "SessionTicketStore.cs" }
+            new[]
+            {
+                "FirmEndpoints.cs",
+                "PortalAuthorization.cs",
+                "PortalIdentity.cs",
+                "SessionTicketStore.cs",
+            }
         },
         {
             "the durable ticket store",
@@ -355,13 +429,15 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact] // spec 011 AC-130
-    public void TheApprovedAuthenticationFilesAreExactlyTheFourEnumeratedOnes()
+    public void TheApprovedAuthenticationFilesAreExactlyTheEnumeratedSet()
     {
         // Without this, widening a row's allow-list would widen the rule rather
         // than fail against it.
         Assert.Equal(
             new[]
             {
+                "FirmEndpoints.cs",
+                "PortalAuthorization.cs",
                 "PortalIdentity.cs",
                 "PortalStartupGuards.cs",
                 "Program.cs",
