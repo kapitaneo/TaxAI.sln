@@ -1,4 +1,3 @@
-using CaseReview.Models;
 using TaxLogicEngine.Models;
 using Tenancy.Models;
 
@@ -27,15 +26,24 @@ namespace Tenancy.Contracts;
 public interface IReviewRecordRepository
 {
     /// <summary>
-    /// Projects the package through the fail-closed allowlist and writes it as
-    /// the next version for its subject key. Nothing is written unless every
-    /// guard passes, and the <strong>trusted</strong> firm is stored regardless
-    /// of the firm the package carried.
+    /// Writes an already-projected persistence record as the next version for
+    /// its subject key.
+    /// <para>
+    /// The caller must pass an output of
+    /// <see cref="Tenancy.Services.ReviewPackageProjection.Project"/>.
+    /// Projection and
+    /// all package validation happen inside <c>Tenancy</c> before the record
+    /// crosses into <c>Persistence</c>; the storage implementation therefore
+    /// accepts no executable review-module type.
+    /// </para>
+    /// <para>
+    /// The trusted firm remains a required, independent scope. The repository
+    /// refuses a record whose stored firm differs from it.
+    /// </para>
     /// </summary>
     Task<ParseResult<PersistedReviewRecord>> SaveAsync(
         TrustedFirmId firm,
-        AccountantReviewPackage package,
-        DateTimeOffset evaluationInstantUtc,
+        PersistedReviewRecord record,
         CancellationToken cancellationToken);
 
     /// <summary>

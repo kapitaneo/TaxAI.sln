@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using TaxLogicEngine.Models;
+using Tenancy.Services;
 
 namespace Tenancy.Models;
 
@@ -26,6 +28,64 @@ namespace Tenancy.Models;
 /// </summary>
 public sealed class AuthenticationSession
 {
+    /// <summary>
+    /// Creates one invariant-valid, initially unrevoked authentication session.
+    /// <para>
+    /// Identifiers must be non-empty; the active firm remains optional. The
+    /// supplied creation instant must have a zero UTC offset. Last-seen time is
+    /// initialized to creation time, while idle and absolute boundaries come
+    /// only from <see cref="SessionLifetimePolicy"/>. No caller can supply,
+    /// extend, or bypass those boundaries through this seam.
+    /// </para>
+    /// <para>
+    /// This is the only construction seam intended for a persistence
+    /// implementation. EF Core continues to use the private parameterless
+    /// constructor when materializing an existing row.
+    /// </para>
+    /// </summary>
+    public static ParseResult<AuthenticationSession> Create(
+        Guid sessionId,
+        Guid userId,
+        Guid? activeFirmId,
+        DateTimeOffset createdAtUtc)
+    {
+        var errors = new List<ValidationError>();
+
+        AddIdentifierError(sessionId, TenancyFields.SessionId, errors);
+        AddIdentifierError(userId, TenancyFields.UserId, errors);
+
+        if (activeFirmId.HasValue)
+        {
+            AddIdentifierError(
+                activeFirmId.Value,
+                TenancyFields.ActiveFirmId,
+                errors);
+        }
+
+        var boundaries = SessionLifetimePolicy.CreateBoundaries(createdAtUtc);
+        if (boundaries.IsFailure)
+        {
+            errors.AddRange(boundaries.Errors);
+        }
+
+        if (errors.Count > 0)
+        {
+            return ParseResult<AuthenticationSession>.Failure(
+                errors.AsReadOnly());
+        }
+
+        return ParseResult<AuthenticationSession>.Success(
+            new AuthenticationSession(
+                sessionId,
+                userId,
+                activeFirmId,
+                createdAtUtc,
+                createdAtUtc,
+                boundaries.Value!.IdleExpiresAtUtc,
+                boundaries.Value.AbsoluteExpiresAtUtc,
+                revokedAtUtc: null));
+    }
+
     /// <summary>Materialization seam for the storage layer.</summary>
     private AuthenticationSession()
     {
@@ -90,4 +150,15 @@ public sealed class AuthenticationSession
     /// </summary>
     public override string ToString() =>
         $"{nameof(AuthenticationSession)} {{ IsRevoked = {RevokedAtUtc.HasValue} }}";
+
+    private static void AddIdentifierError(
+        Guid identifier,
+        string field,
+        ICollection<ValidationError> errors)
+    {
+        if (identifier == Guid.Empty)
+        {
+            errors.Add(new ValidationError(field, TenancyErrors.TokenEmpty));
+        }
+    }
 }

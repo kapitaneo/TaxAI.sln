@@ -1,0 +1,78 @@
+TaskID: T11A
+Task: Wave 4 construction seams (spec 011 corrective prerequisite)
+PR: #113
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/113
+Implementation commit: 3cd3095404eb0a299643b2884e0f9b9b7fb3c1bf
+Branch: fix/011-wave4-contract-seams
+Base commit: 0dc30bac891507919b23248d35b51320b1b5fca4
+
+Focused tests:
+- PASS: dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj --filter "FullyQualifiedName~TenancyContractTests|FullyQualifiedName~AuthenticationSessionConstructionTests|FullyQualifiedName~PurgeOutcomeTests" --no-restore
+  - Passed: 43
+  - Failed: 0
+  - Skipped: 0
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --filter "FullyQualifiedName~PersistenceBoundaryTests" --no-restore
+  - Passed: 23
+  - Failed: 0
+  - Skipped: 0
+- Combined focused total:
+  - Passed: 66
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4 pre-existing warnings in TaxLogicEngine.Tests
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,915
+  - Failed: 0
+  - Skipped: 0
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - Passed: 2,915
+  - Failed: 0
+  - Skipped: 0
+
+Additional verification:
+- PASS: git diff --check
+
+Corrected Wave 4 blockers:
+- T12 boundary: IReviewRecordRepository.SaveAsync accepts only the trusted firm,
+  an already-projected PersistedReviewRecord, and a cancellation token.
+  Persistence names no executable CaseReview type, and the production boundary
+  continues to forbid it.
+- T13 construction: AuthenticationSession.Create validates its structural
+  identifiers and UTC creation instant, derives the fixed 30-minute idle and
+  8-hour absolute boundaries through SessionLifetimePolicy, and creates only an
+  initially-unrevoked state. Persistence needs no reflection or internals grant.
+- T15 construction: PurgeOutcome exposes only NoEligibleRecords() and
+  RecordsPurged(...), rejects invalid counts, has no public constructor or
+  mutable public setter, and renders fixed structural identity only.
+
+Scope:
+- The implementation commit changes exactly the ten T11A-allowlisted files:
+  - specs/011-tenant-identity-and-persistence-foundation/prd.md
+  - specs/011-tenant-identity-and-persistence-foundation/architecture.md
+  - specs/011-tenant-identity-and-persistence-foundation/tasks.md
+  - src/Tenancy/Contracts/IReviewRecordRepository.cs
+  - src/Tenancy/Models/AuthenticationSession.cs
+  - src/Tenancy/Models/PurgeOutcome.cs
+  - tests/Tenancy.Tests/Contracts/TenancyContractTests.cs
+  - tests/Tenancy.Tests/Models/AuthenticationSessionConstructionTests.cs
+  - tests/Tenancy.Tests/Models/PurgeOutcomeTests.cs
+  - tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs
+- This completion commit adds only this T11A.done marker.
+- No T12, T13, or T15 implementation or marker file changed.
+- No T16 or Portal file changed.
+- The preserved T12 work and draft PR #112 remain untouched.
+
+Not done here, by rule:
+- No merge or self-approval was performed.
+- T12, T13, and T15 were not resumed.
+- T16 was not started.

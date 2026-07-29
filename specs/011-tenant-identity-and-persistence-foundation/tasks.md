@@ -7,7 +7,7 @@ approved. Never edit it. Never check a box in it.** Completion is recorded by
 creating `specs/011-tenant-identity-and-persistence-foundation/status/<TaskID>.done`
 containing the PR number and commit SHA.
 
-11 waves, 22 tasks. Each wave merges to `master` before the next begins. Every
+11 waves, 23 tasks. Each wave merges to `master` before the next begins. Every
 task ships its tests in the same pass.
 
 ---
@@ -56,6 +56,26 @@ value based on unavailable provenance. A future API accepting `DateTime`
 directly may reject `DateTimeKind.Unspecified` before constructing a
 `DateTimeOffset`, but that is outside T03. This Class A clarification supersedes
 the ambiguous earlier wording and does not change T03's public signature.
+
+**B-5 — Wave 4 contract seams: CORRECTED by the human after T14 merged.**
+Three Wave 0 declarations made the approved Wave 4 implementations impossible
+without crossing a module boundary. T11A corrects those declarations before
+T12, T13, or T15 may resume:
+
+- `IReviewRecordRepository.SaveAsync` accepts an already-projected
+  `PersistedReviewRecord`, never an executable `CaseReview` type.
+  `ReviewPackageProjection.Project` remains the only
+  `AccountantReviewPackage` conversion and runs before the record crosses into
+  `Persistence`.
+- `AuthenticationSession.Create` is the narrow public construction seam for an
+  initially unrevoked session. It validates non-empty structural identifiers,
+  requires a zero-offset creation instant, and derives the 30-minute idle and
+  8-hour absolute boundaries from `SessionLifetimePolicy`. Persistence gets no
+  internals grant and uses no reflection.
+- `PurgeOutcome.NoEligibleRecords` and `PurgeOutcome.RecordsPurged` are the only
+  public construction seams for valid purge outcomes. Counts are constrained,
+  setters remain non-public, and `ToString()` emits fixed structural identity
+  only.
 
 ---
 
@@ -138,15 +158,23 @@ implementation-state or all-files-exactly sentinel.
 
 ---
 
-## Wave 4 — `Persistence` behaviour (4 parallel)
+## Wave 4 — `Persistence` behaviour (four originally parallel tasks + corrective prerequisite)
 
-- [ ] **T12** — Implement `SqlReviewRecordRepository`: `SaveAsync` projects, then in one firm-scoped transaction assigns `PackageVersion = max + 1` for the subject key and writes; earlier versions stay byte-unchanged; a unique-constraint race is **refused**, never resolved by overwrite. `FindAsync` is scoped by `(FirmId, recordId)` and returns a result **byte-identical** for not-found and cross-firm, echoing no identifier. **No update, no upsert, no delete member exists.** Covers AC-35, AC-38, AC-39, AC-52, AC-73 (contract level), AC-78–AC-85, AC-103, AC-104, AC-126. — files: `src/Persistence/Repositories/SqlReviewRecordRepository.cs`, `tests/Persistence.Tests/Repositories/ReviewRecordRepositoryTests.cs`, `tests/Persistence.Tests/Repositories/ReviewRecordTenantIsolationTests.cs`, `tests/Persistence.Tests/Repositories/ReviewRecordVersioningTests.cs` — depends on: T11
+T14 merged before the three remaining Wave 4 contract contradictions were
+identified. T11A is a separate corrective prerequisite based on that merged
+state. It implements no repository, session store, or purge service. T12, T13,
+and T15 must not resume until `T11A.done` exists; T14 is already complete and is
+not reopened.
 
-- [ ] **T13** — Implement `SqlAuthenticationSessionStore`: create, find-by-`SessionId` (the enumerated exemption, returning `ActiveFirmId` rather than accepting one), touch-by-resolved-session, revoke-by-resolved-session, plus an explicit privileged expired-row removal command **invoked by no timer, hosted service, or scheduler**. Prove cross-instance visibility and cross-instance revocation with two independently constructed stores over one database. A revoked or unknown session is never resurrected or re-created. Covers AC-164, AC-173, AC-175, AC-180, AC-181, AC-185. — files: `src/Persistence/Repositories/SqlAuthenticationSessionStore.cs`, `tests/Persistence.Tests/Repositories/AuthenticationSessionStoreTests.cs`, `tests/Persistence.Tests/Repositories/SessionRevocationTests.cs` — depends on: T11
+- [ ] **T11A** — Correct the three Wave 4 construction seams without implementing any blocked persistence behaviour: change `IReviewRecordRepository.SaveAsync` to accept only an already-projected `PersistedReviewRecord`; add `AuthenticationSession.Create` as the public invariant-preserving, initially-unrevoked session factory with policy-derived boundaries; implement `PurgeOutcome` through the two named valid-outcome factories and a fixed safe `ToString()`; retain the executable-`CaseReview` Persistence boundary and add a production-reflection-bypass guard. Formalize this correction in the authoritative PRD, architecture, and task plan. **No T12, T13, or T15 implementation file or marker is touched.** Supports AC-35, AC-41, AC-140, AC-162, and AC-164. — files: `specs/011-tenant-identity-and-persistence-foundation/prd.md`, `specs/011-tenant-identity-and-persistence-foundation/architecture.md`, `specs/011-tenant-identity-and-persistence-foundation/tasks.md`, `src/Tenancy/Contracts/IReviewRecordRepository.cs`, `src/Tenancy/Models/AuthenticationSession.cs`, `src/Tenancy/Models/PurgeOutcome.cs`, `tests/Tenancy.Tests/Contracts/TenancyContractTests.cs`, `tests/Tenancy.Tests/Models/AuthenticationSessionConstructionTests.cs`, `tests/Tenancy.Tests/Models/PurgeOutcomeTests.cs`, `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs` — depends on: T11, T14
+
+- [ ] **T12** — Implement `SqlReviewRecordRepository`: `SaveAsync` accepts only the already-projected `PersistedReviewRecord` from `ReviewPackageProjection.Project`, then in one firm-scoped transaction verifies the record's firm, assigns `PackageVersion = max + 1` for the subject key, and writes; it accepts, returns, serializes, and references no `AccountantReviewPackage` or other executable `CaseReview` type. Earlier versions stay byte-unchanged; a unique-constraint race is **refused**, never resolved by overwrite. `FindAsync` is scoped by `(FirmId, recordId)` and returns a result **byte-identical** for not-found and cross-firm, echoing no identifier. **No update, no upsert, no delete member exists.** Covers AC-35, AC-38, AC-39, AC-52, AC-73 (contract level), AC-78–AC-85, AC-103, AC-104, AC-126. — files: `src/Persistence/Repositories/SqlReviewRecordRepository.cs`, `tests/Persistence.Tests/Repositories/ReviewRecordRepositoryTests.cs`, `tests/Persistence.Tests/Repositories/ReviewRecordTenantIsolationTests.cs`, `tests/Persistence.Tests/Repositories/ReviewRecordVersioningTests.cs` — depends on: T11, T11A
+
+- [ ] **T13** — Implement `SqlAuthenticationSessionStore`: create through `AuthenticationSession.Create` with no reflection or internal access, find-by-`SessionId` (the enumerated exemption, returning `ActiveFirmId` rather than accepting one), touch-by-resolved-session, revoke-by-resolved-session, plus an explicit privileged expired-row removal command **invoked by no timer, hosted service, or scheduler**. Prove cross-instance visibility and cross-instance revocation with two independently constructed stores over one database. A revoked or unknown session is never resurrected or re-created. Covers AC-164, AC-173, AC-175, AC-180, AC-181, AC-185. — files: `src/Persistence/Repositories/SqlAuthenticationSessionStore.cs`, `tests/Persistence.Tests/Repositories/AuthenticationSessionStoreTests.cs`, `tests/Persistence.Tests/Repositories/SessionRevocationTests.cs` — depends on: T11, T11A
 
 - [ ] **T14** — Implement `SqlIdentityDirectory`: user by issuer + subject (ordinal), active memberships by user, one membership by `(userId, membershipId)`, firms by id. Every identifier comparison is ordinal. A freshly migrated database returns empty for all of them. Covers AC-157–AC-159 (data level), AC-182, AC-187, AC-188. — files: `src/Persistence/Repositories/SqlIdentityDirectory.cs`, `tests/Persistence.Tests/Repositories/IdentityDirectoryTests.cs` — depends on: T11
 
-- [ ] **T15** — Implement `SqlReviewRecordPurgeService`: deletes exactly the given firm's records whose `RetentionUntilUtc` has been reached or passed, and nothing else; requires a trusted firm with no omitting overload; returns and logs **counts and opaque identifiers only** — never a display name, employer name, amount, box code, CRA line code, or nine-digit run. Covers AC-36, AC-70–AC-72, AC-140, AC-149–AC-151 (integration). — files: `src/Persistence/Services/SqlReviewRecordPurgeService.cs`, `tests/Persistence.Tests/Services/ReviewRecordPurgeServiceTests.cs`, `tests/Persistence.Tests/Services/PurgeDiagnosticsTests.cs` — depends on: T11
+- [ ] **T15** — Implement `SqlReviewRecordPurgeService`: deletes exactly the given firm's records whose `RetentionUntilUtc` has been reached or passed, and nothing else; requires a trusted firm with no omitting overload; returns `PurgeOutcome.NoEligibleRecords()` or `PurgeOutcome.RecordsPurged(...)` as appropriate and logs **counts and opaque identifiers only** — never a display name, employer name, amount, box code, CRA line code, or nine-digit run. Covers AC-36, AC-70–AC-72, AC-140, AC-149–AC-151 (integration). — files: `src/Persistence/Services/SqlReviewRecordPurgeService.cs`, `tests/Persistence.Tests/Services/ReviewRecordPurgeServiceTests.cs`, `tests/Persistence.Tests/Services/PurgeDiagnosticsTests.cs` — depends on: T11, T11A
 
 ---
 

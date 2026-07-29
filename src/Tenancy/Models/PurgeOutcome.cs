@@ -8,17 +8,57 @@ namespace Tenancy.Models;
 /// logs. An operator needs to know that four records were deleted; knowing whose
 /// they were is exactly the disclosure a purge must not create.
 /// </para>
-/// <para>Wave 0 contract stage: shape declared, behaviour deferred.</para>
 /// </summary>
 public sealed class PurgeOutcome
 {
-    internal PurgeOutcome(int recordsDeleted, int slipsDeleted) =>
-        throw new NotImplementedException();
+    private PurgeOutcome(int recordsDeleted, int slipsDeleted)
+    {
+        RecordsDeleted = recordsDeleted;
+        SlipsDeleted = slipsDeleted;
+    }
+
+    /// <summary>
+    /// Creates the valid outcome for a firm-scoped purge with no eligible
+    /// records.
+    /// </summary>
+    public static PurgeOutcome NoEligibleRecords() => new(0, 0);
+
+    /// <summary>
+    /// Creates a successful structural outcome for one or more deleted records.
+    /// Counts are never inferred from, or replaced by, taxpayer identifiers.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="recordsDeleted"/> is not positive, or
+    /// <paramref name="slipsDeleted"/> is negative.
+    /// </exception>
+    public static PurgeOutcome RecordsPurged(
+        int recordsDeleted,
+        int slipsDeleted)
+    {
+        if (recordsDeleted <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(recordsDeleted),
+                "A completed purge must delete at least one record.");
+        }
+
+        if (slipsDeleted < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(slipsDeleted),
+                "A deleted-slip count cannot be negative.");
+        }
+
+        return new PurgeOutcome(recordsDeleted, slipsDeleted);
+    }
 
     public int RecordsDeleted { get; private set; }
 
     public int SlipsDeleted { get; private set; }
 
-    /// <summary>Structural counts only.</summary>
-    public override string ToString() => throw new NotImplementedException();
+    /// <summary>
+    /// Fixed type identity only. Counts remain available through their typed
+    /// properties without entering an implicitly formatted diagnostic string.
+    /// </summary>
+    public override string ToString() => nameof(PurgeOutcome);
 }

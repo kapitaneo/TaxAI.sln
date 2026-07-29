@@ -129,6 +129,10 @@ public sealed class PersistenceBoundaryTests
     [InlineData("engine service", @"\bT4LineMapper\b")]
     [InlineData("engine service", @"\bMoneyRounding\b")]
     [InlineData("masking", @"\bRecipientIdentifier\b")]
+    [InlineData("reflection bypass", @"\bSystem\.Reflection\b")]
+    [InlineData("reflection bypass", @"\bActivator\.CreateInstance\b")]
+    [InlineData("reflection bypass", @"\bBindingFlags\.(Instance|NonPublic)\b")]
+    [InlineData("reflection bypass", @"\b(GetConstructors?|ConstructorInfo|InvokeMember)\b")]
     [InlineData("tax year", @"\b(19|20)\d{2}\b")]
     [InlineData("CRA line", @"\b\d{5}\b")]
     public void ProductionSource_ContainsNoForbiddenToken(string boundary, string pattern)

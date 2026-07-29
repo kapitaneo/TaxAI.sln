@@ -251,9 +251,12 @@ TaxAI.Portal ──► Tenancy ──────► CaseReview ──► CasePr
   portal assembly's referenced-assembly set and spec 010's
   `TheCompiledPortalDoesNotReferenceCaseReview` and `ThePortalNamesNoSpec009Type`
   both stay green **unchanged**. This is a load-bearing consequence of putting
-  the projection in `Tenancy`, and is why `IReviewRecordRepository.SaveAsync` —
-  the one contract member whose signature names `AccountantReviewPackage` — is
-  never called from portal source.
+  the projection in `Tenancy`: the caller runs
+  `ReviewPackageProjection.Project` while it can still name
+  `AccountantReviewPackage`, then passes only the resulting
+  `PersistedReviewRecord` to `IReviewRecordRepository.SaveAsync`.
+  `Persistence` therefore never names, receives, serializes, or otherwise
+  crosses an executable `CaseReview` type at its boundary.
 
 ---
 
@@ -342,6 +345,15 @@ memberships legitimately means no firm), `CreatedAtUtc`, `LastSeenAtUtc`,
 `IdleExpiresAtUtc`, `AbsoluteExpiresAtUtc`, `RevokedAtUtc` (`DateTimeOffset?`).
 **No OIDC token, no ticket blob, no claims payload, no free text** (FR-64,
 AC-162, AC-165, AC-184).
+
+`AuthenticationSession.Create(sessionId, userId, activeFirmId, createdAtUtc)`
+is its public construction seam. It refuses empty required identifiers and an
+empty present active-firm identifier, requires a zero-offset UTC creation
+instant, derives the 30-minute idle and 8-hour absolute boundaries through
+`SessionLifetimePolicy`, and creates only an initially-unrevoked state whose
+idle boundary cannot exceed its absolute boundary. Callers cannot supply
+boundaries or a revoked state. EF retains only its private materialization
+constructor; `Persistence` needs neither reflection nor internal access.
 
 **`Firm`** — `FirmId` (Guid, primary key), `DisplayName` (string),
 `CreatedAtUtc`, `UpdatedAtUtc`. `Firm` is *not* in the carve-out and does not
@@ -516,6 +528,11 @@ stage passes**:
 existing maximum is a storage fact. The projection emits version `1` and the
 repository assigns the real version inside its firm-scoped transaction.
 
+A successful projection is the **only** value accepted by the review-record
+repository. Projection and every package-level validation above happen before
+the `Persistence` boundary is crossed; no repository contract or implementation
+names `AccountantReviewPackage` or any other executable `CaseReview` type.
+
 **It never reads `T4Slip.Sin`, names no `RecipientIdentifier`, and constructs no
 masking, redaction, sanitizing, or scrubbing helper** (FR-23, AC-88).
 
@@ -524,13 +541,15 @@ masking, redaction, sanitizing, or scrubbing helper** (FR-23, AC-88).
 ```
 interface IReviewRecordRepository
     Task<ParseResult<PersistedReviewRecord>> SaveAsync(
-        TrustedFirmId firm, AccountantReviewPackage package,
-        DateTimeOffset evaluationInstantUtc, CancellationToken ct);
+        TrustedFirmId firm, PersistedReviewRecord record, CancellationToken ct);
     Task<PersistedReviewRecord?> FindAsync(
         TrustedFirmId firm, Guid recordId, CancellationToken ct);
 ```
 Two members, both firm-required, **no update, no upsert, no delete** — FR-27 and
 FR-37 mean there is no method for a user-reachable mutation to reach (AC-73).
+`SaveAsync` accepts only the already-projected model. It independently requires
+the trusted firm and refuses a record whose `FirmId` does not match that scope;
+it does not re-run projection or receive package-level inputs.
 `FindAsync` returns `null` identically for "does not exist" and "belongs to
 another firm", echoing no identifier (FR-32, AC-52).
 
@@ -541,7 +560,11 @@ interface IReviewRecordPurgeService
 ```
 One member, firm required, no omitting overload (AC-70). `PurgeOutcome` carries
 **counts only** — records deleted, slips deleted — and no identifier of a
-taxpayer value (FR-36, AC-140).
+taxpayer value (FR-36, AC-140). Its only public construction seams are
+`NoEligibleRecords()` for `(0, 0)` and
+`RecordsPurged(recordsDeleted, slipsDeleted)` for a positive record count and a
+non-negative slip count. It has no public constructor or mutable setter, and
+its fixed `ToString()` reveals no counts.
 
 ```
 interface IAuthenticationSessionStore
@@ -580,14 +603,18 @@ interface IDevelopmentFixtureSeeder Task SeedAsync(CancellationToken ct);
   Navigations are `IReadOnlyList<T>` mapped through backing fields
   (`PropertyAccessMode.Field`), which is what lets the entity types stay sealed
   and immutable in `Tenancy` while EF still materializes them.
-- **`SqlReviewRecordRepository`** — calls `ReviewPackageProjection.Project`,
-  then, in one transaction scoped to the trusted firm, reads
+- **`SqlReviewRecordRepository`** — accepts only a successful
+  `ReviewPackageProjection.Project` output, verifies that its `FirmId` matches
+  the independently supplied trusted firm, then, in one transaction scoped to
+  that firm, reads
   `MAX(PackageVersion)` for `(FirmId, CaseId, ParticipantId, TaxYear)`, writes at
   `max + 1`, and leaves every earlier version byte-unchanged (AC-39). Reads are
-  `WHERE FirmId = @firm AND RecordId = @id`, ordered by `Ordinal`.
-- **`SqlAuthenticationSessionStore`** — the four session operations, plus a
-  privileged expired-row removal command that **is never invoked on a timer**
-  (FR-66, AC-185).
+  `WHERE FirmId = @firm AND RecordId = @id`, ordered by `Ordinal`. It never
+  names or receives an executable `CaseReview` type and does not run projection.
+- **`SqlAuthenticationSessionStore`** — creates sessions only through
+  `AuthenticationSession.Create`, with no reflection or internal access; the
+  four session operations plus a privileged expired-row removal command that
+  **is never invoked on a timer** (FR-66, AC-185).
 - **`SqlIdentityDirectory`** — the four identity reads.
 - **`SqlReviewRecordPurgeService`** — deletes exactly the records of the given
   firm whose `RetentionUntilUtc` has been reached or passed, per
@@ -804,7 +831,7 @@ both pass before the next begins.
 | **1** | `Tenancy` leaf guards and policies: UTC instant, opacity, taxpayer text, monetary round-trip, retention boundary, trusted firm id, slip-type code. |
 | **2** | `Tenancy` composed behaviour: the allowlist projection, the session lifetime rules, the R-1 membership decision. |
 | **3** | `Persistence` EF model: `DbContext`, entity configurations, the initial migration, the relational test harness. |
-| **4** | `Persistence` behaviour: review-record repository, session store, identity directory, purge service. |
+| **4** | T14 identity-directory behaviour lands first; T11A then corrects the review-record, authentication-session, and purge-outcome construction seams. Only after T11A lands may the review-record repository, session store, and purge service implementations resume. |
 | **5** | `Persistence` registration extension, identifier source, connection-string guard, development seeder. |
 | **6** | Portal composition: the two new project references, `AddTaxAiPersistence`, startup refusal, gated dev seeding — **plus** the spec 010 reference/registration/production-file assertions this breaks. |
 | **7** | Portal authentication and the durable session: OIDC package, cookie scheme, ticket store, `/sign-in`, `/sign-out`, claim materialization — **plus** the spec 010 authentication/route assertions this breaks. |
@@ -817,7 +844,9 @@ not an oversight: an EF model plus its migration converges on one snapshot file,
 and ASP.NET Core wiring converges on `Program.cs` and `ModuleRegistration.cs`.
 Splitting those into "parallel" siblings would guarantee the merge conflicts the
 one-file-one-task rule exists to prevent. Waves 1, 2, and 4 carry the real
-parallelism — 6, 3, and 4 independent tasks.
+parallelism — 6, 3, and the 4 originally independent persistence-behaviour
+tasks. T11A is a corrective prerequisite introduced after T14 merged; it is not
+a fifth parallel implementation.
 
 ---
 

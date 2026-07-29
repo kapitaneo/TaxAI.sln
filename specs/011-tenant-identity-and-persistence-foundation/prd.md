@@ -142,6 +142,35 @@ A future API that accepts `DateTime` directly may reject
 `DateTimeKind.Unspecified` before constructing a `DateTimeOffset`. Such an API
 is outside T03. T03's current public signature remains unchanged.
 
+### Wave 4 construction seams (human-directed corrective clarification)
+
+After T14 merged, implementation of T12, T13, and T15 exposed three
+contradictions between the approved module boundary and the Wave 0 contract
+shapes. The following decisions are normative and T11A must land before any of
+those three tasks resumes:
+
+1. **The review repository accepts only the approved Tenancy persistence
+   model.** `ReviewPackageProjection.Project` converts
+   `AccountantReviewPackage` to `PersistedReviewRecord` before the value crosses
+   into `Persistence`. `IReviewRecordRepository.SaveAsync` accepts the trusted
+   firm plus that projected record; it does not accept, return, serialize, or
+   reference `AccountantReviewPackage` or another executable `CaseReview` type.
+   The merged Persistence boundary that forbids executable `CaseReview`
+   references remains authoritative.
+2. **Authentication-session creation is an invariant-preserving Tenancy
+   operation.** `AuthenticationSession.Create` accepts non-empty opaque session
+   and user identifiers, an optional non-empty active-firm identifier, and a
+   zero-offset creation instant. It creates an initially unrevoked session,
+   initializes last-seen time to creation time, and derives the 30-minute idle
+   and 8-hour absolute boundaries through `SessionLifetimePolicy`. EF Core keeps
+   the private parameterless materialization constructor. Persistence receives
+   no internals grant and may not invoke a non-public constructor by reflection.
+3. **Purge outcomes have named valid construction paths.**
+   `PurgeOutcome.NoEligibleRecords` represents the zero-record outcome;
+   `PurgeOutcome.RecordsPurged` requires a positive record count and a
+   non-negative deleted-slip count. Setters stay non-public, invalid counts are
+   refused, and `ToString()` emits fixed structural identity only.
+
 ### SIN — an intentional reversal of the earlier "masked last three" answer
 
 **No SIN or partial SIN may reach the browser or the persisted read model.** Not
@@ -717,6 +746,12 @@ internal contract. Every lookup, save, and delete operation SHALL take a **trust
 `FirmId` as a required, non-optional parameter, with no overload, default,
 optional argument, or alternate code path that omits it.**
 
+`IReviewRecordRepository.SaveAsync` SHALL accept only the already-projected
+`PersistedReviewRecord` plus the trusted firm and cancellation token. It SHALL
+accept, return, serialize, and reference no `AccountantReviewPackage` or other
+executable `CaseReview` type. The caller invokes
+`ReviewPackageProjection.Project` before the value crosses into `Persistence`.
+
 There is **exactly one** enumerated exemption: **session lookup by `SessionId`**,
 which is the operation that *establishes* the trusted firm scope and therefore
 cannot require one as input. The exemption list SHALL contain that one entry and
@@ -742,6 +777,10 @@ properties are a **closed allowlist**. The persisted fields SHALL be exactly:
 - populated unmapped box codes (from `ReviewedSlip.UnmappedBoxCodes`, in package
   order);
 - `PackageVersion`, `CreatedAtUtc`, `UpdatedAtUtc`, `RetentionUntilUtc`.
+
+The successful projection result is the only review-record value supplied to
+`IReviewRecordRepository.SaveAsync`. The repository does not perform the
+conversion and never receives the package.
 
 Nothing else. In particular the persistence model SHALL declare **no** property
 or column for: a SIN in any form; a SIN-presence flag; a date of birth; a mailing
@@ -798,9 +837,10 @@ concept**, and SHALL NOT fall back to an adjacent year.
 package. Any divergence SHALL be refused with nothing written.
 
 **FR-31 `[new]`** — A package whose `AccountantReviewPackage.FirmId` differs
-ordinally from the trusted `FirmId` supplied to the repository SHALL be refused
-with nothing written. **The trusted `FirmId` — never the package's — is what is
-stored.**
+ordinally from the trusted `FirmId` supplied to
+`ReviewPackageProjection.Project` SHALL be refused before any persistence call.
+**The trusted `FirmId` — never the package's — is what the projected record
+stores and what the repository independently requires as its scope.**
 
 **FR-32 `[new]`** — Every read operation SHALL be scoped by `(FirmId, resource
 identifier)`. A record that does not exist and a record owned by another firm
@@ -851,6 +891,11 @@ deterministic.
 **FR-36 `[new]`** — Purge output and purge logging SHALL contain **only structural
 counts and opaque identifiers** — never a taxpayer value, display name, box code,
 CRA line code, amount, session identifier, or any SIN-shaped string.
+`PurgeOutcome.NoEligibleRecords()` SHALL create the zero-record outcome;
+`PurgeOutcome.RecordsPurged(recordsDeleted, slipsDeleted)` SHALL require a
+positive record count and a non-negative slip count. No unrestricted public
+constructor or mutable public setter SHALL exist, and `ToString()` SHALL emit
+fixed structural identity only.
 
 **FR-37 `[new]`** — **Normal portal users SHALL have no way to delete a retained
 record.** No endpoint, no repository method reachable from an HTTP request, and no
@@ -1048,6 +1093,14 @@ be introduced: an Azure-SQL-backed session table, or an ASP.NET Core ticket stor
 with equivalent durability and revocation behaviour. Its contract SHALL live in
 `Tenancy`; its only implementation SHALL live in `Persistence`.
 
+`AuthenticationSession.Create(sessionId, userId, activeFirmId, createdAtUtc)`
+SHALL be the public construction seam used by that implementation. It SHALL
+refuse empty required identifiers, an empty present active-firm identifier, and
+a non-zero-offset instant; derive the idle and absolute boundaries through
+`SessionLifetimePolicy`; initialize the session as unrevoked; and expose no
+caller-supplied boundary or revoked-state parameter. Persistence SHALL use
+neither reflection nor internal access to construct the session.
+
 **FR-64 `[new]`** — The session record SHALL carry at minimum: an opaque
 `SessionId`; the local `UserId`; a nullable `ActiveFirmId`; `CreatedAtUtc`;
 `LastSeenAtUtc`; `IdleExpiresAtUtc`; `AbsoluteExpiresAtUtc`; and `RevokedAtUtc`
@@ -1196,9 +1249,10 @@ Any deviation is a defect, not a delivered outcome.
   2. `Tenancy` behaviour: the allowlist projection, every fail-closed guard, the
      UTC-instant rejection, the session lifetime rules, the exclusive retention
      boundary calculation, and their tests.
-  3. `Persistence`: `DbContext`, entity configurations, the initial migration,
-     repository implementations, the durable session store, the purge
-     implementation, and their tests.
+  3. `Persistence`: `DbContext`, entity configurations, and the initial
+     migration; after T14, corrective T11A fixes the three Wave 4 contract seams;
+     only then do the remaining repository, durable-session-store, and purge
+     implementations resume with their tests.
   4. Portal authentication, the durable ticket store, session revocation, the
      firm claim, per-request R-1 verification, and the firm-selection surface.
   5. Portal composition-root wiring, startup refusal checks, and environment-gated
@@ -1402,12 +1456,15 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
 
 ### Happy path
 
-35. **A supported package is persisted and read back.** Given a trusted `FirmId`
-    `F` and a 2025 `AccountantReviewPackage` with `FirmId == F`, one reviewed slip
-    with two line entries, three box amounts, and one unmapped code, When it is
-    saved and then read back by `(F, record identifier)`, Then a record is
-    returned whose `TaxYear`, ordered line codes and amounts, ordered box codes
-    and amounts, and ordered unmapped codes are exactly equal to the package's.
+35. **A supported projected record is persisted and read back.** Given a trusted
+    `FirmId` `F` and a successful `ReviewPackageProjection.Project` result for a
+    2025 `AccountantReviewPackage` with `FirmId == F`, one reviewed slip with two
+    line entries, three box amounts, and one unmapped code, When the projected
+    `PersistedReviewRecord` is saved and then read back by
+    `(F, record identifier)`, Then a record is returned whose `TaxYear`, ordered
+    line codes and amounts, ordered box codes and amounts, and ordered unmapped
+    codes are exactly equal to the projection output. The repository API names
+    no executable `CaseReview` type.
 36. **Sign-in with exactly one active membership yields a firm claim.** Given an
     authenticated principal whose user has exactly one active `FirmMembership` in
     firm `F`, When sign-in completes, Then the local principal carries exactly one
@@ -1429,9 +1486,9 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
 
 ### Fail-closed rejections — one AC per rule
 
-40. **Null package.** Given a trusted `FirmId`, When save is called with a null
-    package, Then it is refused with at least one validation error and nothing is
-    written.
+40. **Null package.** Given a trusted `FirmId`, When
+    `ReviewPackageProjection.Project` is called with a null package, Then it is
+    refused with at least one validation error and no repository call is made.
 41. **No trusted firm parameter exists to omit.** Given every repository, purge,
     and projection type in `Tenancy` and `Persistence`, When their methods are
     read by reflection, Then every lookup, save, and delete declares a required
@@ -1439,34 +1496,35 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
     omits it**, except exactly the one enumerated session-lookup exemption of
     FR-21.
 42. **Package firm mismatch.** Given trusted `FirmId` `F1` and a package whose
-    `FirmId` is `F2`, When save is called, Then it is refused and nothing is
-    written.
+    `FirmId` is `F2`, When projection is called, Then it is refused, no
+    persistence record is produced, and nothing is written.
 43. **Unsupported tax year — backward.** Given a package whose `TaxYear` is 2024,
-    When save is called, Then it is refused and nothing is written.
+    When projection is called, Then it is refused and nothing is written.
 44. **Unsupported tax year — forward.** Given a package whose `TaxYear` is 2026,
-    When save is called, Then it is refused identically — no adjacent-year
+    When projection is called, Then it is refused identically — no adjacent-year
     fallback, no coercion, no "closest supported year".
 45. **Slip/package year divergence.** Given a 2025 package containing a slip whose
-    `TaxYear` is 2024, When save is called, Then it is refused and nothing is
+    `TaxYear` is 2024, When projection is called, Then it is refused and nothing is
     written.
 46. **Amount that cannot round-trip.** Given a package containing a monetary
     amount whose exact value cannot be stored and reloaded equal under the
-    configured precision and scale, When save is called, Then it is refused and
+    configured precision and scale, When projection is called, Then it is refused and
     nothing is written — never rounded, never truncated.
 47. **Over-length string.** Given a package whose taxpayer display name exceeds
-    the declared column length by one character, When save is called, Then it is
+    the declared column length by one character, When projection is called, Then it is
     refused and nothing is written — never truncated.
 48. **Nine-digit run in taxpayer content.** Given a package whose taxpayer display
-    name contains nine consecutive digits, When save is called, Then it is refused
+    name contains nine consecutive digits, When projection is called, Then it is refused
     and nothing is written.
 49. **Non-opaque `CaseId`.** Given a package whose `CaseId` violates the FR-25
     opacity guard (empty, over-length, or containing a character outside the safe
-    set), When save is called, Then it is refused before anything is written.
+    set), When projection is called, Then it is refused before anything is written.
 50. **Non-opaque `ParticipantId`.** Given the same violation on `ParticipantId`,
-    When save is called, Then it is refused before anything is written.
-51. **Unknown slip type discriminator.** Given a persisted-model input carrying a
-    slip type the persistence layer does not recognize, When save is called, Then
-    it is refused and nothing is written.
+    When projection is called, Then it is refused before anything is written.
+51. **Unknown slip type discriminator.** Given a package carrying a slip type
+    `ReviewPackageProjection` does not recognize, When projection is called,
+    Then it is refused, no persistence record is produced, and nothing is
+    written.
 52. **Cross-firm read is indistinguishable from not-found.** Given a record owned
     by `F1` at identifier `R` and a read by trusted firm `F2`, When the read
     executes, Then the result is byte-identical to a read of an identifier that
@@ -1745,9 +1803,11 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
      `src/Persistence/Migrations/` and every seed file, When scanned, Then none
      contains a person name, address, email, phone, nine-digit run, CRA line
      code, or box code.
-126. **A cross-firm write cannot be constructed.** Given a save executed with
-     trusted firm `F1`, When the stored row's `FirmId` is read, Then it equals
-     `F1` regardless of what `FirmId` the package carried.
+126. **A cross-firm write cannot be constructed.** Given a projection executed
+     with trusted firm `F1`, When its output is passed to the repository under
+     the same required trusted scope and the stored row's `FirmId` is read, Then
+     it equals `F1`; a package carrying any other firm produced no projected
+     record to save.
 
 ### Routing, transport, and diagnostics
 
