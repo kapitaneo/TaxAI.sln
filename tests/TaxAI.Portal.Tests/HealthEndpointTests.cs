@@ -1,6 +1,8 @@
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using TaxAI.Portal.Tests.Support;
 
 namespace TaxAI.Portal.Tests;
 
@@ -20,8 +22,19 @@ public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Pr
 
     private readonly WebApplicationFactory<Program> _factory;
 
+    /// <remarks>
+    /// This suite starts a <b>Production</b> host, so per decision B-6 it must
+    /// register an approved durable Data Protection provider: outside
+    /// Development the host refuses to start on the framework's machine-local
+    /// key-ring fallback. The registration is additive — every assertion below
+    /// is unchanged.
+    /// </remarks>
     public HealthEndpointTests(WebApplicationFactory<Program> factory) =>
-        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            builder.ConfigureTestServices(services => services.AddApprovedDurableDataProtection());
+        });
 
     public void Dispose() => _factory.Dispose();
 
