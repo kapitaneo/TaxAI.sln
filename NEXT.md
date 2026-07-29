@@ -101,28 +101,66 @@
   - AC-1…AC-50 verification recorded in
     `specs/010-portal-foundation/verification.md`.
 
+## Implemented — spec 011 final verification remains
+
+- Spec 011 — Tenant Identity and Persistence Foundation:
+  - `Tenancy` now owns the deterministic trusted-firm boundary, persisted
+    review-record shapes and allowlist projection, identity/session contracts,
+    membership and lifetime policies, retention calculation, and repository and
+    purge ports;
+  - `Persistence` is the only EF Core project and implements the SQL Server
+    model, repository-owned migration, firm-scoped immutable review-record
+    repository, durable shared session store, identity directory, explicit
+    retention purge, connection guard, and development-only synthetic seeding;
+  - external OIDC sign-in creates a server-side revocable session; the browser
+    carries only a protected opaque key, and sign-out revokes the authoritative
+    session so a copied cookie cannot reuse or recreate it;
+  - protected requests reload the local user and active memberships, and the
+    application-issued `taxai_firm_id` claim comes only from the live session;
+    a provider-supplied firm claim is discarded and never trusted;
+  - users with several memberships select one through the authenticated
+    membership surface, which revokes the old session and issues a new one;
+  - persistence and portal PII posture is **no SIN in any form** — not full,
+    masked, partial, stored, rendered, logged, or placed in a fixture — while the
+    engine's existing in-memory masking contract remains unchanged;
+  - the exclusive seven-year retention boundary is an engineering product
+    decision, not a CRA fact or statutory statement.
+
+The functional and documentation waves through T20 are implemented. Spec 011's
+explicit T21 end-to-end verification, Amendments audit, manifest-floor update,
+and AC-by-AC `verification.md` remain separate work and must be invoked by that
+TaskID.
+
 ## Next
 
-Decide the **first taxpayer-data surface** for the portal. It is blocked, by
-design, on the Class A questions recorded in
-`specs/010-portal-foundation/prd.md` (Open questions A–F): authentication and
-authorization; tenant/firm isolation at the HTTP boundary; what taxpayer data a
-UI may render and at what masking level; logging, telemetry, and error-reporting
-policy; hosting, TLS, public exposure, and data residency; and whether this host
-also exposes the untrusted document-extraction ingress.
+After spec 011's explicit verification task, the next product decision is the
+first taxpayer-data surface. Spec 011 resolves spec 010 question A
+(authentication and authorization), question B (tenant/firm isolation), the SIN
+part of question C (**render nothing in any form**), question D (logging,
+telemetry, and safe errors), and question E (required Canadian residency,
+encryption, and startup-refusal posture).
 
-Those answers are a human's to give. Until they exist, no endpoint, page,
-component, or middleware that renders taxpayer data, accepts user input, uploads
-a document, persists data, reads a session or identity, or crosses a
-firm/case/participant boundary may be added to the portal — adding one makes the
-feature `tax-domain`.
+Question C's wider taxpayer-data render inventory still needs a human-approved
+answer. Question F — whether the portal exposes the untrusted document-extraction
+ingress — remains reserved, and no ingress implementation ships.
+
+Rendering taxpayer data remains a separate `tax-domain` specification. The
+narrowed gate also requires a further `tax-domain` specification before document
+upload, stored-package mutation or deletion, firm or membership provisioning, or
+any second taxpayer-data surface.
+
+Deployment is separately blocked. As shipped, this build starts in Development
+only and may not be deployed anywhere that can receive real taxpayer data until
+a deployment specification provides and verifies the Canadian Azure Storage and
+Key Vault Data Protection key ring, hosting, TLS, exposure, residency, secrets,
+operations, and production provisioning.
 
 ## Explicitly not now
 
 - new CRA forms;
 - T1 calculation;
 - NETFILE/EFILE;
-- frontend implementation;
-- database implementation;
-- OCR or LLM integration;
+- taxpayer-data screens or editing;
+- document upload, OCR, or LLM integration;
+- production deployment or provisioning;
 - microservices.

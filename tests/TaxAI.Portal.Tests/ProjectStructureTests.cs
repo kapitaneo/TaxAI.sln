@@ -23,6 +23,12 @@ public sealed class ProjectStructureTests
     private static readonly string PortalRoot =
         Path.Combine(RepositoryRoot, "src", "TaxAI.Portal");
 
+    private static readonly string TenancyRoot =
+        Path.Combine(RepositoryRoot, "src", "Tenancy");
+
+    private static readonly string PersistenceRoot =
+        Path.Combine(RepositoryRoot, "src", "Persistence");
+
     private static readonly string PortalProject =
         Path.Combine(PortalRoot, "TaxAI.Portal.csproj");
 
@@ -289,46 +295,117 @@ public sealed class ProjectStructureTests
             constructor => Assert.Empty(constructor.GetParameters()));
     }
 
-    // ---------------------------------------------------------- AC-44, AC-45
+    // ---------------------------------------------------- spec 011 AC-141–143
 
-    [Theory] // AC-44
-    [InlineData("TaxLogicEngine")]
-    [InlineData("CaseProcessing")]
-    [InlineData("inward")]
-    [InlineData("no tax")]
-    [InlineData("CRA")]
-    [InlineData("tax-year")]
-    [InlineData("taxpayer data")]
-    [InlineData("PII")]
-    [InlineData("input")]
-    [InlineData("Class A")]
-    [InlineData("tax-domain")]
-    public void PortalInstructions_StateTheBoundaryAndTheGate(string required)
+    [Fact]
+    public void NewModuleInstructions_StateTheirExactBoundaries() // spec 011 AC-141
     {
-        var claude = File.ReadAllText(Path.Combine(PortalRoot, "CLAUDE.md"));
+        var tenancy = NormalizeWhitespace(
+            File.ReadAllText(Path.Combine(TenancyRoot, "CLAUDE.md")));
+        var persistence = NormalizeWhitespace(
+            File.ReadAllText(Path.Combine(PersistenceRoot, "CLAUDE.md")));
 
-        Assert.Contains(required, claude, StringComparison.OrdinalIgnoreCase);
+        foreach (var required in new[]
+                 {
+                     "module boundary",
+                     "production project references are exactly",
+                     "CaseReview",
+                     "TaxLogicEngine",
+                     "PII posture",
+                     "Forbidden dependencies",
+                     "No tax-year policy of its own",
+                 })
+        {
+            Assert.Contains(required, tenancy, StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var required in new[]
+                 {
+                     "module boundary",
+                     "only production project reference is exactly `Tenancy`",
+                     "Microsoft.EntityFrameworkCore.SqlServer",
+                     "Microsoft.EntityFrameworkCore.Design",
+                     "PII posture",
+                     "Forbidden dependencies",
+                     "No tax-year policy of its own",
+                 })
+        {
+            Assert.Contains(required, persistence, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Theory] // spec 011 AC-142
+    [InlineData("Tenancy")]
+    [InlineData("Persistence")]
+    public void NewModuleAgentsBridges_ArePointersNotRulebooks(string module)
+    {
+        var agents = File.ReadAllText(
+            Path.Combine(RepositoryRoot, "src", module, "AGENTS.md"));
+
+        Assert.Contains("pointer", agents, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("../../AGENTS.md", agents, StringComparison.Ordinal);
+        Assert.Contains("../../CLAUDE.md", agents, StringComparison.Ordinal);
+        Assert.Contains("(CLAUDE.md)", agents, StringComparison.Ordinal);
+
+        Assert.True(
+            agents.Split('\n').Length < 15,
+            $"{module}/AGENTS.md must stay a pointer, not a rulebook.");
     }
 
     [Fact]
-    public void PortalInstructions_ForbidTaxpayerDataSurfacesUntilTheClassAQuestionsAreAnswered() // AC-44
+    public void PortalInstructions_StateTheNarrowedBoundaryAndGate() // spec 011 AC-143
     {
-        var claude = File.ReadAllText(Path.Combine(PortalRoot, "CLAUDE.md"));
+        var claude = NormalizeWhitespace(
+            File.ReadAllText(Path.Combine(PortalRoot, "CLAUDE.md")));
 
-        // The gate names each surface it stops, so nobody has to infer the list.
-        foreach (var surface in new[]
+        foreach (var required in new[]
                  {
-                     "renders taxpayer data",
-                     "accepts user input",
-                     "uploads a document",
-                     "persists data",
-                     "session",
-                     "identity",
-                     "separate specification",
+                     "exactly four",
+                     "TaxLogicEngine",
+                     "CaseProcessing",
+                     "Tenancy",
+                     "Persistence",
+                     "no SIN in any form",
+                     "taxai_firm_id",
+                     "read only from the application-issued",
+                     "provider-supplied",
+                     "never trusted",
+                     "revokes the session server-side",
+                     "computes no tax and implements no CRA mapping",
+                     "No tax-year policy",
+                     "further approved `tax-domain` specification",
                  })
         {
-            Assert.Contains(surface, claude, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(required, claude, StringComparison.OrdinalIgnoreCase);
         }
+
+        foreach (var gatedSurface in new[]
+                 {
+                     "Rendering taxpayer data",
+                     "uploading a document",
+                     "mutating or deleting a stored package",
+                     "provisioning a firm or membership",
+                     "adding a second taxpayer-data surface",
+                 })
+        {
+            Assert.Contains(gatedSurface, claude, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void PortalInstructions_RecordTheDevelopmentOnlyDeploymentRefusal()
+    {
+        var claude = NormalizeWhitespace(
+            File.ReadAllText(Path.Combine(PortalRoot, "CLAUDE.md")));
+
+        Assert.Contains(
+            "this build starts in Development only",
+            claude,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "may not be deployed anywhere that can receive real taxpayer data",
+            claude,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -363,6 +440,9 @@ public sealed class ProjectStructureTests
             .Select(element => element.Attribute("Include")!.Value.Replace('\\', '/'))
             .OrderBy(reference => reference, StringComparer.Ordinal)
             .ToArray();
+
+    private static string NormalizeWhitespace(string value) =>
+        Regex.Replace(value, @"\s+", " ");
 
     private static string FindRepositoryRoot()
     {

@@ -4,7 +4,12 @@ This file provides repository-level guidance to Claude Code (claude.ai/code) whe
 
 ## Product framing
 
-TaxAI is an AI-powered Canadian tax filing assistant. Its deterministic core is **TaxLogicEngine**, a .NET 8.0 class library that today implements CRA slip parsing (T4, T5) and box→CRA-line mapping via JSON config; future business modules (clients, firms, documents, intake, review, tax cases) will grow around it.
+TaxAI is an AI-powered Canadian tax filing assistant. Its deterministic core is
+**TaxLogicEngine**, a .NET 8.0 class library that implements CRA slip parsing
+(T4, T5) and box→CRA-line mapping via JSON config. Deterministic case,
+extraction, processing, review, and tenancy modules surround that core;
+infrastructure adapters live separately in `Persistence`, and the portal is the
+single host.
 
 Real people file real returns from this output. A wrong box→line mapping is a filing error with financial and legal consequences for the taxpayer.
 
@@ -56,16 +61,30 @@ the same PR that introduces it, or the gate fails on it by design.
   ingestion contract between future OCR/LLM adapters and the tax domain.
 - **`src/CaseProcessing/`** — the deterministic T4 case processor.
 - **`src/CaseReview/`** — the deterministic accountant review package.
+- **`src/Tenancy/`** — deterministic, provider-independent trusted-firm,
+  persisted read-model, identity/session, projection, retention, purge-port, and
+  validation contracts. Its production references are exactly `CaseReview` and
+  `TaxLogicEngine`; its local `CLAUDE.md` owns the boundary and the no-SIN-at-
+  persistence rule.
+- **`src/Persistence/`** — the infrastructure adapter and the repository's only
+  EF Core project. Its only project reference is `Tenancy`; it owns the SQL
+  Server EF model, repository-owned migrations, repositories, durable session
+  store, identity directory, purge implementation, and one registration
+  extension.
 - **`src/TaxAI.Portal/`** — the ASP.NET Core host: the repository's only
   executable project, and its single dependency-injection composition root. Its
-  local `CLAUDE.md` owns the portal boundary and the gate that keeps every
-  taxpayer-data surface out until the reserved Class A questions are answered.
-  **ASP.NET Core lives here and in its test project, and nowhere else.**
+  production project references are exactly `TaxLogicEngine`,
+  `CaseProcessing`, `Tenancy`, and `Persistence`. Its local `CLAUDE.md` owns the
+  narrowed gate that still keeps every taxpayer-data surface out. **ASP.NET
+  Core lives here and in its test project, and nowhere else.**
 - **`tests/TaxLogicEngine.Tests/`** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
 - **`tests/TaxCases.Tests/`** — xUnit contract, model, service, boundary, and
   end-to-end verification for Tax Case Core.
 - **`tests/DocumentExtraction.Tests/`**, **`tests/CaseProcessing.Tests/`**,
   **`tests/CaseReview.Tests/`** — the matching suites for those modules.
+- **`tests/Tenancy.Tests/`**, **`tests/Persistence.Tests/`** — contract,
+  boundary, model, service, relational, schema, and composition coverage for
+  the two spec 011 modules.
 - **`tests/TaxAI.Portal.Tests/`** — xUnit host, composition-root, boundary,
   security, and repository-verification suites for the portal. Adds
   `Microsoft.AspNetCore.Mvc.Testing` for in-process host testing; no network
@@ -91,11 +110,17 @@ Infrastructure (EF, OCR, LLM, email, cloud) ──► application/domain contrac
 
 - **Tax-domain code must not depend on** ASP.NET Core, EF Core, SQL, cloud SDKs, OCR providers, LLM providers, email providers, or frontend frameworks.
 
-Today there is one project, so these are documented invariants rather than compiled constraints — but they bind the first business module before it exists.
+These rules are both documented invariants and compiled project boundaries.
+Adding a new module never relaxes them.
 
 ## Global security / PII rules
 
-- **Never log or echo a full SIN — anywhere in any module.** Mask to the last 3 digits in all logs, errors, and output. (TaxLogicEngine's implementation specifics are in its `CLAUDE.md`.)
+- **Never log or echo a full SIN — anywhere in any module.** The portal and the
+  persisted read model are stricter: **no SIN in any form**, including a masked
+  or partial value, may reach a browser, URL, cookie, log, error, metric,
+  fixture, or database. `TaxLogicEngine`'s existing in-memory
+  `RecipientIdentifier` masking contract remains unchanged; its local
+  `CLAUDE.md` owns that implementation boundary.
 - **Tax facts come from canada.ca only.** Not from a blog, not from a competitor's site, not from memory, and not from a prior PRD that lacks a citation. An unverified tax fact never enters a spec or the code.
 - No secrets, `*.user` files, or `.claude/settings.local.json` may become tracked.
 
@@ -207,7 +232,8 @@ and reviewed content from defensive output. AC-1 through AC-54 are recorded in
 `specs/009-accountant-review-package/verification.md`.
 
 Spec 010 (Portal Foundation) is complete. `src/TaxAI.Portal/` is the
-repository's first runnable application: an ASP.NET Core host whose single
+repository's first runnable application. At the spec 010 boundary it was an
+ASP.NET Core host whose single
 composition root (`ModuleRegistration.AddTaxAiModules`) registers
 `IT4LineMapProvider`, `IT5LineMapProvider`, and `T4CaseProcessor` as singletons
 and nothing else, with the service provider validated on build and with scope
@@ -225,16 +251,54 @@ Production references are exactly `TaxLogicEngine` and `CaseProcessing`;
 `AccountantReviewPackage` is taxpayer data. AC-1 through AC-50 are recorded in
 `specs/010-portal-foundation/verification.md`.
 
-**The portal is a foundation, not a product surface.** No endpoint, page,
-component, or middleware that renders taxpayer data, accepts user input, uploads
-a document, persists data, reads a session or identity, or crosses a
-firm/case/participant boundary may be added to it until the Class A questions in
-`specs/010-portal-foundation/prd.md` (Open questions A–F: authentication and
-authorization; tenant/firm isolation at the HTTP boundary; what a UI may render
-and at what masking level; logging and telemetry policy; hosting, TLS, exposure,
-and data residency; deployable topology) are answered in a separate
-specification. Adding any of those makes the feature `tax-domain`, and that
-reclassification is not a downstream design decision.
+Spec 011 (Tenant Identity and Persistence Foundation) has delivered the
+repository's trusted identity, tenancy, persistence, retention, and revocation
+foundation:
+
+- `Tenancy` owns the deterministic trusted-firm boundary, the explicit
+  persisted review model and allowlist projection, identity/session models,
+  repository and purge ports, membership verification, session lifetimes, and
+  the exclusive retention calculation. Its references are exactly
+  `CaseReview` and `TaxLogicEngine`.
+- `Persistence` is the only EF Core project. It references exactly `Tenancy`
+  and implements the SQL Server model, repository-owned migration,
+  firm-scoped review repository, durable shared session store, identity reads,
+  retention purge, connection guard, and development-only synthetic seeding.
+- The portal now delegates sign-in to OIDC, carries only a protected opaque
+  ticket key in the browser, rebuilds identity and the trusted
+  `taxai_firm_id` claim from the durable session, revalidates active membership
+  on protected requests, supports explicit firm selection, and revokes sessions
+  server-side on sign-out.
+- The portal's production project references are exactly `TaxLogicEngine`,
+  `CaseProcessing`, `Tenancy`, and `Persistence`; it still directly references
+  neither `TaxCases`, `DocumentExtraction`, nor `CaseReview`.
+- The persistence and web boundary reverses the earlier portal masking
+  possibility: **no SIN in any form** is stored or rendered. The engine's
+  existing in-memory `RecipientIdentifier` masking remains untouched.
+- The seven-year retention default is an engineering product decision, not a
+  CRA fact or statutory minimum. The stored boundary is exclusive and purge is
+  explicit and trusted-firm-scoped.
+
+Spec 011 answers spec 010 questions A (authentication and authorization), B
+(tenant/firm isolation), C for SIN only (nothing may be rendered in any form),
+D (fail-closed diagnostics and logging prohibition), and E (required Canadian
+residency and encryption posture). Question F — whether this host exposes the
+untrusted document-extraction ingress — remains reserved and the ingress remains
+unimplemented.
+
+**The portal is still a foundation, not a taxpayer-data product surface.** Its
+gate is narrowed, never deleted. Rendering taxpayer data, uploading a document,
+mutating or deleting a stored package, provisioning a firm or membership, or
+adding a second taxpayer-data surface requires a further approved
+`tax-domain` specification. The UI computes no tax, implements no CRA mapping,
+and holds no tax-year policy.
+
+**Deployment remains fail-closed.** Spec 011 ships no production Azure Data
+Protection provider. As shipped, this build starts in Development only and may
+not be deployed anywhere that can receive real taxpayer data until a deployment
+specification supplies and verifies the Canadian Azure Storage and Key Vault key
+ring plus the hosting, TLS, exposure, residency, secrets, operations, and
+provisioning posture.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

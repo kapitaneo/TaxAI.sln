@@ -1,86 +1,104 @@
 # CLAUDE.md — TaxAI.Portal
 
-Project-level guidance for `src/TaxAI.Portal/`. Read this together with the root
-[CLAUDE.md](../../CLAUDE.md). Delivered by spec 010 (Portal Foundation), a
-`platform` feature: **Tax/CRA semantic impact: none.**
+Read the root [CLAUDE.md](../../CLAUDE.md) first. It owns repository policy,
+the modular-monolith dependency rules, global PII policy, and the
+spec→plan→implement workflow. This file defines the narrowed portal boundary
+after spec 011. The gate is narrower than spec 010's gate; it is not deleted.
 
 ## What this project is
 
-The repository's single deployable application: an ASP.NET Core web host that
-starts the process, composes the already-shipped modules into one
-dependency-injection container, and serves fixed content. It is the **UI / API
-host** layer in the root instructions' dependency diagram.
+`TaxAI.Portal` is the repository's single ASP.NET Core host and composition
+root. It serves the unchanged public shell and health response, delegates
+authentication to an external OIDC provider, uses a revocable server-side
+authentication session, verifies active firm membership on protected requests,
+and exposes the authenticated firm-selection surface.
 
-It is **not** a portal yet. There is no screen, no data, no input, no login, and
-no storage. Every one of those is a later, separately-specified feature.
+The portal composes the persistence adapter but renders no taxpayer data. It is
+still a foundation rather than a taxpayer-data product surface.
 
-## Dependencies point inward, and are exactly two
+## Dependencies point inward, and are exactly four
 
-```
-TaxAI.Portal ──► CaseProcessing ──► DocumentExtraction
-TaxAI.Portal ──► TaxLogicEngine  ◄──┘
-```
+The production project references are exactly:
 
-The production project references are exactly `TaxLogicEngine` and
-`CaseProcessing`. Nothing else. **No module may reference this project** — not in
-a project file, not in source, not transitively. If a module ever needs something
-from here, the design is inverted.
+- `TaxLogicEngine`;
+- `CaseProcessing`;
+- `Tenancy`;
+- `Persistence`.
 
-`TaxCases` is not referenced. `DocumentExtraction` arrives transitively and is
-never named. `CaseReview` is **not** referenced: spec 009 is merged, but an
-`AccountantReviewPackage` and its reviewed slips are taxpayer data, and rendering
-them is exactly what the gate below stops.
+The portal does not directly reference `TaxCases`, `DocumentExtraction`, or
+`CaseReview`. Those modules stay behind inward contracts, and no module may
+reference `TaxAI.Portal`. All service registration remains rooted in
+`ModuleRegistration.cs`.
 
-## The line this project may not cross
+## Identity, firm scope, and revocation
 
-- **The UI computes no tax and implements no CRA mapping.** No CRA line number,
-  no box code, no box→line table, no mapping-config read. Every line number in
-  the system originates from `TaxLogicEngine`'s embedded JSON config, reached
-  only through a provider.
-- **No tax-year policy lives here.** No tax-year literal, no supported-year type.
-  Year isolation belongs to the modules that own it.
-- **No arithmetic and no rounding.** No `decimal`, `double`, `float`,
-  `Math.Round`, `MidpointRounding`, or `MoneyRounding`.
-- **No taxpayer data and no PII.** No `T4Slip`, `T5Slip`, raw input, line entry,
-  mapping result, `RecipientIdentifier`, extraction, or `TaxCase` type is named,
-  rendered, logged, serialized, persisted, or transmitted. No SIN handling and no
-  masking or redaction helper — in v1 the safest posture is available and is
-  therefore mandatory: **the data never enters the process.**
-- **No endpoint accepts input.** No request body, route value, query value, form
-  value, header, cookie, or uploaded file. There is no input surface to validate,
-  because there is no input surface.
-- **No authentication, session, identity, persistence, HTTP client, background
-  service, or system clock.**
+- External OIDC authenticates the caller. The portal stores no password and
+  persists no provider token.
+- The browser cookie carries only a Data-Protection-protected opaque ticket key.
+  The durable server-side session is authoritative for local user identity,
+  lifetime, revocation state, and active firm.
+- A trusted firm is read only from the application-issued `taxai_firm_id` claim,
+  which is rebuilt from the server-side session record. No firm identifier from
+  a route, query, form, body, header, or cookie payload is an authorization
+  boundary.
+- A provider-supplied `taxai_firm_id` claim is always discarded and never
+  trusted. Only the application may issue the firm claim after verifying a
+  currently active local membership.
+- Protected firm-scoped requests reload the local user and memberships and fail
+  closed unless the user, membership, and session firm still agree.
+- Sign-out revokes the session server-side as well as clearing the cookie. A
+  copied pre-sign-out cookie cannot reuse or recreate a revoked session, and
+  session-store failure fails closed.
 
-## Wiring lives in exactly one file
+## PII posture: no SIN in any form
 
-All service registrations belong in `ModuleRegistration.cs`. Wiring lives in one
-place or it lives in several — and the second consumer of the engine must not be
-able to invent a second provider instance. The service provider is validated on
-build, with scope validation, so a mis-wired container fails at startup rather
-than on first request.
+No SIN or partial SIN may reach this project, a response, URL, cookie, log,
+metric, trace, error, or persisted portal-facing model. Not full, not masked,
+not last-three or last-four, and not a SIN-derived display identifier. The
+portal names no `RecipientIdentifier` and creates no masking, redaction, or
+scrubbing path.
 
-`IDocumentExtractionIngress` is **not** implemented, registered, or resolved.
-Spec 007 shipped that signature deliberately without an implementation; creating
-one here would invent the untrusted-input intake path inside a hosting spec.
+The engine's existing in-memory masking contract is unchanged. The web and
+persistence boundary is stricter: no SIN in any form.
 
-## The gate — read this before adding anything
+## Tax and tax-year boundary
 
-**No endpoint, page, component, or middleware that renders taxpayer data,
-accepts user input, uploads a document, persists data, reads a session or
-identity, or crosses a firm/case/participant boundary may be added to this
-project until the Class A questions in
-[specs/010-portal-foundation/prd.md](../../specs/010-portal-foundation/prd.md)
-(Open questions A–F) are answered in a separate specification.**
+- **The UI computes no tax and implements no CRA mapping.** It contains no CRA
+  line authority, box→line table, mapping-config read, arithmetic, or rounding.
+- **No tax-year policy lives here.** The portal declares no supported-year list,
+  current-year concept, tax-year fallback, or tax-year literal as policy.
+- `IDocumentExtractionIngress` remains unimplemented, unregistered, and
+  unresolved. The portal accepts no document upload.
 
-Those questions are authentication and authorization; tenant/firm isolation at
-the HTTP boundary; what taxpayer data a UI may render and at what masking level;
-logging, telemetry, and error-reporting policy; hosting, TLS, public exposure,
-and data residency; and whether this host also exposes the untrusted extraction
-ingress.
+## Deployment refusal
 
-Adding any of those surfaces makes the feature **`tax-domain`**, and every
-tax-domain protection reattaches: CRA verification against canada.ca, explicit
-tax-year scope, fail-closed behaviour, PII masking, and a negative test per
-fail-closed rule. That reclassification is not a design decision anyone
-downstream gets to make silently.
+Spec 011 deliberately ships the startup refusal, not the production Azure Data
+Protection provider. As shipped, this build starts in Development only. A
+non-Development host refuses to start without a deployment-owned, explicitly
+registered durable key repository and encryptor in addition to the other
+startup requirements.
+
+This build may not be deployed anywhere that can receive real taxpayer data
+until a deployment specification supplies and verifies the Canadian Azure
+Storage and Key Vault key ring, hosting, exposure, TLS, residency, secrets,
+operations, and provisioning posture.
+
+## The narrowed gate — read before adding a surface
+
+The identity, trusted-firm, session, logging, and residency decisions made by
+spec 011 do not authorize a taxpayer-data surface.
+
+**Rendering taxpayer data, uploading a document, mutating or deleting a stored
+package, provisioning a firm or membership, or adding a second taxpayer-data
+surface still requires a further approved `tax-domain` specification.**
+
+The same is true for editing or approving taxpayer values, listing taxpayers,
+exporting a record, implementing an extraction ingress, or exposing a JSON API.
+Do not reinterpret an available repository contract as authorization to map an
+endpoint. Normal portal users have no delete path, production provisioning does
+not ship, and `/` plus `/health` remain byte-identical to spec 010.
+
+Any further `tax-domain` specification must retain the no-SIN-in-any-form rule,
+trusted-firm isolation, per-request membership verification, server-side
+revocation, fixed safe errors, and the rule that the UI computes no tax and
+implements no CRA mapping.
