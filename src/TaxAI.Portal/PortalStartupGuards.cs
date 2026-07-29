@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.Extensions.Options;
 using Persistence;
 using Tenancy.Contracts;
 
@@ -23,12 +26,15 @@ namespace TaxAI.Portal;
 /// <i>enabled</i> outside Development; it never disables anything inside it.
 /// </para>
 /// <para>
-/// <b>Known gap, deliberately recorded.</b> The key-ring requirement here is
-/// satisfied by configuration. This specification registers no durable key-ring
-/// provider at all, so a host outside Development has no real key ring even when
-/// these settings are present. Supplying one is an obligation of the later
-/// deployment specification, and until it exists a build of this specification
-/// alone must not be deployed anywhere that can receive real taxpayer data.
+/// <b>The key ring is checked in the container, not in configuration (B-6).</b>
+/// Two settings naming a key ring prove nothing about whether one exists, so
+/// outside Development the built service provider must actually hold an
+/// <see cref="IDataProtectionProvider"/>, an explicit key repository, and an
+/// explicit key encryptor — none of them the framework's own local
+/// implementations. This specification registers no such provider, so a
+/// non-Development host of this build refuses to start; supplying the real
+/// Azure Blob Storage repository and Azure Key Vault encryptor is an obligation
+/// of the later deployment specification.
 /// </para>
 /// </summary>
 internal static class PortalStartupGuards
@@ -54,6 +60,9 @@ internal static class PortalStartupGuards
 
     internal const string UnconfiguredKeyRingMessage =
         "A data protection key ring must be configured outside Development.";
+
+    internal const string UnregisteredKeyRingMessage =
+        "A durable data protection key ring must be registered outside Development. Configuration values alone do not satisfy this requirement.";
 
     internal const string NonDurableSessionStoreMessage =
         "The registered session store must be the durable one outside Development.";
@@ -93,7 +102,8 @@ internal static class PortalStartupGuards
     /// <summary>
     /// The second half of the refusal, run against the <b>built</b> application:
     /// re-verifies the connection string, and outside Development additionally
-    /// requires a configured key ring and the durable session store.
+    /// requires a configured <i>and registered</i> key ring and the durable
+    /// session store.
     /// <para>
     /// The connection string is deliberately checked twice — once before
     /// anything is registered, and once here against the configuration the
@@ -129,6 +139,8 @@ internal static class PortalStartupGuards
             throw new InvalidOperationException(UnconfiguredKeyRingMessage);
         }
 
+        RequireRegisteredDurableKeyRing(services);
+
         // Resolved through a scope: the store is scoped, and the container is
         // built with scope validation on, so a root resolution would be a bug
         // this guard should not be the one to introduce.
@@ -140,6 +152,60 @@ internal static class PortalStartupGuards
             throw new InvalidOperationException(NonDurableSessionStoreMessage);
         }
     }
+
+    /// <summary>
+    /// B-6: the key ring must be <b>registered</b>, not merely named.
+    /// <para>
+    /// Three things are required, and the first is easy to overlook: a plain
+    /// ASP.NET Core host registers no <see cref="IDataProtectionProvider"/> at
+    /// all, so a portal that has not yet wired authentication has no key ring to
+    /// misconfigure — it has none. Outside Development that is a refusal, not a
+    /// dormant state, because the cookie that will depend on it arrives next.
+    /// </para>
+    /// <para>
+    /// Then the repository and the encryptor must each be present and must each
+    /// come from outside the Data Protection framework assembly. Both halves
+    /// matter. A <b>null</b> repository is not "undecided": the framework leaves
+    /// it null and resolves a machine-local key directory plus DPAPI lazily
+    /// inside the key manager, so null <i>is</i> the local fallback. And a
+    /// non-null one can still be local — <c>PersistKeysToFileSystem</c> sets a
+    /// perfectly explicit repository that no second instance can read.
+    /// </para>
+    /// <para>
+    /// The assembly test is what separates them. Every local option the
+    /// framework ships — ephemeral, file-system, read-only file-system, registry,
+    /// null, invalid, DPAPI, DPAPI-NG, and certificate — is declared in that one
+    /// assembly, and none is approved for this product. The intended production
+    /// pair, an Azure Blob Storage repository protected by Azure Key Vault, is
+    /// declared outside it and passes unchanged. Comparing assemblies rather
+    /// than enumerating type names means a tenth built-in local option added by
+    /// a future framework release is refused on arrival instead of slipping
+    /// through a list nobody updated.
+    /// </para>
+    /// </summary>
+    private static void RequireRegisteredDurableKeyRing(IServiceProvider services)
+    {
+        if (services.GetService<IDataProtectionProvider>() is null)
+        {
+            throw new InvalidOperationException(UnregisteredKeyRingMessage);
+        }
+
+        var keyManagement = services.GetService<IOptions<KeyManagementOptions>>()?.Value;
+
+        if (!IsExplicitlyRegistered(keyManagement?.XmlRepository) ||
+            !IsExplicitlyRegistered(keyManagement?.XmlEncryptor))
+        {
+            throw new InvalidOperationException(UnregisteredKeyRingMessage);
+        }
+    }
+
+    /// <summary>
+    /// Present, and supplied by someone other than the Data Protection framework
+    /// itself.
+    /// </summary>
+    private static bool IsExplicitlyRegistered(object? keyRingComponent) =>
+        keyRingComponent is not null &&
+        keyRingComponent.GetType().Assembly != typeof(KeyManagementOptions).Assembly;
 
     /// <summary>
     /// Durability is decided by which assembly implements the port, not by a

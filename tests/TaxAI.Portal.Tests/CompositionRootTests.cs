@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using TaxAI.Portal.Tests.Support;
 using TaxLogicEngine.Services;
 using Tenancy.Contracts;
 
@@ -28,8 +29,19 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
 {
     private readonly WebApplicationFactory<Program> _factory;
 
+    /// <remarks>
+    /// This suite starts a <b>Production</b> host, so per decision B-6 it must
+    /// register an approved durable Data Protection provider: outside
+    /// Development the host refuses to start on the framework's machine-local
+    /// key-ring fallback. The registration is additive — every assertion below
+    /// is unchanged.
+    /// </remarks>
     public CompositionRootTests(WebApplicationFactory<Program> factory) =>
-        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            builder.ConfigureTestServices(services => services.AddApprovedDurableDataProtection());
+        });
 
     public void Dispose() => _factory.Dispose();
 

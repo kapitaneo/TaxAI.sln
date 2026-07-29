@@ -2,6 +2,9 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using TaxAI.Portal.Tests.Support;
 
 namespace TaxAI.Portal.Tests.Security;
 
@@ -42,8 +45,20 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
     private readonly WebApplicationFactory<Program> _factory;
 
+    /// <remarks>
+    /// This suite starts a <b>Production</b> host, so per decision B-6 it must
+    /// register an approved durable Data Protection provider: outside
+    /// Development the host refuses to start on the framework's machine-local
+    /// key-ring fallback. The registration is additive — every assertion below
+    /// is unchanged, and the fake lives in the test assembly, so none of the
+    /// source scans below sees it.
+    /// </remarks>
     public PortalSecurityTests(WebApplicationFactory<Program> factory) =>
-        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            builder.ConfigureTestServices(services => services.AddApprovedDurableDataProtection());
+        });
 
     public void Dispose() => _factory.Dispose();
 

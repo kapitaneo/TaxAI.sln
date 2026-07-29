@@ -1,9 +1,13 @@
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using TaxAI.Portal.Tests.Support;
 using Tenancy.Contracts;
 using Tenancy.Models;
 
@@ -83,6 +87,9 @@ public sealed class StartupRefusalTests
     private const string ExpectedUnconfiguredKeyRing =
         "A data protection key ring must be configured outside Development.";
 
+    private const string ExpectedUnregisteredKeyRing =
+        "A durable data protection key ring must be registered outside Development. Configuration values alone do not satisfy this requirement.";
+
     private const string ExpectedNonDurableSessionStore =
         "The registered session store must be the durable one outside Development.";
 
@@ -148,7 +155,9 @@ public sealed class StartupRefusalTests
     {
         // The positive control: without it, a refusal test could pass because the
         // guard refuses everything.
-        using var host = Host("Production");
+        using var host = Host(
+            "Production",
+            services: collection => collection.AddApprovedDurableDataProtection());
 
         Assert.Null(Record.Exception(() =>
         {
@@ -179,9 +188,141 @@ public sealed class StartupRefusalTests
             {
                 [PortalTestDeploymentConfiguration.KeyRingLocationKey] = location,
                 [PortalTestDeploymentConfiguration.KeyProtectionIdentifierKey] = protection,
-            });
+            },
+            services: collection => collection.AddApprovedDurableDataProtection());
 
         Assert.Contains(ExpectedUnconfiguredKeyRing, refusal, StringComparison.Ordinal);
+    }
+
+    // ------------------------------------------------- AC-76 as decided by B-6
+
+    [Fact] // AC-76, B-6
+    public void StartupRefusesKeyRingSettingsWithNoRegisteredProvider()
+    {
+        // The defect this case exists for: the settings are present and correct,
+        // and there is no key ring behind them. Configuration values alone must
+        // never satisfy the requirement — a host that starts here would protect
+        // its cookies with whatever the framework fell back to.
+        var refusal = StartupFailure("Production");
+
+        Assert.Contains(ExpectedUnregisteredKeyRing, refusal, StringComparison.Ordinal);
+    }
+
+    [Fact] // AC-76, B-6
+    public void StartupRefusesARegisteredProviderWithNoExplicitRepository()
+    {
+        // AddDataProtection() alone leaves KeyManagementOptions.XmlRepository
+        // null while the key manager resolves a machine-local directory plus
+        // DPAPI lazily. Null is therefore the local fallback, not an undecided
+        // state, and must be read as a refusal.
+        var refusal = StartupFailure(
+            "Production",
+            services: collection => collection.AddDataProtection());
+
+        Assert.Contains(ExpectedUnregisteredKeyRing, refusal, StringComparison.Ordinal);
+    }
+
+    [Fact] // AC-76, B-6
+    public void StartupRefusesADeveloperFileSystemKeyRing()
+    {
+        // An explicitly configured repository can still be local.
+        // PersistKeysToFileSystem is the approved *developer* key ring, and a
+        // key ring on one machine's disk is one no second instance can read.
+        // The approved encryptor is left in place, so the repository is the only
+        // thing this case can be failing on.
+        var refusal = StartupFailure(
+            "Production",
+            services: collection =>
+            {
+                collection.AddApprovedDurableDataProtection();
+                collection
+                    .AddDataProtection()
+                    .PersistKeysToFileSystem(
+                        new DirectoryInfo(Path.Combine(Path.GetTempPath(), "taxai-refused-key-ring")));
+            });
+
+        Assert.Contains(ExpectedUnregisteredKeyRing, refusal, StringComparison.Ordinal);
+    }
+
+    [Fact] // AC-76, B-6
+    public void StartupRefusesAnApprovedRepositoryWithNoEncryptor()
+    {
+        // The mirror image: a real remote repository holding keys nothing
+        // encrypts. Both halves are required independently.
+        var refusal = StartupFailure(
+            "Production",
+            services: collection =>
+            {
+                collection.AddApprovedDurableDataProtection();
+                collection.Configure<KeyManagementOptions>(options => options.XmlEncryptor = null);
+            });
+
+        Assert.Contains(ExpectedUnregisteredKeyRing, refusal, StringComparison.Ordinal);
+    }
+
+    public static TheoryData<string, string> RejectedFrameworkKeyRingComponents() => new()
+    {
+        { "repository", "Microsoft.AspNetCore.DataProtection.Repositories.EphemeralXmlRepository" },
+        { "repository", "Microsoft.AspNetCore.DataProtection.Repositories.FileSystemXmlRepository" },
+        { "repository", "Microsoft.AspNetCore.DataProtection.Repositories.RegistryXmlRepository" },
+        { "encryptor", "Microsoft.AspNetCore.DataProtection.XmlEncryption.NullXmlEncryptor" },
+        { "encryptor", "Microsoft.AspNetCore.DataProtection.XmlEncryption.DpapiXmlEncryptor" },
+        { "encryptor", "Microsoft.AspNetCore.DataProtection.XmlEncryption.DpapiNGXmlEncryptor" },
+        { "encryptor", "Microsoft.AspNetCore.DataProtection.XmlEncryption.CertificateXmlEncryptor" },
+    };
+
+    [Theory] // B-6
+    [MemberData(nameof(RejectedFrameworkKeyRingComponents))]
+    public void EveryRejectedComponentIsDeclaredInTheFrameworkAssembly(string kind, string typeName)
+    {
+        // The guard rejects by assembly rather than by a list of type names, so
+        // this proves the assembly rule really does cover each name B-6
+        // enumerates — and would cover a tenth one a future framework adds.
+        _ = kind;
+
+        var frameworkAssembly = typeof(KeyManagementOptions).Assembly;
+        var rejected = frameworkAssembly.GetType(typeName, throwOnError: false);
+
+        Assert.True(rejected is not null, $"{typeName} must exist in {frameworkAssembly.GetName().Name}.");
+        Assert.Equal(frameworkAssembly, rejected!.Assembly);
+    }
+
+    [Fact] // B-6
+    public void TheApprovedTestProviderIsNotDeclaredInTheFrameworkAssembly()
+    {
+        // The other direction: the fake the fixtures rely on must be outside the
+        // framework assembly, or every acceptance test below would be passing
+        // for the wrong reason.
+        var services = new ServiceCollection();
+        services.AddApprovedDurableDataProtection();
+
+        using var provider = services.BuildServiceProvider();
+        var keyManagement = provider.GetRequiredService<IOptions<KeyManagementOptions>>().Value;
+
+        Assert.NotNull(provider.GetService<IDataProtectionProvider>());
+        Assert.NotNull(keyManagement.XmlRepository);
+        Assert.NotNull(keyManagement.XmlEncryptor);
+        Assert.NotEqual(
+            typeof(KeyManagementOptions).Assembly,
+            keyManagement.XmlRepository!.GetType().Assembly);
+        Assert.NotEqual(
+            typeof(KeyManagementOptions).Assembly,
+            keyManagement.XmlEncryptor!.GetType().Assembly);
+    }
+
+    [Fact] // AC-76, B-6
+    public void StartupAcceptsTheApprovedDurableKeyRingOutsideDevelopment()
+    {
+        // The positive control. Without it the four refusals above would also
+        // pass against a guard that refuses every Production host.
+        using var host = Host(
+            "Production",
+            services: collection => collection.AddApprovedDurableDataProtection());
+
+        Assert.Null(Record.Exception(() =>
+        {
+            using var client = host.CreateClient();
+        }));
     }
 
     [Fact]
@@ -190,6 +331,10 @@ public sealed class StartupRefusalTests
         // The requirement is scoped to deployed environments by design. Proving
         // the scope explicitly is what stops someone "fixing" a failing local run
         // by weakening the Production branch instead.
+        //
+        // Nothing is registered here beyond the seeder spy: no key-ring
+        // settings, no Data Protection provider, no repository, no encryptor.
+        // A Production host in this state is refused four cases above.
         using var host = Host(
             "Development",
             configuration: new Dictionary<string, string?>
@@ -204,6 +349,18 @@ public sealed class StartupRefusalTests
         {
             using var client = host.CreateClient();
         }));
+
+        // And it is functional, not merely started: a developer's local run must
+        // survive the guard intact.
+        using var developmentClient = host.CreateClient();
+
+        Assert.Equal(
+            "Healthy",
+            developmentClient.GetStringAsync("/health").GetAwaiter().GetResult());
+        Assert.Contains(
+            "This application serves no taxpayer data.",
+            developmentClient.GetStringAsync("/").GetAwaiter().GetResult(),
+            StringComparison.Ordinal);
     }
 
     // --------------------------------------------------------- AC-178, AC-179
@@ -215,7 +372,10 @@ public sealed class StartupRefusalTests
         var refusal = StartupFailure(
             "Production",
             services: collection =>
-                collection.AddScoped<IAuthenticationSessionStore, InMemorySessionStore>());
+            {
+                collection.AddApprovedDurableDataProtection();
+                collection.AddScoped<IAuthenticationSessionStore, InMemorySessionStore>();
+            });
 
         Assert.Contains(ExpectedNonDurableSessionStore, refusal, StringComparison.Ordinal);
     }
@@ -223,7 +383,9 @@ public sealed class StartupRefusalTests
     [Fact] // AC-178
     public void TheProductionSessionStoreIsTheDurableImplementation()
     {
-        using var host = Host("Production");
+        using var host = Host(
+            "Production",
+            services: collection => collection.AddApprovedDurableDataProtection());
         using var client = host.CreateClient();
         using var scope = host.Services.CreateScope();
 
@@ -248,7 +410,11 @@ public sealed class StartupRefusalTests
 
         using var host = Host(
             "Production",
-            services: collection => collection.AddScoped<IDevelopmentFixtureSeeder>(_ => seeder));
+            services: collection =>
+            {
+                collection.AddApprovedDurableDataProtection();
+                collection.AddScoped<IDevelopmentFixtureSeeder>(_ => seeder);
+            });
 
         using var client = host.CreateClient();
 
@@ -282,7 +448,9 @@ public sealed class StartupRefusalTests
     {
         // The storage layer is wired in and the guards run; the two constant
         // routes are unchanged by both.
-        using var host = Host("Production");
+        using var host = Host(
+            "Production",
+            services: collection => collection.AddApprovedDurableDataProtection());
         using var client = host.CreateClient();
 
         Assert.Equal("Healthy", client.GetStringAsync("/health").GetAwaiter().GetResult());

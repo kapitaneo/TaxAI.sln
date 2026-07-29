@@ -33,8 +33,10 @@ builder.Services.AddTaxAiModules(databaseConnectionString);
 var app = builder.Build();
 
 // The second half of the refusal, against the built application: the connection
-// string is re-verified, and outside Development a configured key ring and the
-// durable session store are both required. Registering SQL Server opens no
+// string is re-verified, and outside Development a registered durable key ring
+// and the durable session store are both required. Both are read out of the
+// container rather than out of configuration — two settings naming a key ring
+// prove nothing about whether one exists. Registering SQL Server opens no
 // connection, so this resolves the store to inspect it without touching the
 // database.
 PortalStartupGuards.RequireSafeStartup(
