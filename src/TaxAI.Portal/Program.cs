@@ -48,11 +48,28 @@ PortalStartupGuards.RequireSafeStartup(
     app.Configuration,
     app.Environment.EnvironmentName);
 
+// Every escaping exception becomes one fixed structural response in every
+// environment. No exception type, message, stack, path, identifier, or request
+// value is reflected to the caller.
+app.UseExceptionHandler(errorApplication =>
+    errorApplication.Run(async context =>
+    {
+        var failure = context.Features
+            .Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()
+            ?.Error;
+        context.Response.StatusCode = failure is BadHttpRequestException badRequest
+            ? badRequest.StatusCode
+            : StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = PortalContent.PlainTextContentType;
+        await context.Response.WriteAsync(PortalAuthorization.ErrorBody);
+    }));
+
 // Identity runs before routing decides anything, and authorization after. Both
 // are called explicitly rather than left to the implicit ordering, so the one
 // place to read the pipeline is this file.
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 
 // Server-rendered constant content: no view engine, no static-file middleware,
 // no wwwroot, and no external asset. The shell states what this application is
@@ -81,6 +98,11 @@ app.MapGet(
             new[] { PortalIdentity.ExternalScheme }))
    .AllowAnonymous();
 
+// The two authenticated tenancy-bootstrap routes. They re-read the local user
+// and active memberships on every request, and are the only protected routes
+// allowed to run while the durable session has no active firm.
+FirmEndpoints.Map(app);
+
 // Sign-out revokes the server-side session and clears the cookie, in that
 // order of importance. A cleared cookie alone leaves a copied pre-logout cookie
 // replayable; a revoked row is refused by every application instance on the
@@ -90,7 +112,8 @@ app.MapPost(
         () => Results.SignOut(
             new AuthenticationProperties(),
             new[] { PortalIdentity.CookieScheme }))
-   .RequireAuthorization();
+   .RequireAuthorization()
+   .WithMetadata(FirmEndpoints.RequiredAntiforgeryMetadata);
 
 // The one environment-gated behaviour this host has. Fixtures are obviously
 // synthetic and are written by the module that owns the schema; the host only

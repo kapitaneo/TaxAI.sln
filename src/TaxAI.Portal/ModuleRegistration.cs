@@ -1,4 +1,7 @@
 using CaseProcessing.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Persistence;
 using TaxLogicEngine.Services;
 
@@ -74,6 +77,44 @@ internal static class ModuleRegistration
 
         services.AddTaxAiPersistence(databaseConnectionString);
         services.AddPortalIdentity(configuration, environment);
+
+        services.AddAntiforgery(options =>
+        {
+            options.FormFieldName = FirmEndpoints.AntiforgeryFieldName;
+            options.Cookie.Name = FirmEndpoints.AntiforgeryCookieName;
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+        });
+
+        services.AddScoped<PortalAuthorization>();
+        services.AddScoped<IAuthorizationHandler>(
+            provider => provider.GetRequiredService<PortalAuthorization>());
+        services.AddScoped<IAuthorizationMiddlewareResultHandler>(
+            provider => provider.GetRequiredService<PortalAuthorization>());
+
+        services.Configure<AuthorizationOptions>(options =>
+        {
+            options.AddPolicy(
+                PortalAuthorization.BootstrapPolicy,
+                policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.Requirements.Add(PortalAuthorization.BootstrapRequirement);
+                });
+
+            options.AddPolicy(
+                PortalAuthorization.FirmScopedPolicy,
+                policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.Requirements.Add(PortalAuthorization.FirmScopedRequirement);
+                });
+        });
+
+        services.Configure<CookieAuthenticationOptions>(
+            PortalIdentity.CookieScheme,
+            PortalAuthorization.ConfigureSelectionIssuance);
 
         return services;
     }

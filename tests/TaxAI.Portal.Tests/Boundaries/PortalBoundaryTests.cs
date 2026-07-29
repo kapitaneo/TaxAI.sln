@@ -34,7 +34,9 @@ public sealed class PortalBoundaryTests
     /// </summary>
     private static readonly string[] ExpectedProductionFiles =
     {
+        "FirmEndpoints.cs",
         "ModuleRegistration.cs",
+        "PortalAuthorization.cs",
         "PortalContent.cs",
         "PortalIdentity.cs",
         "PortalStartupGuards.cs",
@@ -189,10 +191,21 @@ public sealed class PortalBoundaryTests
         // silently exempt. AddTaxAiModules is the single call into the
         // composition root.
         { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
+        { "FirmEndpoints.cs", new[] { "AddClaim" } },
         {
             "ModuleRegistration.cs",
-            new[] { "AddPortalIdentity", "AddSingleton", "AddTaxAiModules", "AddTaxAiPersistence" }
+            new[]
+            {
+                "AddAntiforgery",
+                "AddPolicy",
+                "AddPortalIdentity",
+                "AddScoped",
+                "AddSingleton",
+                "AddTaxAiModules",
+                "AddTaxAiPersistence",
+            }
         },
+        { "PortalAuthorization.cs", new[] { "AddClaim" } },
         { "PortalContent.cs", Array.Empty<string>() },
         { "PortalStartupGuards.cs", Array.Empty<string>() },
 
@@ -264,7 +277,13 @@ public sealed class PortalBoundaryTests
         var moduleExtensions = RegistrationVerb
             .Matches(compositionRoot)
             .Select(match => match.Value)
-            .Where(token => token is not ("AddSingleton" or "AddScoped" or "AddTransient" or "AddTaxAiModules"))
+            .Where(token => token is not (
+                "AddAntiforgery" or
+                "AddPolicy" or
+                "AddSingleton" or
+                "AddScoped" or
+                "AddTransient" or
+                "AddTaxAiModules"))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(token => token, StringComparer.Ordinal)
             .ToArray();

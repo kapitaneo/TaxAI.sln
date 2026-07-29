@@ -1,0 +1,106 @@
+TaskID: T19
+Task: Per-request verification and the authenticated firm surface
+PR: #121
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/121
+Implementation commit: f5be1ccb038ccfe9553f38626fcec0772488b4f5
+Branch: codex/011-t19
+Base: master
+
+Preconditions confirmed before implementation:
+- The branch was rebased onto current origin/master after T18A merged.
+- T18A.done existed.
+- IIdentityDirectory.FindUserByIdAsync(Guid userId, CancellationToken) existed.
+- The authoritative PRD, architecture, and tasks.md recorded the two-stage
+  tenancy-bootstrap authorization decision.
+- Every earlier-wave marker through T18A.done existed.
+- The branch was clean and had no commits beyond origin/master, so no T19
+  implementation had previously been committed.
+
+Delivered authorization behavior:
+- Cookie authentication first resolves and evaluates the live, unrevoked,
+  in-bounds durable session through the existing T18 key-only ticket store.
+- Bootstrap GET /firms and POST /firms/select then reload PortalUser by the
+  session-derived UserId, require the user to remain active, and reload active
+  memberships from IIdentityDirectory on every request.
+- Bootstrap permits ActiveFirmId to be null; the separately registered
+  firm-scoped policy additionally requires one active membership matching the
+  session-derived UserId and ActiveFirmId.
+- Identity and membership exceptions, cancellations, missing rows, inactive
+  rows, malformed server-derived claims, and mismatches fail closed with a
+  fixed response and no record content.
+- GET /firms renders only active firm display names and opaque membership
+  identifiers, plus the antiforgery token required for selection.
+- POST /firms/select accepts only membershipId plus the antiforgery token,
+  verifies that the active membership belongs to the authenticated session
+  user, and reads no firm identifier from any request channel.
+- Selection recovers issuer and subject from the freshly loaded local
+  PortalUser, passes them through T18's existing local-principal resolution,
+  rechecks the user and active memberships, revokes the prior session, and
+  issues a new session through the existing T18 SessionTicketStore.
+- The replacement session has a new SessionId, its own freshly derived idle
+  and absolute boundaries, and the selected trusted ActiveFirmId.
+- The replacement browser cookie retains T18's protected key-only shape and
+  carries no UserId, FirmId, issuer, subject, token, or claims payload.
+- Missing and foreign membership selectors produce the same status and body.
+- The exact route, input, authorization-file, registration, and portal-source
+  allowlists were updated without opening any taxpayer-data surface.
+
+Focused portal verification:
+- PASS: dotnet test tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj --no-restore
+  - Passed: 396
+  - Failed: 0
+  - Skipped: 0
+  - Total: 396
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln --no-build
+  - Passed: 3,158
+  - Failed: 0
+  - Skipped: 0
+  - Total: 3,158
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - TaxAI.Portal.Tests: 396
+  - Tenancy.Tests: 283
+  - Persistence.Tests: 132
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - Running 8 expected test projects (Debug).
+  - TaxLogicEngine.Tests: 261 passed (floor 261)
+  - TaxCases.Tests: 337 passed (floor 337)
+  - DocumentExtraction.Tests: 673 passed (floor 673)
+  - CaseProcessing.Tests: 594 passed (floor 594)
+  - CaseReview.Tests: 482 passed (floor 482)
+  - TaxAI.Portal.Tests: 396 passed (floor 224)
+  - Tenancy.Tests: 283 passed (floor 99)
+  - Persistence.Tests: 132 passed (floor 25)
+  - Result: "Test execution gate passed: every expected project ran and met its floor."
+
+Additional verification:
+- PASS: git diff --check
+
+Implementation changed-file scope:
+- src/TaxAI.Portal/PortalAuthorization.cs
+- src/TaxAI.Portal/FirmEndpoints.cs
+- src/TaxAI.Portal/Program.cs
+- src/TaxAI.Portal/ModuleRegistration.cs
+- tests/TaxAI.Portal.Tests/ShellPageTests.cs
+- tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs
+- tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs
+- tests/TaxAI.Portal.Tests/Identity/MembershipVerificationTests.cs
+- tests/TaxAI.Portal.Tests/Identity/FirmSelectionTests.cs
+- tests/TaxAI.Portal.Tests/Identity/TenantIsolationAtTheHttpBoundaryTests.cs
+
+Not done here, by rule:
+- No file outside T19's implementation allowlist changed before this marker.
+- T20 was not started.
+- No merge or self-approval was performed. Both remain human-only.

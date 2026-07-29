@@ -11,9 +11,9 @@ using TaxAI.Portal.Tests.Support;
 namespace TaxAI.Portal.Tests;
 
 /// <summary>
-/// T03 — proves <c>GET /</c> returns the fixed shell document byte-for-byte, and
-/// that the host's complete endpoint inventory is exactly two GET routes with no
-/// route parameter between them (AC-26).
+/// Proves <c>GET /</c> remains the fixed shell document byte-for-byte, then
+/// asserts spec 011's complete route, method, authorization, and antiforgery
+/// inventory with no route parameter anywhere.
 /// <para>
 /// The expected document is spelled out here, independently of
 /// <c>PortalContent</c>. Comparing the response to the constant that produced it
@@ -145,6 +145,8 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         { "/", "GET" },
         { "/health", "GET" },
         { "/sign-in", "GET" },
+        { "/firms", "GET" },
+        { "/firms/select", "POST" },
         { "/sign-out", "POST" },
     };
 
@@ -197,17 +199,18 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [InlineData("record")]
     [InlineData("package")]
     [InlineData("taxpayer")]
-    public void NoRoutePatternNamesAnIdentifierOfAnyKind(string identifierWord)
+    public void NoRouteParameterNamesAnIdentifierOfAnyKind(string identifierWord)
     {
-        // Not merely "no parameter bound to a firm": no route pattern names one
-        // at all, in a segment or in a parameter. A path that reads
-        // /firms/{firmId} is an authorization boundary written in a URL.
+        // /firms is the approved bootstrap resource name. What remains absolute
+        // is that no route parameter can carry any identifier, including on
+        // that route or its selection action.
         foreach (var endpoint in MappedRouteEndpoints())
         {
             Assert.DoesNotContain(
-                identifierWord,
-                endpoint.RoutePattern.RawText!,
-                StringComparison.OrdinalIgnoreCase);
+                endpoint.RoutePattern.Parameters,
+                parameter => parameter.Name.Contains(
+                    identifierWord,
+                    StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -236,6 +239,27 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
             Assert.True(requiresAuthorization, $"{pattern} must require authorization.");
             Assert.False(allowsAnonymous, $"{pattern} must not also allow anonymous.");
         }
+    }
+
+    [Theory] // spec 011 AC-130
+    [InlineData("/firms/select")]
+    [InlineData("/sign-out")]
+    public void EveryStateChangingRouteRequiresAntiforgery(string pattern)
+    {
+        var endpoint = Assert.Single(
+            MappedRouteEndpoints().Where(candidate =>
+                string.Equals(
+                    candidate.RoutePattern.RawText,
+                    pattern,
+                    StringComparison.Ordinal)));
+
+        var metadata = endpoint.Metadata.FirstOrDefault(item =>
+            item.GetType().GetInterfaces().Any(contract =>
+                contract.FullName ==
+                "Microsoft.AspNetCore.Antiforgery.IAntiforgeryMetadata"));
+
+        Assert.NotNull(metadata);
+        Assert.True((bool)metadata!.GetType().GetProperty("RequiresValidation")!.GetValue(metadata)!);
     }
 
     // ---------------------------------------------------------------- helpers
