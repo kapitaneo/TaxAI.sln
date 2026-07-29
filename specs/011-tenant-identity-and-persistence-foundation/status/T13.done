@@ -1,0 +1,55 @@
+TaskID: T13
+Task: SQL authentication session store (spec 011, Wave 4)
+PR: #112
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/112
+Implementation commit: b5b0f78f2c6f979606b6d9b990776c2257273e29
+Branch: feat/011-w4-t13
+Base commit: 0d4f6336129f12209e02c7f2f1277b9deb077c4d
+
+Focused tests:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --filter "FullyQualifiedName~AuthenticationSessionStoreTests|FullyQualifiedName~SessionRevocationTests|FullyQualifiedName~PersistenceBoundaryTests"
+  - Passed: 42
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4 pre-existing warnings in TaxLogicEngine.Tests
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,934
+  - Failed: 0
+  - Skipped: 0
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - Passed: 2,934
+  - Failed: 0
+  - Skipped: 0
+
+Additional verification:
+- PASS: git diff --check
+
+T11A construction seam:
+- SqlAuthenticationSessionStore creates sessions only through the public
+  invariant-preserving AuthenticationSession.Create factory.
+- Production Persistence uses no reflection, public mutable setter, non-public
+  constructor invocation, or internal-access workaround.
+
+Scope:
+- The implementation commit changes exactly the three T13-allowlisted files:
+  - src/Persistence/Repositories/SqlAuthenticationSessionStore.cs
+  - tests/Persistence.Tests/Repositories/AuthenticationSessionStoreTests.cs
+  - tests/Persistence.Tests/Repositories/SessionRevocationTests.cs
+- This completion commit adds only this T13.done marker.
+- No PRD, architecture, tasks.md, Tenancy/T11A file, sibling-task file or
+  marker, test manifest, T16 file, or Portal file changed.
+
+Not done here, by rule:
+- Merging or approval. Both remain human-only.
+- T12 and T15 were not handled by this task.
+- T16 was not started.
