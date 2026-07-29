@@ -1,10 +1,13 @@
+using System.Text.RegularExpressions;
+
 namespace TaxAI.Portal.Tests.EndToEnd;
 
 /// <summary>
-/// T07 — the final documentation gate. Proves the repository's own description
-/// of itself is true: that the README describes the repository that exists,
-/// claims nothing the portal cannot back, and that no existing module's
-/// instruction file was rewritten to accommodate a web host.
+/// Spec 010 T07 plus spec 011 T20 — the documentation gate. Proves the
+/// repository's own description of itself is true: the README describes the
+/// repository that exists, names the identity/persistence capabilities that now
+/// ship, disclaims every taxpayer-data and deployment capability that does not,
+/// and leaves the five pre-existing modules' instructions untouched.
 /// <para>
 /// A README that describes a repository which is not there is the same
 /// correctness hazard spec 005 fixed once already, and it is the one kind of
@@ -56,12 +59,16 @@ public sealed class RepositoryVerificationTests
     [InlineData("src/DocumentExtraction/")]
     [InlineData("src/CaseProcessing/")]
     [InlineData("src/CaseReview/")]
+    [InlineData("src/Tenancy/")]
+    [InlineData("src/Persistence/")]
     [InlineData("src/TaxAI.Portal/")]
     [InlineData("tests/TaxLogicEngine.Tests/")]
     [InlineData("tests/TaxCases.Tests/")]
     [InlineData("tests/DocumentExtraction.Tests/")]
     [InlineData("tests/CaseProcessing.Tests/")]
     [InlineData("tests/CaseReview.Tests/")]
+    [InlineData("tests/Tenancy.Tests/")]
+    [InlineData("tests/Persistence.Tests/")]
     [InlineData("tests/TaxAI.Portal.Tests/")]
     public void TheReadmeDocumentsEveryProjectTreeThatExists(string tree)
     {
@@ -99,34 +106,57 @@ public sealed class RepositoryVerificationTests
         Assert.DoesNotMatch(@"\b\d+\s+projects\b", Readme);
     }
 
-    // ------------------------- AC-48: the README claims nothing the portal lacks
+    // ---------------- spec 011 AC-145: exact capability and exclusion inventory
 
-    [Theory] // AC-48
-    [InlineData("authentication")]
-    [InlineData("user account")]
-    [InlineData("log in")]
-    [InlineData("sign in")]
-    [InlineData("document upload")]
-    [InlineData("database")]
-    [InlineData("deployment")]
-    public void TheReadmeMakesNoClaimThePortalCannotBack(string capability)
+    [Fact]
+    public void TheReadmeNamesTheFoundationCapabilitiesThatShip() // spec 011 AC-145
     {
-        // The README may name these only to say they do not exist. Every
-        // occurrence must sit inside the section that says so.
-        var readme = Readme;
-
-        var index = readme.IndexOf(capability, StringComparison.OrdinalIgnoreCase);
-
-        while (index >= 0)
+        // Replaces spec 010's TheReadmeMakesNoClaimThePortalCannotBack. The old
+        // blanket ban became false when spec 011 shipped identity and storage;
+        // the replacement is an explicit allowlist, not a general permission to
+        // claim that the portal is a taxpayer-data product surface.
+        foreach (var capability in new[]
+                 {
+                     "OIDC sign-in",
+                     "Revocable sessions",
+                     "Tenancy and firm scoping",
+                     "Database persistence",
+                     "Retention and purge",
+                 })
         {
-            var disclaimer = readme.IndexOf(
-                "### What the portal deliberately is not", StringComparison.Ordinal);
+            Assert.Contains(capability, Readme, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
-            Assert.True(
-                disclaimer >= 0 && index > disclaimer,
-                $"README mentions '{capability}' outside the section that disclaims it.");
+    [Fact]
+    public void TheReadmeExplicitlyDisclaimsEveryUnshippedSurface() // spec 011 AC-145
+    {
+        foreach (var disclaimer in new[]
+                 {
+                     "No taxpayer-data screen ships.",
+                     "No document upload ships.",
+                     "No OCR or LLM adapter ships.",
+                     "No production deployment configuration ships.",
+                     "No production provisioning ships",
+                 })
+        {
+            Assert.Contains(disclaimer, Readme, StringComparison.OrdinalIgnoreCase);
+        }
 
-            index = readme.IndexOf(capability, index + 1, StringComparison.OrdinalIgnoreCase);
+        foreach (var unsupportedClaim in new[]
+                 {
+                     "renders taxpayer records",
+                     "upload your documents",
+                     "extracts text from uploaded",
+                     "ready for production deployment",
+                     "provisions firms",
+                     "creates production administrators",
+                 })
+        {
+            Assert.DoesNotContain(
+                unsupportedClaim,
+                Readme,
+                StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -146,6 +176,7 @@ public sealed class RepositoryVerificationTests
         // none — a substring test cannot tell a claim from its negation, so it
         // must test only wording that could not appear in a disclaimer.
         Assert.Contains("No adapter implementation ships", readme, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No OCR or LLM adapter ships", readme, StringComparison.OrdinalIgnoreCase);
 
         foreach (var claim in new[]
                  {
@@ -171,17 +202,24 @@ public sealed class RepositoryVerificationTests
     [Theory] // AC-49
     [InlineData("src/TaxAI.Portal/")]
     [InlineData("tests/TaxAI.Portal.Tests/")]
+    [InlineData("src/Tenancy/")]
+    [InlineData("src/Persistence/")]
+    [InlineData("tests/Tenancy.Tests/")]
+    [InlineData("tests/Persistence.Tests/")]
     public void TheRootInstructionsListTheNewTree(string tree)
     {
         Assert.Contains(tree, RootInstructions, StringComparison.Ordinal);
     }
 
-    [Theory] // AC-49
-    [InlineData("Spec 010")]
-    [InlineData("Portal Foundation")]
-    [InlineData("composition root")]
-    [InlineData("omission")]
-    [InlineData("Class A")]
+    [Theory] // spec 011 AC-146
+    [InlineData("Spec 011")]
+    [InlineData("Tenant Identity and Persistence Foundation")]
+    [InlineData("TaxLogicEngine")]
+    [InlineData("CaseProcessing")]
+    [InlineData("Tenancy")]
+    [InlineData("Persistence")]
+    [InlineData("no SIN in any form")]
+    [InlineData("narrowed, never deleted")]
     [InlineData("tax-domain")]
     public void TheRootInstructionsRecordTheDeliveredScope(string required)
     {
@@ -200,19 +238,68 @@ public sealed class RepositoryVerificationTests
     }
 
     [Fact]
-    public void TheForwardRoadmapRecordsWhatBlocksTheNextPortalFeature()
+    public void TheForwardRoadmapRecordsTheResolvedAndReservedQuestions() // spec 011 AC-147
     {
-        var next = File.ReadAllText(Path.Combine(RepositoryRoot, "NEXT.md"));
+        var next = NormalizeWhitespace(
+            File.ReadAllText(Path.Combine(RepositoryRoot, "NEXT.md")));
 
-        Assert.Contains("Spec 010", next, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Class A", next, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("taxpayer data", next, StringComparison.OrdinalIgnoreCase);
+        foreach (var required in new[]
+                 {
+                     "Spec 011",
+                     "question A",
+                     "question B",
+                     "SIN part of question C",
+                     "question D",
+                     "question E",
+                     "Question F",
+                     "remains reserved",
+                     "Rendering taxpayer data remains a separate `tax-domain` specification",
+                 })
+        {
+            Assert.Contains(required, next, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
-        // The roadmap must no longer ask for the spec this feature delivered.
-        Assert.DoesNotContain(
-            "Create the **Portal Foundation** spec",
-            next,
-            StringComparison.OrdinalIgnoreCase);
+    [Fact]
+    public void DocumentationRecordsTheProductRetentionDecision()
+    {
+        foreach (var path in new[]
+                 {
+                     Path.Combine(RepositoryRoot, "README.md"),
+                     Path.Combine(RepositoryRoot, "CLAUDE.md"),
+                     Path.Combine(RepositoryRoot, "src", "Tenancy", "CLAUDE.md"),
+                     Path.Combine(RepositoryRoot, "src", "Persistence", "CLAUDE.md"),
+                 })
+        {
+            var text = NormalizeWhitespace(File.ReadAllText(path));
+
+            Assert.Contains("seven-year", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("product decision", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("not a CRA fact", text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void UserFacingDocumentationRecordsTheDevelopmentOnlyReleaseConstraint()
+    {
+        foreach (var path in new[]
+                 {
+                     Path.Combine(RepositoryRoot, "README.md"),
+                     Path.Combine(RepositoryRoot, "NEXT.md"),
+                     Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "CLAUDE.md"),
+                 })
+        {
+            var text = NormalizeWhitespace(File.ReadAllText(path));
+
+            Assert.Contains(
+                "starts in Development only",
+                text,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                "may not be deployed anywhere that can receive real taxpayer data",
+                text,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     // ------------------------------------------------------------------ guard
@@ -227,6 +314,10 @@ public sealed class RepositoryVerificationTests
                      (Path.Combine(RepositoryRoot, "README.md"), 1500),
                      (Path.Combine(RepositoryRoot, "CLAUDE.md"), 5000),
                      (Path.Combine(RepositoryRoot, "NEXT.md"), 2000),
+                     (Path.Combine(RepositoryRoot, "src", "Tenancy", "CLAUDE.md"), 2000),
+                     (Path.Combine(RepositoryRoot, "src", "Tenancy", "AGENTS.md"), 100),
+                     (Path.Combine(RepositoryRoot, "src", "Persistence", "CLAUDE.md"), 2000),
+                     (Path.Combine(RepositoryRoot, "src", "Persistence", "AGENTS.md"), 100),
                      (Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "CLAUDE.md"), 1500),
                      (Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "AGENTS.md"), 100),
                  })
@@ -253,4 +344,7 @@ public sealed class RepositoryVerificationTests
         return directory?.FullName
             ?? throw new DirectoryNotFoundException("Could not find the repository root containing TaxAI.sln.");
     }
+
+    private static string NormalizeWhitespace(string value) =>
+        Regex.Replace(value, @"\s+", " ");
 }

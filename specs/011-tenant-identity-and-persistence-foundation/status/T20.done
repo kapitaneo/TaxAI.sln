@@ -1,0 +1,111 @@
+TaskID: T20
+Task: Module instructions, narrowed portal gate, repository documentation, and roadmap
+PR: #122
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/122
+Implementation commit: 840a8625216e6858e12735e8320aadae0b2fd4f7
+Branch: feat/011-w9-t20
+Base: master
+
+Prerequisite confirmed:
+- T19.done existed on master after PR #121 merged.
+
+Delivered documentation:
+- Added Tenancy's module boundary, exact CaseReview + TaxLogicEngine reference
+  set, forbidden dependencies, omission-based PII posture, delegated supported
+  tax-year authority, and the seven-year product-retention decision.
+- Added Persistence's module boundary, exact Tenancy project reference and EF
+  Core package set, forbidden dependencies, at-rest PII posture, and absence of
+  an independent tax-year policy.
+- Added pointer-only Tenancy and Persistence AGENTS.md bridges, each under
+  fifteen lines and linking the root AGENTS.md, root CLAUDE.md, and local
+  CLAUDE.md.
+- Rewrote the portal instructions to the narrowed, still-binding gate: exact
+  four project references; no SIN in any form; application-issued firm claim
+  only; provider firm claims never trusted; durable server-side revocation;
+  no UI tax computation, CRA mapping, or tax-year policy; and a further
+  tax-domain specification required for every reserved taxpayer-data surface.
+- Updated README.md with the exact shipped sign-in, revocable-session, tenancy,
+  database-persistence, and retention capability inventory plus explicit
+  exclusions for taxpayer-data screens, uploads, OCR/LLM adapters, deployment,
+  and production provisioning.
+- Updated root CLAUDE.md with the new module and test trees, spec 011's delivered
+  scope, the portal's exact four-reference set, the narrowed gate, and the
+  no-SIN-in-any-form persistence/web decision.
+- Updated NEXT.md with spec 011's delivered scope, the resolved A/B/C(SIN)/D/E
+  questions, reserved question F, and the still-separate taxpayer-data spec.
+- Recorded plainly in the user-facing documentation that the build starts in
+  Development only and may not receive real taxpayer data before a deployment
+  specification supplies and verifies the durable Canadian Azure key ring and
+  deployment posture.
+
+Superseded spec 010 assertions replaced:
+- TheReadmeMakesNoClaimThePortalCannotBack
+  -> TheReadmeNamesTheFoundationCapabilitiesThatShip
+  + TheReadmeExplicitlyDisclaimsEveryUnshippedSurface.
+- PortalInstructions_StateTheBoundaryAndTheGate
+  + PortalInstructions_ForbidTaxpayerDataSurfacesUntilTheClassAQuestionsAreAnswered
+  -> PortalInstructions_StateTheNarrowedBoundaryAndGate
+  + PortalInstructions_RecordTheDevelopmentOnlyDeploymentRefusal.
+- No preserved assertion was removed or weakened.
+
+Focused verification:
+- PASS: dotnet test tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj
+  --no-restore --filter
+  "FullyQualifiedName~ProjectStructureTests|FullyQualifiedName~RepositoryVerificationTests"
+  - Passed: 82
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4 pre-existing warnings
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 3,159
+  - Failed: 0
+  - Skipped: 0
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - TaxAI.Portal.Tests: 397
+  - Tenancy.Tests: 283
+  - Persistence.Tests: 132
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - TaxLogicEngine.Tests: 261 passed (floor 261)
+  - TaxCases.Tests: 337 passed (floor 337)
+  - DocumentExtraction.Tests: 673 passed (floor 673)
+  - CaseProcessing.Tests: 594 passed (floor 594)
+  - CaseReview.Tests: 482 passed (floor 482)
+  - TaxAI.Portal.Tests: 397 passed (floor 224)
+  - Tenancy.Tests: 283 passed (floor 99)
+  - Persistence.Tests: 132 passed (floor 25)
+  - Result: every expected project ran and met its floor.
+
+Additional verification:
+- PASS: git diff --check
+- PASS: no total project-count claim appears in T20's user-facing documents.
+- PASS: both new AGENTS.md bridges are seven lines.
+
+Changed-file scope:
+- src/Tenancy/CLAUDE.md
+- src/Tenancy/AGENTS.md
+- src/Persistence/CLAUDE.md
+- src/Persistence/AGENTS.md
+- src/TaxAI.Portal/CLAUDE.md
+- README.md
+- CLAUDE.md
+- NEXT.md
+- tests/TaxAI.Portal.Tests/ProjectStructureTests.cs
+- tests/TaxAI.Portal.Tests/EndToEnd/RepositoryVerificationTests.cs
+- specs/011-tenant-identity-and-persistence-foundation/status/T20.done
+
+Not done here:
+- No existing module's CLAUDE.md or AGENTS.md was edited.
+- T21 was not started.
+- No merge or self-approval was performed; both remain human-only.
