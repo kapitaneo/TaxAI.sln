@@ -1,0 +1,105 @@
+TaskID: T18A
+Task: Corrective tenancy-bootstrap identity seams for spec 011 T19
+PR: #120
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/120
+Implementation commit: 85e669956d2d2d411e4e670172a0a80c57fcca08
+Branch: fix/011-t19-bootstrap-contracts
+Base: master
+
+Identity-directory fourth operation:
+- IIdentityDirectory.FindUserByIdAsync(Guid userId, CancellationToken)
+- This is the fourth and final approved firm-scope exemption.
+- It performs a direct, no-tracking parameterized EF Core read over the
+  identity-carve-out PortalUser table.
+- It returns the closed local PortalUser shape for active and inactive users,
+  returns null for a missing UserId, and requires no FirmId.
+- It returns no provider token, claims payload, profile data, or taxpayer
+  information.
+
+Bootstrap authorization decision:
+- GET /firms and POST /firms/select are authenticated tenancy-bootstrap
+  endpoints and may be reached while the live session's ActiveFirmId is null.
+- They still require a valid non-expired, non-revoked server-side session, a
+  valid session UserId, a fresh PortalUser lookup by UserId, an active local
+  user, and freshly loaded active memberships.
+- They are exempt only from the active-firm/matching-membership portion of R-1.
+- Every normal firm-scoped protected endpoint continues to require the complete
+  R-1 user, membership, UserId, FirmId, and exactly-one-active-firm checks.
+
+Replacement-session identity recovery decision:
+- Firm selection takes UserId only from the authenticated server-side session.
+- PortalUser is reloaded through FindUserByIdAsync and a missing or inactive
+  user is refused.
+- Issuer and subject are recovered only from the local PortalUser row and are
+  passed through the existing T18 sign-in/session-issuance flow.
+- Issuer, subject, UserId, and trusted FirmId are accepted from no request
+  channel or caller-supplied claim.
+- Issuer and subject are not added to the opaque browser cookie.
+
+Focused verification:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj
+  - Passed: 132
+  - Failed: 0
+  - Skipped: 0
+  - Total: 132
+- PASS: dotnet test tests/Tenancy.Tests/Tenancy.Tests.csproj
+  - Passed: 283
+  - Failed: 0
+  - Skipped: 0
+  - Total: 283
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 11
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 3,136
+  - Failed: 0
+  - Skipped: 0
+  - Total: 3,136
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - Tenancy.Tests: 283
+  - Persistence.Tests: 132
+  - TaxAI.Portal.Tests: 374
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - Running 8 expected test projects (Debug).
+  - TaxLogicEngine.Tests: 261 passed (floor 261)
+  - TaxCases.Tests: 337 passed (floor 337)
+  - DocumentExtraction.Tests: 673 passed (floor 673)
+  - CaseProcessing.Tests: 594 passed (floor 594)
+  - CaseReview.Tests: 482 passed (floor 482)
+  - TaxAI.Portal.Tests: 374 passed (floor 224)
+  - Tenancy.Tests: 283 passed (floor 99)
+  - Persistence.Tests: 132 passed (floor 25)
+  - Result: "Test execution gate passed: every expected project ran and met its floor."
+
+Additional verification:
+- PASS: git diff --check
+
+Changed-file scope confirmation:
+- The implementation commit changes exactly the nine files in T18A's
+  authoritative allowlist:
+  - specs/011-tenant-identity-and-persistence-foundation/prd.md
+  - specs/011-tenant-identity-and-persistence-foundation/architecture.md
+  - specs/011-tenant-identity-and-persistence-foundation/tasks.md
+  - src/Tenancy/Contracts/IIdentityDirectory.cs
+  - src/Tenancy/Models/FirmScopeExemptions.cs
+  - src/Persistence/Repositories/SqlIdentityDirectory.cs
+  - tests/Tenancy.Tests/Contracts/TenancyContractTests.cs
+  - tests/Persistence.Tests/Repositories/IdentityDirectoryTests.cs
+  - tests/TaxAI.Portal.Tests/Identity/SignInTests.cs
+- No T19 production file or T19 test file changed.
+- The existing codex/011-t19 branch remained untouched.
+- This marker commit adds only T18A.done.
+
+Not done here, by rule:
+- T19 and T20 were not started.
+- No merge or self-approval was performed. Both remain human-only.
