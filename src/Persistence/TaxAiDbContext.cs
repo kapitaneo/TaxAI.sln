@@ -17,7 +17,6 @@ namespace Persistence;
 /// migration — a process that reshapes a taxpayer database on boot is a process
 /// that can reshape it wrongly, at the worst moment, unattended.
 /// </para>
-/// <para>Wave 0 contract stage: the model is configured in a later task.</para>
 /// </summary>
 internal sealed class TaxAiDbContext : DbContext
 {
@@ -26,6 +25,13 @@ internal sealed class TaxAiDbContext : DbContext
     {
     }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
-        throw new NotImplementedException();
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TaxAiDbContext).Assembly);
+    }
+
+    /// <summary>Fixed type identity only; never context state or configuration.</summary>
+    public override string ToString() => nameof(TaxAiDbContext);
 }
