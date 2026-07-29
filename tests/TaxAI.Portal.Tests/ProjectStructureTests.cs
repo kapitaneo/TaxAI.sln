@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace TaxAI.Portal.Tests;
@@ -56,11 +57,59 @@ public sealed class ProjectStructureTests
     }
 
     [Fact]
-    public void PortalProject_DeclaresNoPackageReference() // AC-3
+    public void PortalProject_DeclaresExactlyTheOneApprovedPackage() // spec 011 AC-11
     {
-        // The web SDK's implicit framework reference is the whole dependency
-        // surface. Test tooling belongs to the test project only.
-        Assert.Empty(Elements(PortalProject, "PackageReference"));
+        // Replaces spec 010's "the portal declares no PackageReference at all",
+        // superseded by FR-13: OpenID Connect is the one protocol handler that
+        // is not in the shared framework, so authentication cannot be reached
+        // without it.
+        //
+        // An exact one-entry set is strictly stronger than a bare emptiness
+        // assertion would be if it were merely relaxed: it still forbids every
+        // package the old rule forbade, and additionally names which single
+        // addition was approved rather than permitting "at most a few".
+        Assert.Equal(
+            new[] { "Microsoft.AspNetCore.Authentication.OpenIdConnect" },
+            Elements(PortalProject, "PackageReference")
+                .Select(element => element.Attribute("Include")!.Value)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact]
+    public void PortalProject_PinsTheApprovedPackageToAnExactVersion() // spec 011 AC-11
+    {
+        // Pinned exactly, not floated. A floating range on the component that
+        // validates identity tokens means the code deciding who a caller is can
+        // change between two builds of the same commit.
+        var version = Assert.Single(
+            Elements(PortalProject, "PackageReference")
+                .Where(element =>
+                    element.Attribute("Include")?.Value ==
+                    "Microsoft.AspNetCore.Authentication.OpenIdConnect")
+                .Select(element => element.Attribute("Version")?.Value));
+
+        Assert.NotNull(version);
+        Assert.Matches(new Regex(@"^8\.0\.\d+$"), version!);
+    }
+
+    [Theory] // spec 011 AC-11
+    [InlineData("EntityFrameworkCore")]
+    [InlineData("Sqlite")]
+    [InlineData("SqlClient")]
+    [InlineData("Azure")]
+    [InlineData("Serilog")]
+    [InlineData("ApplicationInsights")]
+    [InlineData("OpenTelemetry")]
+    public void PortalProject_DeclaresNoOtherPackage(string forbidden)
+    {
+        // The exact-set assertion above already forbids these; naming the ones
+        // most likely to be reached for makes the failure legible rather than a
+        // set mismatch nobody reads.
+        Assert.DoesNotContain(
+            forbidden,
+            File.ReadAllText(PortalProject),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

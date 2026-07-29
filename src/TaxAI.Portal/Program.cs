@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using TaxAI.Portal;
 using Tenancy.Contracts;
 
@@ -28,7 +29,10 @@ var databaseConnectionString = PortalStartupGuards.RequireDatabaseConnectionStri
 
 // The one and only place modules are wired in. Every Add* registration lives
 // behind this call, in ModuleRegistration.cs.
-builder.Services.AddTaxAiModules(databaseConnectionString);
+builder.Services.AddTaxAiModules(
+    builder.Configuration,
+    builder.Environment,
+    databaseConnectionString);
 
 var app = builder.Build();
 
@@ -44,15 +48,49 @@ PortalStartupGuards.RequireSafeStartup(
     app.Configuration,
     app.Environment.EnvironmentName);
 
+// Identity runs before routing decides anything, and authorization after. Both
+// are called explicitly rather than left to the implicit ordering, so the one
+// place to read the pipeline is this file.
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Server-rendered constant content: no view engine, no static-file middleware,
 // no wwwroot, and no external asset. The shell states what this application is
 // and that it serves no taxpayer data — it binds no data of any kind.
-app.MapGet("/", () => Results.Content(PortalContent.ShellHtml, PortalContent.HtmlContentType));
+//
+// Anonymous, and explicitly so. An endpoint that is anonymous because nobody
+// remembered to protect it looks exactly like one that is anonymous by
+// decision; only one of them survives review.
+app.MapGet("/", () => Results.Content(PortalContent.ShellHtml, PortalContent.HtmlContentType))
+   .AllowAnonymous();
 
 // A probe that describes the system is a disclosure surface, so the body is a
 // fixed literal and nothing else: no version, environment, dependency status,
-// or timestamp.
-app.MapGet("/health", () => Results.Text(PortalContent.HealthBody, PortalContent.PlainTextContentType));
+// or timestamp. It keeps answering when storage is unavailable, because it
+// reaches storage never.
+app.MapGet("/health", () => Results.Text(PortalContent.HealthBody, PortalContent.PlainTextContentType))
+   .AllowAnonymous();
+
+// The outward challenge, and the only endpoint that names the external scheme.
+// Where it lands afterwards is a compile-time constant: a return path taken
+// from a request is an open redirect wearing a login page.
+app.MapGet(
+        PortalIdentity.SignInPath,
+        () => Results.Challenge(
+            new AuthenticationProperties { RedirectUri = PortalIdentity.PostSignInPath },
+            new[] { PortalIdentity.ExternalScheme }))
+   .AllowAnonymous();
+
+// Sign-out revokes the server-side session and clears the cookie, in that
+// order of importance. A cleared cookie alone leaves a copied pre-logout cookie
+// replayable; a revoked row is refused by every application instance on the
+// very next request.
+app.MapPost(
+        PortalIdentity.SignOutPath,
+        () => Results.SignOut(
+            new AuthenticationProperties(),
+            new[] { PortalIdentity.CookieScheme }))
+   .RequireAuthorization();
 
 // The one environment-gated behaviour this host has. Fixtures are obviously
 // synthetic and are written by the module that owns the schema; the host only

@@ -6,15 +6,27 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- Dependencies point inward, and are exactly these four. The web SDK's
-       implicit Microsoft.AspNetCore.App framework reference is the whole of this
-       project's dependency surface: no PackageReference belongs here.
+  <!-- The portal's entire package surface: exactly one reference, at an exactly
+       pinned version.
 
-       Persistence owns the ORM and exposes one registration extension, which is
-       why adding storage to this host adds no ORM package to this file. The
-       modules behind Tenancy and Persistence — the case, extraction, and review
-       modules — are reached through their contracts and are never referenced
-       here directly. -->
+       OpenID Connect is the one protocol handler that is NOT in the
+       Microsoft.AspNetCore.App shared framework, so authentication cannot be
+       reached without it. Everything else this host needs — cookies,
+       authorization, data protection — is already in the framework and stays
+       out of this file.
+
+       The version is pinned exactly rather than floated. A floating range on
+       the component that validates identity tokens means the code that decides
+       who a caller is can change between two builds of the same commit. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Dependencies point inward, and are exactly these four. Persistence owns
+       the ORM and exposes one registration extension, which is why adding
+       storage to this host adds no ORM package to this file. The modules behind
+       Tenancy and Persistence — the case, extraction, and review modules — are
+       reached through their contracts and are never referenced here directly. -->
   <ItemGroup>
     <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
     <ProjectReference Include="..\Persistence\Persistence.csproj" />

@@ -51,12 +51,21 @@ internal static class ModuleRegistration
     /// has already refused to start without one — see
     /// <see cref="PortalStartupGuards"/>.
     /// </para>
+    /// <para>
+    /// Identity is this host's own contribution and arrives the same way, behind
+    /// one extension in <see cref="PortalIdentity"/>. Two extensions, two
+    /// contributors: the storage module and the host itself.
+    /// </para>
     /// </remarks>
     internal static IServiceCollection AddTaxAiModules(
         this IServiceCollection services,
+        IConfiguration configuration,
+        IWebHostEnvironment environment,
         string databaseConnectionString)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(databaseConnectionString);
 
         services.AddSingleton<IT4LineMapProvider, EmbeddedT4LineMapProvider>();
@@ -64,6 +73,7 @@ internal static class ModuleRegistration
         services.AddSingleton<T4CaseProcessor>();
 
         services.AddTaxAiPersistence(databaseConnectionString);
+        services.AddPortalIdentity(configuration, environment);
 
         return services;
     }

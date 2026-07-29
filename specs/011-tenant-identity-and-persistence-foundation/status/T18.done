@@ -1,0 +1,75 @@
+TaskID: T18
+Task: Portal authentication and the durable session (spec 011, Wave 7)
+PR: #119
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/119
+Implementation commit: 8a54541ed8c95f041b8e47cc52015059d724bbe6
+Branch: feat/011-w7-t18
+Base: master
+
+Focused portal tests:
+- PASS: dotnet test tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj
+  - Passed: 374
+  - Failed: 0
+  - Skipped: 0
+  - Total: 374
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 0
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 3,133
+  - Failed: 0
+  - Skipped: 0
+  - Total: 3,133
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - Tenancy.Tests: 282
+  - Persistence.Tests: 130
+  - TaxAI.Portal.Tests: 374
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - Running 8 expected test projects (Debug).
+  - TaxLogicEngine.Tests: 261 passed (floor 261)
+  - TaxCases.Tests: 337 passed (floor 337)
+  - DocumentExtraction.Tests: 673 passed (floor 673)
+  - CaseProcessing.Tests: 594 passed (floor 594)
+  - CaseReview.Tests: 482 passed (floor 482)
+  - TaxAI.Portal.Tests: 374 passed (floor 224)
+  - Tenancy.Tests: 282 passed (floor 99)
+  - Persistence.Tests: 130 passed (floor 25)
+  - Result: "Test execution gate passed: every expected project ran and met its floor."
+
+Additional verification:
+- PASS: git diff --check
+
+Changed-file scope confirmation:
+- The verified implementation commit changes exactly the 13 files in T18's
+  authoritative allowlist in tasks.md:
+  - src/TaxAI.Portal/TaxAI.Portal.csproj
+  - src/TaxAI.Portal/Program.cs
+  - src/TaxAI.Portal/ModuleRegistration.cs
+  - src/TaxAI.Portal/PortalIdentity.cs
+  - src/TaxAI.Portal/SessionTicketStore.cs
+  - tests/TaxAI.Portal.Tests/ProjectStructureTests.cs
+  - tests/TaxAI.Portal.Tests/ShellPageTests.cs
+  - tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs
+  - tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs
+  - tests/TaxAI.Portal.Tests/Identity/SignInTests.cs
+  - tests/TaxAI.Portal.Tests/Identity/SessionLifetimeTests.cs
+  - tests/TaxAI.Portal.Tests/Identity/SessionRevocationTests.cs
+  - tests/TaxAI.Portal.Tests/Identity/CookieAndTokenTests.cs
+- No out-of-allowlist implementation path changed.
+- No premature T18 marker existed before PR #119 was created.
+- No temporary t18pr.md file exists in the recovered checkout.
+- This completion commit adds only this T18.done marker.
+
+Not done here, by rule:
+- No merge or self-approval was performed. Both remain human-only.
+- T19 was not started.
