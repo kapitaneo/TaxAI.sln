@@ -1,0 +1,77 @@
+TaskID: T12
+Task: SQL review-record repository (spec 011 Wave 4)
+PR: #114
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/114
+Implementation commit: b4ae7953554b40a04e93fe57121dc545c900f253
+Branch: feat/011-w4-t12
+Base commit: 0d4f6336129f12209e02c7f2f1277b9deb077c4d
+Preservation commit before rebase: 1ae84e07dc514dc85942fe0544c54fe7282f2d1f
+Replayed preservation commit: 516aa10959bbe61277289bff968f9c1155474844
+
+Focused tests:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --filter "FullyQualifiedName~ReviewRecordRepositoryTests|FullyQualifiedName~ReviewRecordTenantIsolationTests|FullyQualifiedName~ReviewRecordVersioningTests" --no-restore
+  - Passed: 14
+  - Failed: 0
+  - Skipped: 0
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --filter "FullyQualifiedName~PersistenceBoundaryTests" --no-restore
+  - Passed: 23
+  - Failed: 0
+  - Skipped: 0
+- Combined focused total:
+  - Passed: 37
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 4 pre-existing warnings in TaxLogicEngine.Tests
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,929
+  - Failed: 0
+  - Skipped: 0
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - Passed: 2,929
+  - Failed: 0
+  - Skipped: 0
+
+Additional verification:
+- PASS: git diff --check
+
+Delivered behavior:
+- SqlReviewRecordRepository.SaveAsync accepts only a TrustedFirmId, the
+  already-projected Tenancy PersistedReviewRecord, and a cancellation token.
+- Persistence names, accepts, returns, and serializes no executable CaseReview
+  type; ReviewPackageProjection.Project runs before the persistence boundary.
+- SaveAsync independently refuses a projected record whose FirmId differs from
+  the trusted scope, without echoing either identifier.
+- Version assignment is firm-scoped and transactional: the repository writes
+  max(PackageVersion) + 1 for the complete subject key and never updates an
+  earlier version.
+- A unique-version race fails closed and never overwrites the prior record.
+- FindAsync scopes by FirmId plus RecordId; cross-firm and absent records both
+  return the same null result.
+- Ordered slips, box amounts, line entries, source box codes, and unmapped codes
+  round-trip without sorting, merging, aggregation, or monetary alteration.
+- No update, upsert, or delete path was added.
+
+Scope:
+- The implementation commit changes exactly the four T12-allowlisted files:
+  - src/Persistence/Repositories/SqlReviewRecordRepository.cs
+  - tests/Persistence.Tests/Repositories/ReviewRecordRepositoryTests.cs
+  - tests/Persistence.Tests/Repositories/ReviewRecordTenantIsolationTests.cs
+  - tests/Persistence.Tests/Repositories/ReviewRecordVersioningTests.cs
+- This completion commit adds only this T12.done marker.
+- No PRD, architecture, tasks.md, T11A/Tenancy, T13, T14, T15, T16, or Portal
+  file changed.
+
+Not done here, by rule:
+- No merge or self-approval was performed.
+- T13 and T15 were not touched.
+- T16 was not started.
