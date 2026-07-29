@@ -60,13 +60,59 @@ public sealed class RouteAuthenticationBaselineTests
                 $"Could not deserialize {BaselinePath}.");
 
         Assert.Equal(BaselineCommit, baseline.BaselineCommit);
+
+        var legacyPaths = baseline.Endpoints
+            .Select(endpoint => endpoint.Path)
+            .ToHashSet(StringComparer.Ordinal);
+        var actualLegacyEndpoints = actual.Endpoints
+            .Where(endpoint => legacyPaths.Contains(endpoint.Path))
+            .ToArray();
+
         Assert.Equal(
             JsonSerializer.Serialize(baseline.Endpoints, JsonOptions),
-            JsonSerializer.Serialize(actual.Endpoints, JsonOptions));
+            JsonSerializer.Serialize(actualLegacyEndpoints, JsonOptions));
+
+        var additive = Assert.Single(
+            actual.Endpoints,
+            endpoint => !legacyPaths.Contains(endpoint.Path));
+        Assert.Equal("/reviews/{recordId:guid}", additive.Path);
+        Assert.Equal(new[] { "GET" }, additive.Methods);
+        Assert.Equal("required", additive.Authorization);
+        Assert.False(additive.Antiforgery);
+
         Assert.Equal(
-            JsonSerializer.Serialize(baseline.Responses, JsonOptions),
-            JsonSerializer.Serialize(actual.Responses, JsonOptions));
+            baseline.Responses.Select(ResponseKey),
+            actual.Responses.Select(ResponseKey));
+
+        foreach (var expected in baseline.Responses)
+        {
+            var current = Assert.Single(
+                actual.Responses,
+                response => ResponseKey(response) == ResponseKey(expected));
+
+            if (expected is { Method: "GET", Path: "/" })
+            {
+                Assert.Equal(expected.Status, current.Status);
+                Assert.Equal(expected.Location, current.Location);
+                Assert.Equal(expected.WwwAuthenticate, current.WwwAuthenticate);
+                Assert.Equal(expected.ContentType, current.ContentType);
+                Assert.NotEqual(expected.BodySha256, current.BodySha256);
+                continue;
+            }
+
+            Assert.Equal(expected, current);
+        }
+
+        var currentRootBodies = actual.Responses
+            .Where(response => response is { Method: "GET", Path: "/" })
+            .Select(response => response.BodySha256)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Single(currentRootBodies);
     }
+
+    private static string ResponseKey(ResponseContract response) =>
+        $"{response.AuthenticationState}|{response.Method}|{response.Path}";
 
     [Fact]
     public void BaselineCoversEveryRouteMethodAndAuthenticationState()

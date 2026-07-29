@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace TaxAI.Portal.Tests.EndToEnd;
 
 /// <summary>
-/// Spec 011 AC-28 — a mechanical ledger for both tables in the PRD's
-/// Amendments section. Every row names a live test that proves its replacement
-/// or preservation, and records why the resulting condition is narrower.
+/// Spec 011 AC-28, carried through spec 012 — a mechanical ledger for both
+/// tables in the PRD's Amendments section. Every row names a live test that
+/// proves its current replacement or preservation.
 /// </summary>
 public sealed class AmendmentAuditTests
 {
@@ -45,11 +45,12 @@ public sealed class AmendmentAuditTests
         A("FR-3 / AC-8 / AC-40", "FR-12", "The exact four inward references are allowed and every contract-reached module is still forbidden.",
             P(ProjectStructure, "PortalProject_ReferencesExactlyTheFourInwardModules"),
             P(ProjectStructure, "PortalProject_ReferencesNoModuleReachedThroughAContract")),
-        A("FR-11 / AC-26", "FR-48", "The complete route and method inventory is exact and every identifier route parameter remains forbidden.",
+        A("FR-11 / AC-26", "FR-48", "The complete route and method inventory is exact; only one opaque record selector is allowed and tenant or taxpayer identifier names remain forbidden.",
             P(ShellPage, "TheHostMapsExactlyTheApprovedRoutes"),
-            P(ShellPage, "NoRouteParameterNamesAnIdentifierOfAnyKind")),
-        A("FR-12 / AC-27", "FR-49", "Only the antiforgery token and membership selector are allowed in one exact file.",
-            P(PortalSecurity, "TheOnlyCallerSuppliedNamesAreTheAntiforgeryTokenAndMembershipSelector"),
+            P(ShellPage, "OnlyTheReviewRouteTakesTheOpaqueRecordSelector"),
+            P(ShellPage, "NoRouteParameterNamesATenantOrTaxpayerIdentifier")),
+        A("FR-12 / AC-27", "FR-49", "Only the two approved form names and one opaque review selector are accepted.",
+            P(PortalSecurity, "CallerSuppliedInputsAreTheTwoFormNamesAndOneOpaqueReviewSelector"),
             P(PortalSecurity, "RequestInputAppearsOnlyInItsExactApprovedFile")),
         A("FR-19 / AC-39", "FR-38–FR-49 and FR-63–FR-72", "Authentication is an exact file-and-scheme allowlist and every endpoint has explicit authorization posture.",
             P(PortalSecurity, "TheApprovedAuthenticationFilesAreExactlyTheEnumeratedSet"),
@@ -59,7 +60,7 @@ public sealed class AmendmentAuditTests
             P(PortalSecurity, "ANarrowedInfrastructureConcernAppearsOnlyInItsOneApprovedFile")),
         A("FR-15 / AC-31", "FR-51", "The portal's monetary-token prohibition is preserved exactly.",
             P(PortalBoundary, "ProductionSource_ContainsNoForbiddenToken")),
-        A("FR-16 / AC-32 / AC-36", "FR-50, FR-51", "The original taxpayer-type ban remains and now also forbids persistence taxpayer types.",
+        A("FR-16 / AC-32 / AC-36", "FR-50, FR-51", "SIN-bearing and tax-domain taxpayer types remain forbidden while the closed persisted review projection is allowed.",
             P(PortalSecurity, "ProductionSource_ContainsNoPiiToken")),
         A("FR-15 / AC-35", "FR-51", "The no-tax-year-policy condition remains forbidden across every portal production file.",
             P(PortalBoundary, "NoTaxYearLiteralAppearsInThePortal")),
@@ -106,12 +107,13 @@ public sealed class AmendmentAuditTests
             P(CompositionRoot, "NoLineMapperIsRegistered"),
             P(CompositionRoot, "TheProvidersAreSingletons")),
         A("`TheHostMapsExactlyTwoGetEndpoints`", "exact new route inventory",
-            "The complete route-method set is exact and identifier parameters are forbidden by name.",
+            "The complete route-method set is exact and the one opaque review parameter is constrained by name and GUID policy.",
             P(ShellPage, "TheHostMapsExactlyTheApprovedRoutes"),
             P(ShellPage, "EachApprovedRouteAnswersExactlyItsOneMethod"),
-            P(ShellPage, "NoRouteParameterNamesAnIdentifierOfAnyKind")),
-        A("`TheRootReturnsTheFixedShellDocument`", "Preserved unchanged, byte-for-byte",
-            "Every original root-body and method assertion remains live.",
+            P(ShellPage, "OnlyTheReviewRouteTakesTheOpaqueRecordSelector"),
+            P(ShellPage, "NoRouteParameterNamesATenantOrTaxpayerIdentifier")),
+        A("`TheRootReturnsTheFixedShellDocument`", "Intentionally revised and still byte-for-byte fixed",
+            "The truthful root copy changed once; the exact body, dynamic-value, asset, and method assertions remain live.",
             P(ShellPage, "TheRootReturnsTheFixedShellDocument"),
             P(ShellPage, "TheShellCarriesNoDynamicValue"),
             P(ShellPage, "TheShellReferencesNoExternalAsset"),
@@ -139,9 +141,9 @@ public sealed class AmendmentAuditTests
             P(PortalSecurity, "TheApprovedAuthenticationFilesAreExactlyTheEnumeratedSet"),
             P(ShellPage, "EveryEndpointIsEitherEnumeratedAnonymousOrAuthorizationRequired")),
         A("`InputBindingPatterns`", "exact allow-list",
-            "Only two caller-supplied names in one exact file are allowed.",
+            "Only two form names and one opaque GUID review selector are allowed.",
             P(PortalSecurity, "RequestInputAppearsOnlyInItsExactApprovedFile"),
-            P(PortalSecurity, "TheOnlyCallerSuppliedNamesAreTheAntiforgeryTokenAndMembershipSelector")),
+            P(PortalSecurity, "CallerSuppliedInputsAreTheTwoFormNamesAndOneOpaqueReviewSelector")),
         A("`InfrastructurePatterns` \"file system\" row", "developer-local Data Protection key ring",
             "File-system access is reduced to one exact file and one exact development-only purpose.",
             P(PortalSecurity, "ANarrowedInfrastructureConcernAppearsOnlyInItsOneApprovedFile"),
@@ -150,8 +152,9 @@ public sealed class AmendmentAuditTests
             "The database and ORM ban remains executable over every portal production file.",
             P(PortalSecurity, "ProductionSource_TakesNoInfrastructureDependency")),
         A("`PiiPatterns` rows", "Preserved and strengthened",
-            "The PII token scan remains live and includes the new persisted-taxpayer types.",
-            P(PortalSecurity, "ProductionSource_ContainsNoPiiToken")),
+            "The prohibited-PII scan remains live while the two approved display-name fields are confined to the closed review projection.",
+            P(PortalSecurity, "ProductionSource_ContainsNoPiiToken"),
+            P(PortalSecurity, "ApprovedDisplayPiiIsReadOnlyByTheClosedReviewProjection")),
         A("`NeitherResponseBodyContainsANineDigitRun`", "Preserved and extended",
             "Response, source, logging, configuration, and client-stack guards all remain live.",
             P(PortalSecurity, "NeitherResponseBodyContainsANineDigitRun"),
@@ -181,10 +184,10 @@ public sealed class AmendmentAuditTests
             "The tree, delivered-scope, and resolved-versus-reserved roadmap assertions remain live.",
             P(RepositoryVerification, "TheReadmeDocumentsEveryProjectTreeThatExists"),
             P(RepositoryVerification, "TheRootInstructionsRecordTheDeliveredScope"),
-            P(RepositoryVerification, "TheForwardRoadmapRecordsTheResolvedAndReservedQuestions")),
-        A("`TheReadmeSaysPlainlyThatNoTaxpayerDataIsRendered`", "All preserved unchanged",
-            "The no-render, no-count, root-rule, and untouched-module-instruction assertions remain live.",
-            P(RepositoryVerification, "TheReadmeSaysPlainlyThatNoTaxpayerDataIsRendered"),
+            P(RepositoryVerification, "TheForwardRoadmapRecordsTheDeliveredReviewAndReservedIngress")),
+        A("`TheReadmeSaysPlainlyThatNoTaxpayerDataIsRendered`", "Replaced by the exact first-surface inventory",
+            "The one rendered surface, no-SIN boundary, no-count, root-rule, and untouched-module assertions remain live.",
+            P(RepositoryVerification, "TheReadmeDefinesTheOneRenderedSurfaceAndNoSinBoundary"),
             P(RepositoryVerification, "TheReadmeAssertsNoProjectCount"),
             P(RepositoryVerification, "TheRootInstructionsStillForbidATotalProjectCount"),
             P(RepositoryVerification, "NoExistingModuleInstructionFileWasRewrittenForTheHost")),

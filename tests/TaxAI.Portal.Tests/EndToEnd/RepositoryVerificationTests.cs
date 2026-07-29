@@ -3,11 +3,12 @@ using System.Text.RegularExpressions;
 namespace TaxAI.Portal.Tests.EndToEnd;
 
 /// <summary>
-/// Spec 010 T07 plus spec 011 T20 — the documentation gate. Proves the
+/// Spec 010 T07, spec 011 T20, and spec 012 T01 — the documentation gate. Proves the
 /// repository's own description of itself is true: the README describes the
 /// repository that exists, names the identity/persistence capabilities that now
-/// ship, disclaims every taxpayer-data and deployment capability that does not,
-/// and leaves the five pre-existing modules' instructions untouched.
+/// ship, names the one review surface, disclaims every broader taxpayer-data and
+/// deployment capability that does not, and leaves the five pre-existing
+/// modules' instructions untouched.
 /// <para>
 /// A README that describes a repository which is not there is the same
 /// correctness hazard spec 005 fixed once already, and it is the one kind of
@@ -122,6 +123,7 @@ public sealed class RepositoryVerificationTests
                      "Tenancy and firm scoping",
                      "Database persistence",
                      "Retention and purge",
+                     "firm-scoped read-only accountant review screen",
                  })
         {
             Assert.Contains(capability, Readme, StringComparison.OrdinalIgnoreCase);
@@ -133,7 +135,7 @@ public sealed class RepositoryVerificationTests
     {
         foreach (var disclaimer in new[]
                  {
-                     "No taxpayer-data screen ships.",
+                     "No second taxpayer-data screen",
                      "No document upload ships.",
                      "No OCR or LLM adapter ships.",
                      "No production deployment configuration ships.",
@@ -192,9 +194,20 @@ public sealed class RepositoryVerificationTests
     }
 
     [Fact] // AC-48
-    public void TheReadmeSaysPlainlyThatNoTaxpayerDataIsRendered()
+    public void TheReadmeDefinesTheOneRenderedSurfaceAndNoSinBoundary()
     {
-        Assert.Contains("no taxpayer data", Readme, StringComparison.OrdinalIgnoreCase);
+        var readme = NormalizeWhitespace(Readme);
+
+        foreach (var required in new[]
+                 {
+                     "one firm-scoped read-only accountant review screen",
+                     "one exact immutable package version",
+                     "closed allowlist",
+                     "no SIN in any form",
+                 })
+        {
+            Assert.Contains(required, readme, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     // ------------------------------ AC-49: root instructions record the layout
@@ -219,6 +232,9 @@ public sealed class RepositoryVerificationTests
     [InlineData("Tenancy")]
     [InlineData("Persistence")]
     [InlineData("no SIN in any form")]
+    [InlineData("Spec 012")]
+    [InlineData("same empty `404`")]
+    [InlineData("taxpayer and employer display names")]
     [InlineData("narrowed, never deleted")]
     [InlineData("tax-domain")]
     public void TheRootInstructionsRecordTheDeliveredScope(string required)
@@ -238,7 +254,7 @@ public sealed class RepositoryVerificationTests
     }
 
     [Fact]
-    public void TheForwardRoadmapRecordsTheResolvedAndReservedQuestions() // spec 011 AC-147
+    public void TheForwardRoadmapRecordsTheDeliveredReviewAndReservedIngress() // spec 011 AC-147
     {
         var next = NormalizeWhitespace(
             File.ReadAllText(Path.Combine(RepositoryRoot, "NEXT.md")));
@@ -246,14 +262,13 @@ public sealed class RepositoryVerificationTests
         foreach (var required in new[]
                  {
                      "Spec 011",
-                     "question A",
-                     "question B",
-                     "SIN part of question C",
-                     "question D",
-                     "question E",
+                     "Spec 012",
+                     "first taxpayer-data surface is complete",
+                     "exact browser allowlist",
+                     "second taxpayer-data surface",
+                     "`tax-domain` specification",
                      "Question F",
                      "remains reserved",
-                     "Rendering taxpayer data remains a separate `tax-domain` specification",
                  })
         {
             Assert.Contains(required, next, StringComparison.OrdinalIgnoreCase);
