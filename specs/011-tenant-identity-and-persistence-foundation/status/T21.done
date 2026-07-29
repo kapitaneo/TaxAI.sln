@@ -1,0 +1,99 @@
+TaskID: T21
+Task: Amendments audit, repository-wide end-to-end verification, test floors, and AC-by-AC record
+PR: #123
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/123
+Implementation commit: 1b0808f05717aeabba7d1725cfaa2d5b5921dcef
+Branch: codex/feat-011-w10-t21
+Base: master
+
+Prerequisite confirmed:
+- T20.done existed on master after PR #122 merged.
+- Every earlier-wave marker for spec 011 existed before implementation.
+
+Delivered verification:
+- Added a mechanical ledger covering all 13 requirements-amendment rows and all
+  28 shipped-assertion amendment rows in the PRD.
+- Every Amendments row names live xUnit proof and records why the replacement is
+  exact, preserved, or strictly narrower; row-count and uniqueness guards fail if
+  a superseded row disappears without an accounted-for replacement.
+- Added a full relational save starting from a SIN-bearing upstream T4 slip,
+  followed by direct inspection of every persisted string and identifier column
+  in all six affected review-record tables. No nine-digit run reaches storage.
+- Added a diagnostics audit covering the complete save, read, sign-in, and purge
+  workflow. Save, read, and sign-in declare no diagnostic sink; purge remains the
+  only logger and emits only structural counts plus the opaque trusted firm id.
+- Added the repository-wide full-suite manifest assertion and the combined
+  Tenancy/Persistence/Portal migration, seed, and fixture five-digit-literal
+  assertion.
+- Preserved the exact pre-existing module public-surface snapshots and exact
+  embedded mapping-resource-name assertions.
+- Raised the test-execution floors to the delivered counts:
+  - TaxAI.Portal.Tests: 403
+  - Tenancy.Tests: 289
+  - Persistence.Tests: 133
+- Added verification.md with AC-1 through AC-191 recorded individually and an
+  audit test proving that each criterion appears exactly once.
+
+Focused verification:
+- PASS: PiiAtRestTests
+  - Passed: 1
+  - Failed: 0
+  - Skipped: 0
+- PASS: DiagnosticsLeakTests
+  - Passed: 6
+  - Failed: 0
+  - Skipped: 0
+- PASS: AmendmentAuditTests plus the new solution regression assertions
+  - Passed: 6
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 0
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln --no-build
+  - Passed: 3,172
+  - Failed: 0
+  - Skipped: 0
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - TaxAI.Portal.Tests: 403
+  - Tenancy.Tests: 289
+  - Persistence.Tests: 133
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - TaxLogicEngine.Tests: 261 passed (floor 261)
+  - TaxCases.Tests: 337 passed (floor 337)
+  - DocumentExtraction.Tests: 673 passed (floor 673)
+  - CaseProcessing.Tests: 594 passed (floor 594)
+  - CaseReview.Tests: 482 passed (floor 482)
+  - TaxAI.Portal.Tests: 403 passed (floor 403)
+  - Tenancy.Tests: 289 passed (floor 289)
+  - Persistence.Tests: 133 passed (floor 133)
+  - Result: every expected project ran with no failure or skip and met its floor.
+
+Additional verification:
+- PASS: git diff --check
+- PASS: changed-file allowlist contains only T21 files plus this marker.
+- PASS: verification.md contains AC-1 through AC-191 exactly once.
+
+Changed-file scope:
+- tests/TaxAI.Portal.Tests/EndToEnd/AmendmentAuditTests.cs
+- tests/TaxAI.Portal.Tests/EndToEnd/SolutionAndRegressionTests.cs
+- tests/Persistence.Tests/EndToEnd/PiiAtRestTests.cs
+- tests/Tenancy.Tests/EndToEnd/DiagnosticsLeakTests.cs
+- scripts/test-projects.json
+- specs/011-tenant-identity-and-persistence-foundation/verification.md
+- specs/011-tenant-identity-and-persistence-foundation/status/T21.done
+
+Not done here:
+- No task outside T21 was started.
+- No task plan file was edited.
+- No merge or self-approval was performed; both remain human-only.

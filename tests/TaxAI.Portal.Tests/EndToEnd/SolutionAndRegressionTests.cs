@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -157,7 +158,7 @@ public sealed class SolutionAndRegressionTests
 
     // ------------------------------ AC-14: public surfaces are byte-for-byte as they were
 
-    [Theory] // AC-14
+    [Theory] // AC-14; spec 011 AC-25
     [MemberData(nameof(PublicSurfaceSnapshots))]
     public void TheModulePublicSurfaceIsUnchanged(string module, string[] expected)
     {
@@ -176,7 +177,7 @@ public sealed class SolutionAndRegressionTests
 
     // -------------------------------- AC-15: embedded mapping resources untouched
 
-    [Fact] // AC-15
+    [Fact] // AC-15; spec 011 AC-26
     public void TheEmbeddedMappingResourcesKeepTheirExactLogicalNames()
     {
         // These strings are load-bearing: EmbeddedT4/T5LineMapProvider look the
@@ -313,6 +314,85 @@ public sealed class SolutionAndRegressionTests
         Assert.DoesNotContain(
             typeof(Program).Assembly.GetReferencedAssemblies(),
             reference => reference.Name!.Contains("CaseReview", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ----------------------------------------- spec 011 AC-24: suite execution
+
+    [Fact]
+    public void EverySolutionTestProjectIsRegisteredInTheFullSuiteGate()
+    {
+        // This compares the test-project inventory only. It deliberately makes
+        // no assertion about the solution's total project count.
+        var solutionProjects = SolutionProjectLines()
+            .Select(line => line.Split(',')[1].Trim().Trim('"'))
+            .Where(path =>
+                path.StartsWith(@"tests\", StringComparison.Ordinal) &&
+                path.EndsWith(".Tests.csproj", StringComparison.Ordinal))
+            .Select(path => Path.GetFileNameWithoutExtension(path))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        using var manifest = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RepositoryRoot, "scripts", "test-projects.json")));
+        var registered = manifest.RootElement
+            .GetProperty("projects")
+            .EnumerateArray()
+            .Select(project => new
+            {
+                Name = project.GetProperty("name").GetString()!,
+                Floor = project.GetProperty("minimumTests").GetInt32(),
+            })
+            .OrderBy(project => project.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(solutionProjects, registered.Select(project => project.Name));
+        Assert.All(registered, project => Assert.True(
+            project.Floor > 0,
+            $"{project.Name} must have a positive execution floor."));
+    }
+
+    [Fact] // spec 011 AC-109
+    public void NoNewModulePortalMigrationSeedOrFixtureHardCodesACraLineNumber()
+    {
+        var fiveDigitLiteral = new Regex(
+            @"\b\d{5}\b",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+        var productionFiles = new[] { "Tenancy", "Persistence", "TaxAI.Portal" }
+            .SelectMany(module => Directory.EnumerateFiles(
+                Path.Combine(RepositoryRoot, "src", module),
+                "*.cs",
+                SearchOption.AllDirectories))
+            .Where(path => !IsBuildOutput(path));
+        var fixtureFiles = new[] { "Tenancy.Tests", "Persistence.Tests", "TaxAI.Portal.Tests" }
+            .SelectMany(project => Directory.EnumerateFiles(
+                Path.Combine(RepositoryRoot, "tests", project),
+                "*.cs",
+                SearchOption.AllDirectories))
+            .Where(path => !IsBuildOutput(path))
+            .Where(path =>
+                path.Contains(
+                    $"{Path.DirectorySeparatorChar}Support{Path.DirectorySeparatorChar}",
+                    StringComparison.Ordinal) ||
+                Path.GetFileName(path).Contains("Fixture", StringComparison.Ordinal) ||
+                Path.GetFileName(path).Contains("Seeder", StringComparison.Ordinal));
+        var violations = productionFiles
+            .Concat(fixtureFiles)
+            .Distinct(StringComparer.Ordinal)
+            .Select(path => new
+            {
+                Path = Path.GetRelativePath(RepositoryRoot, path),
+                Lines = ExecutableLines(path).Where(line => fiveDigitLiteral.IsMatch(line)).ToArray(),
+            })
+            .Where(result => result.Lines.Length > 0)
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            "Five-digit integer literals were found in the new production, migration, seed, or fixture surface: "
+            + string.Join(
+                " | ",
+                violations.Select(result => $"{result.Path}: {string.Join(", ", result.Lines)}")));
     }
 
     // ---------------------------------------------------------------- guard
