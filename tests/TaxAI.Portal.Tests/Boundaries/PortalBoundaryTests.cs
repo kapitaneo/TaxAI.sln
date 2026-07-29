@@ -36,8 +36,10 @@ public sealed class PortalBoundaryTests
     {
         "ModuleRegistration.cs",
         "PortalContent.cs",
+        "PortalIdentity.cs",
         "PortalStartupGuards.cs",
         "Program.cs",
+        "SessionTicketStore.cs",
     };
 
     /// <summary>
@@ -187,9 +189,35 @@ public sealed class PortalBoundaryTests
         // silently exempt. AddTaxAiModules is the single call into the
         // composition root.
         { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
-        { "ModuleRegistration.cs", new[] { "AddSingleton", "AddTaxAiModules", "AddTaxAiPersistence" } },
+        {
+            "ModuleRegistration.cs",
+            new[] { "AddPortalIdentity", "AddSingleton", "AddTaxAiModules", "AddTaxAiPersistence" }
+        },
         { "PortalContent.cs", Array.Empty<string>() },
         { "PortalStartupGuards.cs", Array.Empty<string>() },
+
+        // The host's own contributing module. AddClaim is the framework's
+        // ClaimsIdentity method rather than a registration; it is enumerated
+        // rather than special-cased so nothing is silently exempt.
+        {
+            "PortalIdentity.cs",
+            new[]
+            {
+                "AddAuthentication",
+                "AddAuthorization",
+                "AddClaim",
+                "AddCookie",
+                "AddDataProtection",
+                "AddOpenIdConnect",
+                "AddOptions",
+                "AddPortalIdentity",
+                "AddSingleton",
+            }
+        },
+
+        // The ticket store registers nothing at all. It builds a principal, and
+        // AddClaim is the only registration-shaped token in it.
+        { "SessionTicketStore.cs", new[] { "AddClaim" } },
     };
 
     [Theory] // AC-22, spec 011 AC-31
@@ -241,7 +269,9 @@ public sealed class PortalBoundaryTests
             .OrderBy(token => token, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(new[] { "AddTaxAiPersistence" }, moduleExtensions);
+        // Two contributors, two extensions: the storage module, and this host's
+        // own identity wiring. Replaces spec 011 T17's single-entry assertion.
+        Assert.Equal(new[] { "AddPortalIdentity", "AddTaxAiPersistence" }, moduleExtensions);
 
         // Each of those extensions is declared exactly once, by the module that
         // owns it.
@@ -251,6 +281,15 @@ public sealed class PortalBoundaryTests
                 .Sum(path => Regex.Matches(
                     File.ReadAllText(path),
                     @"IServiceCollection\s+AddTaxAiPersistence\s*\(",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)).Count));
+
+        Assert.Equal(
+            1,
+            ProductionSourceFiles()
+                .Sum(path => Regex.Matches(
+                    string.Join("\n", ExecutableLines(path)),
+                    @"IServiceCollection\s+AddPortalIdentity\s*\(",
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromSeconds(1)).Count));
 

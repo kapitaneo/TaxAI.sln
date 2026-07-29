@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -123,42 +124,117 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
-    // ------------------------------------------------------------------ AC-26
+    // -------------------------------------- spec 011 AC-127 – AC-130: the routes
 
-    [Fact]
-    public void TheHostMapsExactlyTwoGetEndpoints() // AC-26
+    /// <summary>
+    /// The host's complete route inventory, with the exact method each answers.
+    /// <para>
+    /// Replaces spec 010's "exactly two GET endpoints", superseded by FR-48. An
+    /// exact route-and-method inventory is strictly stronger than a count plus a
+    /// blanket "GET only": the old pair could not have named which routes exist,
+    /// and could not have distinguished a new GET route from a renamed one.
+    /// </para>
+    /// <para>
+    /// The OpenID Connect callback paths are deliberately absent: they are
+    /// handled by the authentication middleware and are mapped as endpoints
+    /// never, which is why no route below carries one.
+    /// </para>
+    /// </summary>
+    public static TheoryData<string, string> RouteInventory() => new()
     {
-        var endpoints = MappedRouteEndpoints();
+        { "/", "GET" },
+        { "/health", "GET" },
+        { "/sign-in", "GET" },
+        { "/sign-out", "POST" },
+    };
 
-        Assert.Equal(2, endpoints.Length);
-
+    [Fact] // spec 011 AC-127
+    public void TheHostMapsExactlyTheApprovedRoutes()
+    {
         Assert.Equal(
-            new[] { "/", "/health" },
-            endpoints
+            RouteInventory()
+                .Select(row => (string)row[0]!)
+                .OrderBy(pattern => pattern, StringComparer.Ordinal)
+                .ToArray(),
+            MappedRouteEndpoints()
                 .Select(endpoint => endpoint.RoutePattern.RawText!)
                 .OrderBy(pattern => pattern, StringComparer.Ordinal)
                 .ToArray());
     }
 
-    [Fact]
-    public void EveryMappedEndpointIsGetOnly() // AC-26
+    [Theory] // spec 011 AC-127
+    [MemberData(nameof(RouteInventory))]
+    public void EachApprovedRouteAnswersExactlyItsOneMethod(string pattern, string method)
     {
-        foreach (var endpoint in MappedRouteEndpoints())
-        {
-            var methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods;
+        var endpoint = Assert.Single(
+            MappedRouteEndpoints().Where(candidate =>
+                string.Equals(candidate.RoutePattern.RawText, pattern, StringComparison.Ordinal)));
 
-            Assert.NotNull(methods);
-            Assert.Equal(new[] { "GET" }, methods!.ToArray());
-        }
+        var methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods;
+
+        Assert.NotNull(methods);
+        Assert.Equal(new[] { method }, methods!.ToArray());
     }
 
-    [Fact]
-    public void NoMappedEndpointTakesARouteParameter() // AC-26
+    [Fact] // spec 011 AC-128
+    public void NoMappedEndpointTakesARouteParameter()
     {
-        // A route parameter is an input surface, and v1 has none.
+        // A route parameter is an input surface. The firm-scoped surfaces this
+        // host will grow take their one selector in a form body, never in a
+        // path, so this stays absolute rather than becoming an allow-list.
         foreach (var endpoint in MappedRouteEndpoints())
         {
             Assert.Empty(endpoint.RoutePattern.Parameters);
+        }
+    }
+
+    [Theory] // spec 011 AC-128, AC-129
+    [InlineData("firm")]
+    [InlineData("case")]
+    [InlineData("participant")]
+    [InlineData("document")]
+    [InlineData("session")]
+    [InlineData("record")]
+    [InlineData("package")]
+    [InlineData("taxpayer")]
+    public void NoRoutePatternNamesAnIdentifierOfAnyKind(string identifierWord)
+    {
+        // Not merely "no parameter bound to a firm": no route pattern names one
+        // at all, in a segment or in a parameter. A path that reads
+        // /firms/{firmId} is an authorization boundary written in a URL.
+        foreach (var endpoint in MappedRouteEndpoints())
+        {
+            Assert.DoesNotContain(
+                identifierWord,
+                endpoint.RoutePattern.RawText!,
+                StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact] // spec 011 AC-130
+    public void EveryEndpointIsEitherEnumeratedAnonymousOrAuthorizationRequired()
+    {
+        // The third state — neither marked anonymous nor requiring
+        // authorization — is the one that looks fine and is not. An endpoint
+        // that is public because nobody protected it reads exactly like one that
+        // is public by decision.
+        var anonymous = new[] { "/", "/health", "/sign-in" };
+
+        foreach (var endpoint in MappedRouteEndpoints())
+        {
+            var pattern = endpoint.RoutePattern.RawText!;
+            var allowsAnonymous = endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null;
+            var requiresAuthorization = endpoint.Metadata.GetMetadata<IAuthorizeData>() is not null;
+
+            if (anonymous.Contains(pattern, StringComparer.Ordinal))
+            {
+                Assert.True(allowsAnonymous, $"{pattern} must be explicitly anonymous.");
+                Assert.False(requiresAuthorization, $"{pattern} must not also require authorization.");
+                continue;
+            }
+
+            Assert.True(requiresAuthorization, $"{pattern} must require authorization.");
+            Assert.False(allowsAnonymous, $"{pattern} must not also allow anonymous.");
         }
     }
 

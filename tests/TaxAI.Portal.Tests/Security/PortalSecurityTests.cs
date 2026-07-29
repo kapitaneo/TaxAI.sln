@@ -39,8 +39,10 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     {
         "ModuleRegistration.cs",
         "PortalContent.cs",
+        "PortalIdentity.cs",
         "PortalStartupGuards.cs",
         "Program.cs",
+        "SessionTicketStore.cs",
     };
 
     private readonly WebApplicationFactory<Program> _factory;
@@ -239,24 +241,161 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         AssertNoProductionMatch(kind, pattern);
     }
 
-    // -------------------------------------------- AC-39: no auth or session
+    // ------------------------- spec 011 AC-130, AC-163: the authentication surface
 
-    public static TheoryData<string, string> AuthenticationPatterns() => new()
+    /// <summary>
+    /// Where each authentication concern is allowed to appear, by file.
+    /// <para>
+    /// Replaces spec 010's "the portal declares no authentication surface at
+    /// all", superseded by FR-38–FR-49. An exact per-file allow-list is strictly
+    /// stronger than the blanket exclusion would be if it were merely dropped:
+    /// the old rule said only that these tokens appear nowhere, and once one
+    /// must appear somewhere, "nowhere" degrades to "anywhere". This says
+    /// exactly where — and still forbids every one of them in the two files that
+    /// hold constants and refusals.
+    /// </para>
+    /// </summary>
+    public static TheoryData<string, string, string[]> AuthenticationPatterns() => new()
     {
-        { "authentication wiring", @"\bAddAuthentication\b|\bUseAuthentication\b" },
-        { "authorization wiring", @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b" },
-        { "identity", @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b" },
-        { "session or cookie state", @"\bAddSession\b|\bUseSession\b|\bAddDataProtection\b|Response\s*\.\s*Cookies" },
+        {
+            "authentication wiring",
+            @"\bAddAuthentication\b|\bUseAuthentication\b|\bAddCookie\b|\bAddOpenIdConnect\b",
+            new[] { "PortalIdentity.cs", "Program.cs" }
+        },
+        {
+            "authorization wiring",
+            @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b|\bAllowAnonymous\b",
+            new[] { "PortalIdentity.cs", "Program.cs" }
+        },
+        {
+            "identity",
+            @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b",
+            new[] { "PortalIdentity.cs", "SessionTicketStore.cs" }
+        },
+        {
+            "the durable ticket store",
+            @"\bITicketStore\b|\bSessionStore\b",
+            new[] { "PortalIdentity.cs", "SessionTicketStore.cs" }
+        },
+        {
+            // The startup guards name the port to inspect which implementation
+            // was registered — they resolve one, and wire none. That is the
+            // whole of their business with it.
+            "the session store port",
+            @"\bIAuthenticationSessionStore\b",
+            new[] { "PortalStartupGuards.cs", "SessionTicketStore.cs" }
+        },
+        {
+            "key ring registration",
+            @"\bAddDataProtection\b|\bPersistKeysTo\w*\b",
+            new[] { "PortalIdentity.cs" }
+        },
     };
 
-    [Theory] // AC-39
+    [Theory] // spec 011 AC-130
     [MemberData(nameof(AuthenticationPatterns))]
-    public void ProductionSource_DeclaresNoAuthenticationSurface(string kind, string pattern)
+    public void EveryAuthenticationTokenLivesInItsApprovedFile(
+        string kind, string pattern, string[] approvedFiles)
     {
-        // An exclusion, not a security design. The security design is Class A
-        // and is reserved for the human; v1 is safe only because it exposes
-        // nothing worth protecting.
-        AssertNoProductionMatch(kind, pattern);
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+        var matching = ProductionSourceFiles()
+            .Where(path => regex.IsMatch(string.Join("\n", ExecutableLines(path))))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        var unapproved = matching.Except(approvedFiles, StringComparer.Ordinal).ToArray();
+
+        Assert.True(
+            unapproved.Length == 0,
+            $"{kind} pattern /{pattern}/ appears outside its approved files: {string.Join(", ", unapproved)}");
+    }
+
+    [Fact] // spec 011 AC-130
+    public void NoAuthenticationTokenReachesTheFrozenConstants()
+    {
+        // PortalContent.cs is the spec 010 shell and health bodies, byte for
+        // byte. Nothing about authentication may reach it: those two routes are
+        // anonymous, constant, and answer while everything behind them is down.
+        var text = string.Join("\n", ExecutableLines(Path.Combine(PortalRoot, "PortalContent.cs")));
+
+        foreach (var row in AuthenticationPatterns())
+        {
+            var pattern = (string)row[1]!;
+
+            Assert.False(
+                Regex.IsMatch(text, pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
+                $"PortalContent.cs matches /{pattern}/.");
+        }
+    }
+
+    [Fact] // spec 011 AC-130
+    public void TheStartupGuardsWireNoAuthenticationAndOnlyInspectTheStore()
+    {
+        // The guards can refuse and nothing else. They name the session-store
+        // port to see which implementation was registered; they must not be able
+        // to register, replace, or configure one.
+        var text = string.Join("\n", ExecutableLines(Path.Combine(PortalRoot, "PortalStartupGuards.cs")));
+
+        foreach (var row in AuthenticationPatterns())
+        {
+            var pattern = (string)row[1]!;
+            var approved = ((string[])row[2]!).Contains("PortalStartupGuards.cs", StringComparer.Ordinal);
+
+            if (approved)
+            {
+                continue;
+            }
+
+            Assert.False(
+                Regex.IsMatch(text, pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
+                $"PortalStartupGuards.cs matches /{pattern}/.");
+        }
+    }
+
+    [Fact] // spec 011 AC-130
+    public void TheApprovedAuthenticationFilesAreExactlyTheFourEnumeratedOnes()
+    {
+        // Without this, widening a row's allow-list would widen the rule rather
+        // than fail against it.
+        Assert.Equal(
+            new[]
+            {
+                "PortalIdentity.cs",
+                "PortalStartupGuards.cs",
+                "Program.cs",
+                "SessionTicketStore.cs",
+            },
+            AuthenticationPatterns()
+                .SelectMany(row => (string[])row[2]!)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact] // spec 011 AC-163
+    public void TheProductionSourceSerializesNoAuthenticationTicket()
+    {
+        // The whole point of the ticket store: the cookie carries a key, not a
+        // payload. A serializer reached here would be the second copy of the
+        // principal, and the copy that goes stale.
+        AssertNoProductionMatch(
+            "ticket serialization",
+            @"\bTicketSerializer\b|\bTicketDataFormat\b|\bJsonSerializer\b|\bBinaryFormatter\b|\bSerializeAsync\b");
+    }
+
+    [Fact] // spec 011 AC-99, AC-165
+    public void TheExternalHandlerIsConfiguredToSaveNoToken()
+    {
+        // Asserted at the source as well as behaviourally, because this is one
+        // assignment away from putting the access, refresh, and id tokens into
+        // the ticket — and a behavioural test proves it for the configuration
+        // the test built, while this proves it for the one that ships.
+        var identity = string.Join("\n", ExecutableLines(Path.Combine(PortalRoot, "PortalIdentity.cs")));
+
+        Assert.Matches(new Regex(@"SaveTokens\s*=\s*false"), identity);
+        Assert.DoesNotMatch(new Regex(@"SaveTokens\s*=\s*true"), identity);
     }
 
     // ---------------------------------------------- no infrastructure at all
@@ -266,9 +405,11 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         { "database / ORM", @"\bDbContext\b|\bDbSet\s*<|\bSqlConnection\b|\bSystem\.Data\b|EntityFrameworkCore" },
         { "outbound HTTP", @"\bHttpClient\b|\bAddHttpClient\b|\bWebRequest\b|\bSocket\b" },
         { "OCR / LLM / cloud / email", @"\bOcr\b|\bTesseract\b|\bOpenAi\b|\bAnthropic\b|\bLlm\b|\bSmtp\b|\bMailMessage\b|\bAmazon\b|\bAzure\b|\bS3\b" },
-        { "system clock", @"DateTime\s*\.\s*(?:Now|UtcNow)|DateTimeOffset\s*\.\s*(?:Now|UtcNow)|\bTimeProvider\b" },
         { "background work", @"\bAddHostedService\b|\bBackgroundService\b|\bIHostedService\b|\bTimer\b" },
-        { "file system", @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bUseStaticFiles\b|\bwwwroot\b" },
+
+        // Still absolute. A host that serves files is a host that can serve the
+        // wrong one, and this project serves compile-time constants only.
+        { "static files", @"\bUseStaticFiles\b|\bwwwroot\b|\bStaticFileOptions\b|\bPhysicalFileProvider\b" },
     };
 
     [Theory] // supports AC-40's posture at source level
@@ -276,6 +417,113 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     public void ProductionSource_TakesNoInfrastructureDependency(string kind, string pattern)
     {
         AssertNoProductionMatch(kind, pattern);
+    }
+
+    /// <summary>
+    /// The two infrastructure concerns that stopped being absolute in spec 011,
+    /// each narrowed to exactly one file rather than dropped.
+    /// <para>
+    /// Both replacements are strictly stronger than what they replace. The
+    /// file-system row previously matched four tokens and let
+    /// <c>DirectoryInfo</c>, <c>File.</c>, <c>Directory.</c>, and
+    /// <c>Path.Combine</c> through unnoticed; this one catches all of them and
+    /// then permits a single named site. The clock row previously banned four
+    /// tokens everywhere; this one still bans three of them everywhere —
+    /// including in the file that is allowed the fourth — and permits
+    /// <c>DateTimeOffset.UtcNow</c> in one file, once.
+    /// </para>
+    /// </summary>
+    public static TheoryData<string, string, string> NarrowedInfrastructurePatterns() => new()
+    {
+        {
+            "file system",
+            @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bStreamWriter\b|\bFile\s*\.\s*[A-Z]|\bDirectory\s*\.\s*[A-Z]|\bDirectoryInfo\b|\bPath\s*\.\s*[A-Z]",
+            "PortalIdentity.cs"
+        },
+        {
+            "system clock",
+            @"DateTimeOffset\s*\.\s*UtcNow",
+            "SessionTicketStore.cs"
+        },
+    };
+
+    [Theory] // spec 011 FR-20 as amended
+    [MemberData(nameof(NarrowedInfrastructurePatterns))]
+    public void ANarrowedInfrastructureConcernAppearsOnlyInItsOneApprovedFile(
+        string kind, string pattern, string approvedFile)
+    {
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+        var violations = ProductionSourceFiles()
+            .Where(path => !Path.GetFileName(path).Equals(approvedFile, StringComparison.Ordinal))
+            .Where(path => regex.IsMatch(string.Join("\n", ExecutableLines(path))))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            violations.Length == 0,
+            $"{kind} pattern /{pattern}/ is approved only in {approvedFile}, and appears in: "
+            + string.Join(", ", violations));
+    }
+
+    [Theory] // spec 011 FR-20 as amended
+    [InlineData(@"DateTime\s*\.\s*Now")]
+    [InlineData(@"DateTime\s*\.\s*UtcNow")]
+    [InlineData(@"DateTimeOffset\s*\.\s*Now")]
+    [InlineData(@"\bTimeProvider\b")]
+    public void EveryOtherClockReadingStaysForbiddenEverywhere(string pattern)
+    {
+        // Including in the one file allowed a clock at all. There is exactly one
+        // way this host may ask what time it is.
+        AssertNoProductionMatch("system clock", pattern);
+    }
+
+    [Fact] // spec 011 FR-20 as amended
+    public void TheOneApprovedClockReadingAppearsExactlyOnce()
+    {
+        // A single reading, in a single private helper. Several would be several
+        // "now"s inside one request, and a session evaluated against two
+        // different instants is a session whose boundary depends on which line
+        // asked.
+        var store = string.Join("\n", ExecutableLines(Path.Combine(PortalRoot, "SessionTicketStore.cs")));
+
+        Assert.Equal(
+            1,
+            Regex.Matches(
+                store,
+                @"DateTimeOffset\s*\.\s*UtcNow",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)).Count);
+    }
+
+    [Fact] // spec 011 FR-20 as amended
+    public void TheOneApprovedFileSystemUseIsTheDeveloperKeyRing()
+    {
+        // Narrowed to a purpose, not merely to a file: the only reason this host
+        // touches a disk is a developer's local key ring, and outside
+        // Development the startup guards refuse a local key ring outright.
+        var identity = ExecutableLines(Path.Combine(PortalRoot, "PortalIdentity.cs")).ToArray();
+
+        var fileSystemLine = Assert.Single(
+            identity.Where(line => Regex.IsMatch(
+                line,
+                @"\bDirectoryInfo\b|\bPath\s*\.\s*[A-Z]",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1))));
+
+        // One expression, naming the content root and the ignored key-ring
+        // folder, and nothing else. No configured path, no environment
+        // variable, and no caller-supplied component.
+        Assert.Contains(
+            "Path.Combine(environment.ContentRootPath, DeveloperKeyRingFolder)",
+            fileSystemLine,
+            StringComparison.Ordinal);
+
+        var joined = string.Join("\n", identity);
+
+        Assert.Contains("PersistKeysToFileSystem", joined, StringComparison.Ordinal);
+        Assert.Contains("IsDevelopment", joined, StringComparison.Ordinal);
     }
 
     // ------------------------------- AC-41: no secret, no non-local binding
@@ -414,14 +662,21 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         { @"\bSafeDiagnosticText\b|\bMask(?:ed|ing)?\s*\(|\bRedact\w*\b|\bScrub\w*\b|\bSanitiz\w*\b", "return Mask(value);" },
         { @"\bAddHttpLogging\b|\bUseHttpLogging\b|\bAddW3CLogging\b|\bUseW3CLogging\b", "builder.Services.AddHttpLogging(o => { });" },
         { @"Log\w*\s*\([^)]*(?:Request|Path|QueryString|Headers|Cookies|Body)", "logger.LogInformation(\"path {Path}\", context.Request.Path);" },
-        { @"\bAddAuthentication\b|\bUseAuthentication\b", "builder.Services.AddAuthentication();" },
-        { @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b", "app.MapGet(\"/x\", () => 1).RequireAuthorization();" },
+        { @"\bAddAuthentication\b|\bUseAuthentication\b|\bAddCookie\b|\bAddOpenIdConnect\b", "builder.Services.AddAuthentication();" },
+        { @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b|\bAllowAnonymous\b", "app.MapGet(\"/x\", () => 1).RequireAuthorization();" },
         { @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b", "var user = context.User as ClaimsPrincipal;" },
+        { @"\bITicketStore\b|\bSessionStore\b|\bIAuthenticationSessionStore\b", "options.SessionStore = store;" },
+        { @"\bAddDataProtection\b|\bPersistKeysTo\w*\b", "services.AddDataProtection().PersistKeysToFileSystem(directory);" },
+        { @"\bTicketSerializer\b|\bTicketDataFormat\b|\bJsonSerializer\b|\bBinaryFormatter\b|\bSerializeAsync\b", "var blob = TicketSerializer.Default.Serialize(ticket);" },
         { @"\bDbContext\b|\bDbSet\s*<|\bSqlConnection\b|\bSystem\.Data\b|EntityFrameworkCore", "public sealed class AppDb : DbContext { }" },
         { @"\bHttpClient\b|\bAddHttpClient\b|\bWebRequest\b|\bSocket\b", "using var client = new HttpClient();" },
-        { @"DateTime\s*\.\s*(?:Now|UtcNow)|DateTimeOffset\s*\.\s*(?:Now|UtcNow)|\bTimeProvider\b", "var now = DateTime.UtcNow;" },
+        { @"DateTime\s*\.\s*UtcNow", "var now = DateTime.UtcNow;" },
+        { @"DateTimeOffset\s*\.\s*Now", "var now = DateTimeOffset.Now;" },
+        { @"DateTimeOffset\s*\.\s*UtcNow", "var now = DateTimeOffset.UtcNow;" },
+        { @"\bTimeProvider\b", "var now = TimeProvider.System.GetUtcNow();" },
         { @"\bAddHostedService\b|\bBackgroundService\b|\bIHostedService\b|\bTimer\b", "builder.Services.AddHostedService<Worker>();" },
-        { @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bUseStaticFiles\b|\bwwwroot\b", "app.UseStaticFiles();" },
+        { @"\bUseStaticFiles\b|\bwwwroot\b|\bStaticFileOptions\b|\bPhysicalFileProvider\b", "app.UseStaticFiles();" },
+        { @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bStreamWriter\b|\bFile\s*\.\s*[A-Z]|\bDirectory\s*\.\s*[A-Z]|\bDirectoryInfo\b|\bPath\s*\.\s*[A-Z]", "var keys = new DirectoryInfo(Path.Combine(root, \"keys\"));" },
     };
 
     [Theory]
