@@ -7,15 +7,17 @@ namespace Tenancy.Models;
 /// Every operation that touches a tenant-owned review record — save, read,
 /// purge — takes a trusted <c>FirmId</c> as a required parameter, with no
 /// overload, optional argument, default, or alternate code path that omits it.
-/// The three entries below are the bootstrap of tenancy itself: each one runs
+/// The four entries below are the bootstrap of tenancy itself: each one runs
 /// <em>before</em> a trusted firm exists, and none can be scoped by one without
 /// circularity.
 /// </para>
 /// <para>
-/// They mirror, one-for-one, the three-table identity carve-out in the schema —
-/// the user, firm-membership, and session tables. A fourth entry here would mean
-/// something that is not identity bootstrap had escaped the firm scope, so the
-/// list is asserted by name and by count.
+/// They operate only over the three-table identity carve-out in the schema —
+/// the user, firm-membership, and session tables. There are two approved user
+/// reads because sign-in starts from issuer plus subject while later requests
+/// start from the opaque local user identifier held by the server-side session.
+/// A fifth entry would mean something outside the approved identity bootstrap
+/// had escaped the firm scope, so the list is asserted by name and by count.
 /// </para>
 /// </summary>
 public static class FirmScopeExemptions
@@ -36,6 +38,15 @@ public static class FirmScopeExemptions
         "IIdentityDirectory.FindUserAsync(String, String, CancellationToken)";
 
     /// <summary>
+    /// A live session carries the opaque local user identifier but deliberately
+    /// stores no issuer or subject. Reloading the carve-out user row is how each
+    /// request revalidates active state and how firm selection recovers the
+    /// locally stored issuer and subject for the existing sign-in flow.
+    /// </summary>
+    public const string UserLookupByUserId =
+        "IIdentityDirectory.FindUserByIdAsync(Guid, CancellationToken)";
+
+    /// <summary>
     /// The active memberships are the input to the decision about which firm, if
     /// any, the session may hold. Scoping this by a firm would presuppose its
     /// own answer.
@@ -43,11 +54,12 @@ public static class FirmScopeExemptions
     public const string ActiveMembershipLookupByUserId =
         "IIdentityDirectory.FindActiveMembershipsAsync(Guid, CancellationToken)";
 
-    /// <summary>Exactly three entries. Never more.</summary>
+    /// <summary>Exactly four approved identity-bootstrap entries. Never more.</summary>
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
         SessionLookupBySessionId,
         UserLookupByIssuerAndSubject,
+        UserLookupByUserId,
         ActiveMembershipLookupByUserId,
     });
 }

@@ -54,6 +54,9 @@ public sealed class IdentityDirectoryTests
             "https://identity.example.test",
             "unprovisioned-subject",
             CancellationToken.None));
+        Assert.Null(await directory.FindUserByIdAsync(
+            UserId,
+            CancellationToken.None));
         Assert.Empty(await directory.FindActiveMembershipsAsync(
             UserId,
             CancellationToken.None));
@@ -64,6 +67,64 @@ public sealed class IdentityDirectoryTests
         Assert.Empty(await directory.FindFirmsAsync(
             [FirmId],
             CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FindUserByIdReturnsTheExactLocalUserIncludingInactiveState()
+    {
+        const string issuer = "https://identity.example.test/bootstrap";
+        const string subject = "bootstrap-subject";
+
+        await using var relational = await RelationalTestContext.CreateAsync();
+        await using (var writeContext = relational.CreateContext())
+        {
+            writeContext.Add(User(UserId, issuer, subject, isActive: false));
+            await writeContext.SaveChangesAsync();
+        }
+
+        await using var readContext = relational.CreateContext();
+        var directory = new SqlIdentityDirectory(readContext);
+
+        var found = await directory.FindUserByIdAsync(
+            UserId,
+            CancellationToken.None);
+
+        Assert.NotNull(found);
+        Assert.Equal(UserId, found.UserId);
+        Assert.Equal(issuer, found.Issuer);
+        Assert.Equal(subject, found.Subject);
+        Assert.False(found.IsActive);
+        Assert.Null(await directory.FindUserByIdAsync(
+            OtherUserId,
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public void UserLookupByIdExposesOnlyTheApprovedLocalIdentityShape()
+    {
+        var method = typeof(IIdentityDirectory)
+            .GetMethod(nameof(IIdentityDirectory.FindUserByIdAsync));
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<PortalUser?>), method.ReturnType);
+        Assert.Equal(
+            new[] { typeof(Guid), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType));
+
+        Assert.Equal(
+            new[]
+            {
+                nameof(PortalUser.CreatedAtUtc),
+                nameof(PortalUser.IsActive),
+                nameof(PortalUser.Issuer),
+                nameof(PortalUser.Subject),
+                nameof(PortalUser.UpdatedAtUtc),
+                nameof(PortalUser.UserId),
+            },
+            typeof(PortalUser)
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
     }
 
     [Fact]

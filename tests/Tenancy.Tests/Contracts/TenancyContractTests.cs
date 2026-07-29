@@ -173,16 +173,18 @@ public sealed class TenancyContractTests
     }
 
     [Fact]
-    public void TheFirmScopeExemptionListIsExactlyThreeNamedEntries()
+    public void TheFirmScopeExemptionListIsExactlyFourNamedEntries()
     {
-        // Three, because tenancy has exactly three bootstrap lookups and each one
-        // runs before a firm is knowable. A fourth would mean something that is
-        // not identity bootstrap had escaped the firm scope.
+        // Four, because tenancy has exactly four approved bootstrap lookups and
+        // each runs before a trusted firm is knowable. Two read the carve-out
+        // user table at different stages: issuer + subject at initial sign-in,
+        // then the session's opaque local user id on later requests.
         Assert.Equal(
             new[]
             {
                 "IAuthenticationSessionStore.FindAsync(Guid, CancellationToken)",
                 "IIdentityDirectory.FindUserAsync(String, String, CancellationToken)",
+                "IIdentityDirectory.FindUserByIdAsync(Guid, CancellationToken)",
                 "IIdentityDirectory.FindActiveMembershipsAsync(Guid, CancellationToken)",
             },
             FirmScopeExemptions.All);
@@ -197,6 +199,7 @@ public sealed class TenancyContractTests
         {
             (typeof(IAuthenticationSessionStore), nameof(IAuthenticationSessionStore.FindAsync)),
             (typeof(IIdentityDirectory), nameof(IIdentityDirectory.FindUserAsync)),
+            (typeof(IIdentityDirectory), nameof(IIdentityDirectory.FindUserByIdAsync)),
             (typeof(IIdentityDirectory), nameof(IIdentityDirectory.FindActiveMembershipsAsync)),
         };
 
@@ -222,7 +225,22 @@ public sealed class TenancyContractTests
     }
 
     [Fact]
-    public void TheOnlyFirmOmittingLookupsAreTheEnumeratedThree()
+    public void TheUserIdRecoveryLookupHasTheExactApprovedContract()
+    {
+        var find = typeof(IIdentityDirectory)
+            .GetMethod(nameof(IIdentityDirectory.FindUserByIdAsync))!;
+
+        Assert.Equal(typeof(Task<PortalUser?>), find.ReturnType);
+        Assert.Equal(
+            new[] { typeof(Guid), typeof(CancellationToken) },
+            find.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.DoesNotContain(
+            find.GetParameters(),
+            parameter => parameter.ParameterType == typeof(TrustedFirmId));
+    }
+
+    [Fact]
+    public void TheOnlyFirmOmittingLookupsAreTheEnumeratedFour()
     {
         // The complement of the exemption list: nothing outside it may take an
         // identifier and return tenant-owned state without a trusted firm.

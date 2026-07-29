@@ -22,46 +22,51 @@ clarification. Per root `CLAUDE.md`, a domain / PII / tenant-isolation ambiguity
 is **Class A: never assume, stop and ask.** All three items below are now
 answered or clarified on record. None may be reopened by an implementing agent.
 
-### A-1 — The firm-scope exemption list cannot contain exactly one entry
+### A-1 — The firm-scope exemption list and T18A identity recovery
 
-> **DECIDED by the human: three enumerated exemptions.** The exemption list
-> contains exactly the three operations named below and nothing else. FR-21's
+> **DECIDED by the human, corrected by T18A: four enumerated exemptions.** The
+> exemption list contains exactly the four operations named below and nothing
+> else. FR-21's
 > requirement is unrelaxed for every taxpayer-data operation — save, read, and
 > purge each still take a trusted `FirmId` as a required parameter with no
 > omitting overload. `FirmScopeExemptions.All` ships as an asserted constant of
-> exactly three entries, and AC-41's reflection test is written against it.
+> exactly four entries, and AC-41's reflection test is written against it.
 
 FR-21 and AC-41 require that *every* lookup, save, and delete in `Tenancy` and
 `Persistence` take a trusted `FirmId` as a required parameter, with **exactly
 one** enumerated exemption: session lookup by `SessionId`.
 
-But FR-39 keys the local user by **OIDC issuer + subject**, and FR-45 requires
+But FR-39 keys the local user by **OIDC issuer + subject**, FR-45 requires
 resolving the user's **active memberships** in order to decide what the trusted
-firm even is. Both lookups necessarily run *before* a trusted firm exists, and
-neither can be scoped by one without circularity. This is the same circularity
-FR-18 already acknowledges when it carves the user, membership, and session
-tables out of the mandatory-`FirmId`-column rule.
+firm even is, and merged T18 leaves the durable session with only the opaque
+local `UserId`. Per-request active-user revalidation and replacement-session
+issuance therefore require one more read of the same carve-out user table by
+`UserId`. All three identity-directory reads necessarily run before a trusted
+firm exists and cannot be scoped by one without circularity. This is the same
+circularity FR-18 already acknowledges when it carves the user, membership, and
+session tables out of the mandatory-`FirmId`-column rule.
 
-The decided resolution: the exemption list contains **exactly three** entries,
-matching FR-18's three-table identity carve-out one-for-one:
+The decided resolution: the exemption list contains **exactly four** entries,
+all confined to FR-18's three-table identity carve-out:
 
 | # | Operation | Why it cannot take a trusted firm |
 |---|---|---|
 | 1 | `IAuthenticationSessionStore.FindAsync(Guid sessionId, …)` | Establishes the firm scope; returns `ActiveFirmId` rather than accepting one (the PRD's own wording). |
 | 2 | `IIdentityDirectory.FindUserAsync(string issuer, string subject, …)` | FR-39's key is issuer + subject. No firm is known at sign-in. |
-| 3 | `IIdentityDirectory.FindActiveMembershipsAsync(Guid userId, …)` | FR-45 requires this result *to choose* the firm. |
+| 3 | `IIdentityDirectory.FindUserByIdAsync(Guid userId, …)` | A live session holds the opaque local user id. This read revalidates active state and recovers locally stored issuer + subject for the existing T18 issuance flow; it returns no provider profile or taxpayer data. |
+| 4 | `IIdentityDirectory.FindActiveMembershipsAsync(Guid userId, …)` | FR-45 requires this result *to choose* the firm. |
 
 The list ships as a real, asserted constant (`FirmScopeExemptions.All`) so a
-reviewer reads exactly three named entries and nothing else, and the reflection
+reviewer reads exactly four named entries and nothing else, and the reflection
 test in AC-41 is written against that constant. **Every operation touching a
 tenant-owned review record — save, read, purge — still requires a trusted firm
 with no omitting overload, exactly as FR-21 demands.** Nothing about the
 taxpayer-data path is relaxed.
 
 The alternative considered and **not** chosen was rewording FR-21 so the rule
-scopes to "tenant-owned aggregates" and the three identity operations are
+scopes to "tenant-owned aggregates" and the four bootstrap operations are
 described as carve-out rather than exemption. Same code, different wording; the
-human chose the explicit three-entry list, which is the version a reviewer can
+human chose the explicit four-entry list, which is the version a reviewer can
 count.
 
 ### A-2 — FR-42's Azure key ring is not implementable inside FR-13's one-package budget
@@ -599,11 +604,15 @@ contract is `FindAsync` — exactly the operation the PRD enumerated.
 ```
 interface IIdentityDirectory
     Task<PortalUser?> FindUserAsync(string issuer, string subject, CancellationToken ct);        // exemption 2
-    Task<IReadOnlyList<FirmMembership>> FindActiveMembershipsAsync(Guid userId, CancellationToken ct); // exemption 3
+    Task<PortalUser?> FindUserByIdAsync(Guid userId, CancellationToken ct);                       // exemption 3
+    Task<IReadOnlyList<FirmMembership>> FindActiveMembershipsAsync(Guid userId, CancellationToken ct); // exemption 4
     Task<FirmMembership?> FindMembershipAsync(Guid userId, Guid membershipId, CancellationToken ct);
     Task<IReadOnlyList<Firm>> FindFirmsAsync(IReadOnlyList<Guid> firmIds, CancellationToken ct);
 ```
-See **A-1**. `FindMembershipAsync` is keyed by the authenticated user's own
+See **A-1**. `FindUserByIdAsync` is a direct parameterized read of the carve-out
+user row and returns the closed `PortalUser` shape, including issuer, subject,
+and active state but no provider token, profile data, or taxpayer information.
+`FindMembershipAsync` is keyed by the authenticated user's own
 `UserId` plus an opaque membership identifier — it can only ever return a
 membership the caller already owns, which is why the firm-switch path never
 accepts a firm identifier at all (see §7.4).
@@ -693,13 +702,22 @@ sign-in the portal:
 Not storing a ticket blob is what makes AC-163, AC-165, and AC-184 provable by
 reading the schema instead of by trusting a serializer.
 
-**Per-request verification (`PortalAuthorization.cs`).** An authorization
-requirement on every protected endpoint that re-runs, server-side, on every
-request: session live and in-bounds → user active → membership exists → active →
-matches `ActiveFirmId`. Any failure, **including a store exception or timeout,
-refuses** with the fixed error response and no record content (FR-47, AC-157–AC-160).
-`/`, `/health`, `/sign-in`, and the OIDC callback paths are the enumerated
-anonymous set and skip it (AC-161).
+**Per-request verification (`PortalAuthorization.cs`).** Authorization has two
+stages, and the distinction is narrow:
+
+- authenticated tenancy-bootstrap endpoints (`GET /firms` and
+  `POST /firms/select`) require a live, in-bounds server-side session, a valid
+  session `UserId`, a fresh `FindUserByIdAsync` result whose user is active, and
+  freshly loaded active memberships. They may be reached while `ActiveFirmId` is
+  null because choosing it is their only purpose;
+- every normal firm-scoped protected endpoint runs that same sequence and then
+  additionally requires one active membership whose user and firm match the
+  session's `UserId` and `ActiveFirmId`.
+
+Any failure, **including a store exception or timeout, refuses** with the fixed
+error response and no record content (FR-47, AC-157–AC-160). `/`, `/health`,
+`/sign-in`, and the OIDC callback paths are the enumerated anonymous set and skip
+both stages (AC-161). The bootstrap exemption does not weaken R-1 globally.
 
 **Startup refusal (`PortalStartupGuards.cs`).** Outside Development the host
 refuses to start when the connection string is absent, does not require encrypted
@@ -753,6 +771,14 @@ identifier**. `POST /firms/select` takes exactly one caller-supplied value — a
 the authenticated user and is currently active, **revokes the current session**,
 and issues a **new** session with a new `SessionId` and a new
 `AbsoluteExpiresAtUtc` carrying the new `ActiveFirmId` (FR-46, AC-37).
+
+The endpoint takes `UserId` only from the authenticated server-side session,
+reloads the `PortalUser` through `FindUserByIdAsync`, refuses a missing or
+inactive user, and reloads current active memberships. Once the selected
+membership is proved active and owned by that user, issuer and subject are
+recovered from the local user row and passed through the existing T18
+sign-in/session-issuance flow. They never come from the request or caller claims
+and never enter the opaque cookie.
 
 > **The selector is a membership identifier, never a firm identifier.** FR-46
 > permits an unverified firm selector; taking a membership id instead means the
@@ -871,7 +897,7 @@ both pass before the next begins.
 | **4** | T14 identity-directory behaviour lands first; T11A then corrects the review-record, authentication-session, and purge-outcome construction seams. Only after T11A lands may the review-record repository, session store, and purge service implementations resume. |
 | **5** | `Persistence` registration extension, identifier source, connection-string guard, development seeder. |
 | **6** | Portal composition: the two new project references, `AddTaxAiPersistence`, startup refusal, gated dev seeding — **plus** the spec 010 reference/registration/production-file assertions this breaks. |
-| **7** | Portal authentication and the durable session: OIDC package, cookie scheme, ticket store, `/sign-in`, `/sign-out`, claim materialization — **plus** the spec 010 authentication/route assertions this breaks. |
+| **7** | Portal authentication and the durable session: OIDC package, cookie scheme, ticket store, `/sign-in`, `/sign-out`, claim materialization — **plus** the spec 010 authentication/route assertions this breaks. T18A then adds the fourth bootstrap identity lookup and records the two-stage authorization decision before T19. |
 | **8** | R-1 authorization and the firm surface: `/firms`, `POST /firms/select`, antiforgery — **plus** the remaining route and input assertions. |
 | **9** | Documentation: two module `CLAUDE.md`/`AGENTS.md` pairs, the **narrowed** portal gate, `README.md`, root `CLAUDE.md`, `NEXT.md`. |
 | **10** | End-to-end verification: the Amendments audit, `verification.md`, manifest floor raises. |
