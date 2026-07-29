@@ -1,0 +1,457 @@
+{
+  "baselineCommit": "13097dada6b1aae070fc0006d48a6862ce9904f8",
+  "capturedOn": "2026-07-29",
+  "solution": "TaxAI.sln",
+  "projects": [
+    {
+      "name": "CaseProcessing",
+      "path": "src/CaseProcessing/CaseProcessing.csproj",
+      "kind": "production",
+      "assemblyName": "CaseProcessing",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/DocumentExtraction/DocumentExtraction.csproj",
+        "src/TaxLogicEngine/TaxLogicEngine.csproj"
+      ],
+      "packageReferences": []
+    },
+    {
+      "name": "CaseReview",
+      "path": "src/CaseReview/CaseReview.csproj",
+      "kind": "production",
+      "assemblyName": "CaseReview",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/CaseProcessing/CaseProcessing.csproj",
+        "src/TaxLogicEngine/TaxLogicEngine.csproj"
+      ],
+      "packageReferences": []
+    },
+    {
+      "name": "DocumentExtraction",
+      "path": "src/DocumentExtraction/DocumentExtraction.csproj",
+      "kind": "production",
+      "assemblyName": "DocumentExtraction",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/TaxLogicEngine/TaxLogicEngine.csproj"
+      ],
+      "packageReferences": []
+    },
+    {
+      "name": "Persistence",
+      "path": "src/Persistence/Persistence.csproj",
+      "kind": "production",
+      "assemblyName": "Persistence",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/Tenancy/Tenancy.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.EntityFrameworkCore.Design",
+          "version": "8.0.0",
+          "privateAssets": "all"
+        },
+        {
+          "name": "Microsoft.EntityFrameworkCore.SqlServer",
+          "version": "8.0.0",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "TaxAI.Portal",
+      "path": "src/TaxAI.Portal/TaxAI.Portal.csproj",
+      "kind": "production",
+      "assemblyName": "TaxAI.Portal",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/CaseProcessing/CaseProcessing.csproj",
+        "src/Persistence/Persistence.csproj",
+        "src/TaxLogicEngine/TaxLogicEngine.csproj",
+        "src/Tenancy/Tenancy.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.AspNetCore.Authentication.OpenIdConnect",
+          "version": "8.0.0",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "TaxCases",
+      "path": "src/TaxCases/TaxCases.csproj",
+      "kind": "production",
+      "assemblyName": "TaxCases",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/TaxLogicEngine/TaxLogicEngine.csproj"
+      ],
+      "packageReferences": []
+    },
+    {
+      "name": "TaxLogicEngine",
+      "path": "src/TaxLogicEngine/TaxLogicEngine.csproj",
+      "kind": "production",
+      "assemblyName": "TaxLogicEngine",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [],
+      "packageReferences": []
+    },
+    {
+      "name": "Tenancy",
+      "path": "src/Tenancy/Tenancy.csproj",
+      "kind": "production",
+      "assemblyName": "Tenancy",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/CaseReview/CaseReview.csproj",
+        "src/TaxLogicEngine/TaxLogicEngine.csproj"
+      ],
+      "packageReferences": []
+    },
+    {
+      "name": "CaseProcessing.Tests",
+      "path": "tests/CaseProcessing.Tests/CaseProcessing.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "CaseProcessing.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/CaseProcessing/CaseProcessing.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "CaseReview.Tests",
+      "path": "tests/CaseReview.Tests/CaseReview.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "CaseReview.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/CaseReview/CaseReview.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "DocumentExtraction.Tests",
+      "path": "tests/DocumentExtraction.Tests/DocumentExtraction.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "DocumentExtraction.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/DocumentExtraction/DocumentExtraction.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "Persistence.Tests",
+      "path": "tests/Persistence.Tests/Persistence.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "Persistence.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/Persistence/Persistence.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "version": "8.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "TaxAI.Portal.Tests",
+      "path": "tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "TaxAI.Portal.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/TaxAI.Portal/TaxAI.Portal.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.AspNetCore.Mvc.Testing",
+          "version": "8.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "TaxCases.Tests",
+      "path": "tests/TaxCases.Tests/TaxCases.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "TaxCases.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/TaxCases/TaxCases.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "TaxLogicEngine.Tests",
+      "path": "tests/TaxLogicEngine.Tests/TaxLogicEngine.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "TaxLogicEngine.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/TaxLogicEngine/TaxLogicEngine.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    },
+    {
+      "name": "Tenancy.Tests",
+      "path": "tests/Tenancy.Tests/Tenancy.Tests.csproj",
+      "kind": "test",
+      "assemblyName": "Tenancy.Tests",
+      "targetFrameworks": [
+        "net8.0"
+      ],
+      "projectReferences": [
+        "src/CaseReview/CaseReview.csproj",
+        "src/TaxLogicEngine/TaxLogicEngine.csproj",
+        "src/Tenancy/Tenancy.csproj"
+      ],
+      "packageReferences": [
+        {
+          "name": "Microsoft.NET.Test.Sdk",
+          "version": "17.8.0",
+          "privateAssets": null
+        },
+        {
+          "name": "coverlet.collector",
+          "version": "6.0.0",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit",
+          "version": "2.5.3",
+          "privateAssets": null
+        },
+        {
+          "name": "xunit.runner.visualstudio",
+          "version": "2.5.3",
+          "privateAssets": null
+        }
+      ]
+    }
+  ],
+  "testFloors": {
+    "TaxLogicEngine.Tests": 261,
+    "TaxCases.Tests": 337,
+    "DocumentExtraction.Tests": 673,
+    "CaseProcessing.Tests": 594,
+    "CaseReview.Tests": 482,
+    "TaxAI.Portal.Tests": 403,
+    "Tenancy.Tests": 289,
+    "Persistence.Tests": 133
+  },
+  "testTotals": {
+    "TaxLogicEngine.Tests": 261,
+    "TaxCases.Tests": 337,
+    "DocumentExtraction.Tests": 673,
+    "CaseProcessing.Tests": 594,
+    "CaseReview.Tests": 482,
+    "TaxAI.Portal.Tests": 403,
+    "Tenancy.Tests": 289,
+    "Persistence.Tests": 133
+  },
+  "totalPassedTests": 3172,
+  "warningBudget": {
+    "CS0649": 2,
+    "xUnit2008": 2,
+    "xUnit1031": 6,
+    "xUnit2013": 1
+  },
+  "migrationSha256": {
+    "src/Persistence/Migrations/20260729021907_InitialPersistence.Designer.cs": "0C7A963AF4DE6B3224EF05E2D2B322C08E0C67727A4781A2DEC3D098E087A81C",
+    "src/Persistence/Migrations/20260729021907_InitialPersistence.cs": "2997ABCF27357ABE8E36818D07C4435319A1F4B758480463DD7B1BA3B5C500A1",
+    "src/Persistence/Migrations/TaxAiDbContextModelSnapshot.cs": "2452D274C7DEBEC0955BA59D00E892069F5FDB223D06F874E68494DF6E4DF2B4"
+  },
+  "pathsThatMustRemainAbsent": [
+    ".github",
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+    "Dockerfile",
+    "docker-compose.yml",
+    "azure-pipelines.yml"
+  ]
+}
