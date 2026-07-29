@@ -49,6 +49,15 @@ internal sealed class SqlIdentityDirectory : IIdentityDirectory
             : null;
     }
 
+    public Task<PortalUser?> FindUserByIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        _context.Set<PortalUser>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.UserId == userId,
+                cancellationToken);
+
     public async Task<IReadOnlyList<FirmMembership>> FindActiveMembershipsAsync(
         Guid userId,
         CancellationToken cancellationToken)

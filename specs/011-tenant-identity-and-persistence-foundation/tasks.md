@@ -7,7 +7,7 @@ approved. Never edit it. Never check a box in it.** Completion is recorded by
 creating `specs/011-tenant-identity-and-persistence-foundation/status/<TaskID>.done`
 containing the PR number and commit SHA.
 
-11 waves, 24 tasks. Each wave merges to `master` before the next begins. Every
+11 waves, 25 tasks. Each wave merges to `master` before the next begins. Every
 task ships its tests in the same pass.
 
 ---
@@ -22,13 +22,15 @@ T01.** T01 must *register* projects in the existing manifest, never recreate it.
 
 ## Class A decisions taken during planning (given by the human; not re-asked)
 
-**B-2 — the firm-scope exemption list: ANSWERED — exactly three entries.**
+**B-2 — the firm-scope exemption list: ANSWERED, corrected by T18A — exactly
+four entries.**
 FR-21/AC-41's single exemption cannot coexist with FR-39, FR-45, and FR-47, which
 require identity lookups that run before any firm is known.
-`FirmScopeExemptions.All` therefore contains exactly three entries, mirroring
-FR-18's three-table identity carve-out one-for-one:
+`FirmScopeExemptions.All` therefore contains exactly four entries, all confined
+to FR-18's three-table identity carve-out:
 `IAuthenticationSessionStore.FindAsync(Guid sessionId, …)`,
-`IIdentityDirectory.FindUserAsync(string issuer, string subject, …)`, and
+`IIdentityDirectory.FindUserAsync(string issuer, string subject, …)`,
+`IIdentityDirectory.FindUserByIdAsync(Guid userId, …)`, and
 `IIdentityDirectory.FindActiveMembershipsAsync(Guid userId, …)`. **Nothing about
 the taxpayer-data path is relaxed:** every save, read, and purge of a review
 record still takes a trusted `FirmId` as a required parameter with no overload,
@@ -116,6 +118,30 @@ Four do — `CompositionRootTests`, `PortalSecurityTests`, `HealthEndpointTests`
 and `ShellPageTests` — and the last two were absent from T17's file allowlist,
 so no task in this specification could adapt them. That is a planning defect,
 corrected by **T17A** below, which also widens T17's authoritative allowlist.
+
+**B-7 — T19 tenancy-bootstrap seams: CORRECTED by the human after T18 merged.**
+Merged T18 intentionally stores only the opaque local `UserId` in the durable
+session and rebuilds a principal carrying only local user and active-firm claims.
+That left T19 without a supported way to revalidate `PortalUser.IsActive` by
+`UserId` or recover locally stored issuer + subject when firm selection issues a
+replacement session. T18A corrects the contract before T19:
+
+- `IIdentityDirectory.FindUserByIdAsync(Guid userId, …)` is the fourth approved
+  firm-scope exemption. It directly reloads the identity-carve-out `PortalUser`,
+  including issuer, subject, and active state, and returns no provider token,
+  claims payload, profile data, or taxpayer information.
+- Authenticated tenancy-bootstrap endpoints (`GET /firms` and
+  `POST /firms/select`) may be reached with `ActiveFirmId == null`. They still
+  require a live in-bounds server-side session, a valid session `UserId`, a fresh
+  active local user, and freshly loaded active memberships. They are exempt only
+  from the active-firm/matching-membership portion of R-1.
+- Every normal firm-scoped protected endpoint continues to require complete
+  R-1. Firm selection takes identity only from the live server-side session and
+  local user row, then uses the existing T18 sign-in/session-issuance flow.
+  Issuer, subject, `UserId`, and trusted `FirmId` never come from the request or
+  caller-supplied claims, and issuer/subject never enter the cookie.
+
+T19 may not begin until `T18A.done` exists.
 
 ---
 
@@ -250,15 +276,19 @@ exists.**
 
 ---
 
-## Wave 7 — portal authentication and the durable session (1 task)
+## Wave 7 — portal authentication and the durable session (1 task + corrective prerequisite)
 
 - [ ] **T18** — Add the portal's one `PackageReference` (`Microsoft.AspNetCore.Authentication.OpenIdConnect`, pinned 8.0.x) and implement `PortalIdentity` (OIDC challenge → cookie scheme; `SaveTokens = false`; **every provider-supplied `taxai_firm_id` discarded before the local principal is created**; sign-in resolves the user by issuer + subject and their active memberships — exactly one → `ActiveFirmId` set and the claim issued, zero or several → `ActiveFirmId` null and **no claim**, the application choosing neither) and `SessionTicketStore` (an `ITicketStore` over `IAuthenticationSessionStore` that stores **no serialized ticket**: the cookie carries only the protected opaque key, and the principal — including `taxai_firm_id` — is rebuilt from the session row on every retrieve; an unknown, revoked, or out-of-bounds key returns null and creates nothing; a store failure returns null and fails closed). Map `GET /sign-in` (anonymous challenge) and `POST /sign-out` (revokes server-side **and** clears the cookie). Cookie is `HttpOnly`, `Secure`, `SameSite=Lax`. `/` and `/health` stay byte-identical and keep answering when the session store throws. **Amendments landing here:** `PortalProject_DeclaresNoPackageReference` → the portal's package set is **exactly** the one approved OIDC package at an exactly pinned version; `PortalSecurityTests.AuthenticationPatterns` → an exact allow-list of files, schemes, and the durable ticket store, with every endpoint provably either on the enumerated anonymous list or authorization-required; `ShellPageTests` route inventory → the exact new inventory with exact HTTP methods and no route parameter named or bound to a firm, case, participant, document, session, or record identifier; `InfrastructurePatterns` file-system row → narrowed to the developer-local key ring inside an approved branch, with `UseStaticFiles`/`wwwroot` still forbidden outright. Covers AC-11, AC-29, AC-30 (preserved), AC-36, AC-53–AC-55, AC-63, AC-64, AC-67–AC-69, AC-95, AC-98, AC-99, AC-131, AC-133, AC-163, AC-165–AC-167, AC-172, AC-174, AC-176, AC-177. — files: `src/TaxAI.Portal/TaxAI.Portal.csproj`, `src/TaxAI.Portal/Program.cs`, `src/TaxAI.Portal/ModuleRegistration.cs`, `src/TaxAI.Portal/PortalIdentity.cs`, `src/TaxAI.Portal/SessionTicketStore.cs`, `tests/TaxAI.Portal.Tests/ProjectStructureTests.cs`, `tests/TaxAI.Portal.Tests/ShellPageTests.cs`, `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs`, `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs`, `tests/TaxAI.Portal.Tests/Identity/SignInTests.cs`, `tests/TaxAI.Portal.Tests/Identity/SessionLifetimeTests.cs`, `tests/TaxAI.Portal.Tests/Identity/SessionRevocationTests.cs`, `tests/TaxAI.Portal.Tests/Identity/CookieAndTokenTests.cs` — depends on: T17
+
+### Corrective prerequisite for Wave 8
+
+- [ ] **T18A** — Correct the tenancy-bootstrap identity seams before T19: add `IIdentityDirectory.FindUserByIdAsync(Guid userId, CancellationToken)` as the fourth and final approved firm-scope exemption; implement it as a direct parameterized EF Core read returning the closed local `PortalUser` shape for both active and inactive users and null for a missing id; retain every existing identity-directory operation unchanged. Record the two authorization stages: bootstrap `/firms` and `/firms/select` may be reached with null `ActiveFirmId` but still require a live session, valid session user, fresh active-user check, and fresh active memberships; every normal firm-scoped protected endpoint still requires complete R-1. Record that firm selection recovers issuer + subject only from the local user row and passes them through the existing T18 issuance flow, never from a request or caller claim and never into the cookie. Update T18's test-only identity-directory fake solely to satisfy the corrected contract without changing any T18 assertion. **No T19 production or test file is touched.** Covers AC-41, AC-157, AC-160, AC-182 and supports AC-37, AC-65, AC-66, AC-186. — files: `specs/011-tenant-identity-and-persistence-foundation/prd.md`, `specs/011-tenant-identity-and-persistence-foundation/architecture.md`, `specs/011-tenant-identity-and-persistence-foundation/tasks.md`, `src/Tenancy/Contracts/IIdentityDirectory.cs`, `src/Tenancy/Models/FirmScopeExemptions.cs`, `src/Persistence/Repositories/SqlIdentityDirectory.cs`, `tests/Tenancy.Tests/Contracts/TenancyContractTests.cs`, `tests/Persistence.Tests/Repositories/IdentityDirectoryTests.cs`, `tests/TaxAI.Portal.Tests/Identity/SignInTests.cs` — depends on: T18
 
 ---
 
 ## Wave 8 — per-request verification and the firm surface (1 task)
 
-- [ ] **T19** — Implement `PortalAuthorization` (the R-1 requirement re-verified server-side on **every** protected request: session live and in bounds → user active → membership exists → active → matches `ActiveFirmId`; any failure, **including a store exception or timeout**, refuses with the fixed constant error response and no record content) and `FirmEndpoints` (`GET /firms` listing the user's active memberships by firm display name and **opaque membership identifier**; `POST /firms/select` taking exactly one caller-supplied value — a `membershipId` — plus the antiforgery token, verifying the membership belongs to the authenticated user and is currently active, revoking the current session, and issuing a **new** session with a new `SessionId` and a new `AbsoluteExpiresAtUtc`). **The portal reads a firm identifier from no request channel at all.** `/`, `/health`, `/sign-in`, and the OIDC callback paths remain the exact enumerated anonymous set and skip R-1. **Amendments landing here:** `PortalSecurityTests.InputBindingPatterns` → an exact allow-list of the antiforgery token and the membership selector, in the approved file only, and never a firm, case, participant, document, session, or package identifier used as an authorization boundary; `NoMappedEndpointTakesARouteParameter` → the final exact route inventory with exact HTTP methods. Covers AC-37, AC-56–AC-62, AC-65, AC-66, AC-73 (endpoint level), AC-96, AC-97, AC-127–AC-130, AC-132, AC-160, AC-161, AC-186, AC-190. — files: `src/TaxAI.Portal/PortalAuthorization.cs`, `src/TaxAI.Portal/FirmEndpoints.cs`, `src/TaxAI.Portal/Program.cs`, `src/TaxAI.Portal/ModuleRegistration.cs`, `tests/TaxAI.Portal.Tests/ShellPageTests.cs`, `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs`, `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs`, `tests/TaxAI.Portal.Tests/Identity/MembershipVerificationTests.cs`, `tests/TaxAI.Portal.Tests/Identity/FirmSelectionTests.cs`, `tests/TaxAI.Portal.Tests/Identity/TenantIsolationAtTheHttpBoundaryTests.cs` — depends on: T18
+- [ ] **T19** — Implement `PortalAuthorization` with the two T18A stages: authenticated tenancy-bootstrap requests re-verify session live and in bounds → valid session `UserId` → local user exists and active via `FindUserByIdAsync` → active memberships loaded fresh, while allowing `ActiveFirmId` to be null; every normal firm-scoped protected request additionally requires membership exists → active → matches `UserId` and `ActiveFirmId` → exactly one trusted active firm. Any failure, **including a store exception or timeout**, refuses with the fixed constant error response and no record content. Implement `FirmEndpoints` (`GET /firms` listing the user's active memberships by firm display name and **opaque membership identifier**; `POST /firms/select` taking exactly one caller-supplied value — a `membershipId` — plus the antiforgery token, using only the authenticated session `UserId`, reloading `PortalUser` and active memberships, verifying the membership belongs to that user and is active, recovering issuer + subject only from the local user row, revoking the current session, and issuing a **new** session through T18's existing flow with a new `SessionId` and a new `AbsoluteExpiresAtUtc`). **The portal reads a firm identifier from no request channel at all.** `/`, `/health`, `/sign-in`, and the OIDC callback paths remain the exact enumerated anonymous set and skip both authorization stages. **Amendments landing here:** `PortalSecurityTests.InputBindingPatterns` → an exact allow-list of the antiforgery token and the membership selector, in the approved file only, and never a firm, case, participant, document, session, or package identifier used as an authorization boundary; `NoMappedEndpointTakesARouteParameter` → the final exact route inventory with exact HTTP methods. Covers AC-37, AC-56–AC-62, AC-65, AC-66, AC-73 (endpoint level), AC-96, AC-97, AC-127–AC-130, AC-132, AC-160, AC-161, AC-186, AC-190. — files: `src/TaxAI.Portal/PortalAuthorization.cs`, `src/TaxAI.Portal/FirmEndpoints.cs`, `src/TaxAI.Portal/Program.cs`, `src/TaxAI.Portal/ModuleRegistration.cs`, `tests/TaxAI.Portal.Tests/ShellPageTests.cs`, `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs`, `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs`, `tests/TaxAI.Portal.Tests/Identity/MembershipVerificationTests.cs`, `tests/TaxAI.Portal.Tests/Identity/FirmSelectionTests.cs`, `tests/TaxAI.Portal.Tests/Identity/TenantIsolationAtTheHttpBoundaryTests.cs` — depends on: T18, T18A
 
 > `src/TaxAI.Portal/PortalContent.cs` is deliberately **not** in any task's file
 > list. `/` and `/health` stay byte-for-byte; the firms page renders from

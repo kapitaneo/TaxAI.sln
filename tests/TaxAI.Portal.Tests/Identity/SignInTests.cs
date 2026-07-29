@@ -682,6 +682,10 @@ public sealed class SignInTests
                 string.Equals(user.Subject, subject, StringComparison.Ordinal)));
         }
 
+        public Task<PortalUser?> FindUserByIdAsync(
+            Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(_users.SingleOrDefault(user => user.UserId == userId));
+
         public Task<IReadOnlyList<FirmMembership>> FindActiveMembershipsAsync(
             Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FirmMembership>>(

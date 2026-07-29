@@ -210,6 +210,23 @@ provider is never trusted.** The claim value equals the canonical `FirmId`
 exactly. **A missing resource and a resource belonging to another firm must
 produce the same safe not-found response.**
 
+### T18A tenancy-bootstrap identity recovery (Class A correction)
+
+The durable session deliberately stores only the opaque local `UserId`, not the
+OIDC issuer or subject. Per-request user revalidation and firm selection
+therefore reload the local `PortalUser` through
+`IIdentityDirectory.FindUserByIdAsync(UserId, CancellationToken)`. This is the
+fourth and final approved firm-scope exemption: it reads only the user table in
+the existing identity carve-out, returns the same closed `PortalUser` shape as
+issuer-plus-subject lookup, and returns no provider token, claims payload,
+profile data, or taxpayer information.
+
+Issuer, subject, `UserId`, and trusted `FirmId` are never accepted from a URL,
+query string, request body, or caller-supplied claim. On firm selection, issuer
+and subject are recovered only from that local user record and supplied to the
+existing T18 sign-in/session-issuance flow. They are never added to the opaque
+browser cookie.
+
 ### Per-request membership verification (R-1 — CONFIRMED)
 
 **Every protected taxpayer-data request must re-verify, server-side, that:** the
@@ -218,6 +235,15 @@ is active; and the membership matches the active `FirmId` in the session.
 
 A disabled membership is refused on the **next protected request**, not when the
 cookie expires. **Membership or persistence failure fails closed.**
+
+Tenancy bootstrap is a narrower authenticated stage, not a relaxation of R-1.
+`GET /firms` and `POST /firms/select` may be reached while the live session's
+`ActiveFirmId` is null, because those endpoints exist to discover and select it.
+They remain subject to the durable-session check, local-user lookup by the
+session's `UserId`, active-user check, and a fresh load of active memberships.
+They are exempt only from the active-firm/matching-membership portion of R-1.
+Every normal firm-scoped protected endpoint continues to require the complete
+R-1 check.
 
 The public root page (`GET /`), the health endpoint (`GET /health`), the OIDC
 callback mechanics, and the sign-in page do **not** require taxpayer-data
@@ -368,7 +394,8 @@ tree directly. Specs 001–010 are implemented and merged.
   posture is omission, not masking.
 - **A generic `IRepository<T>`** — explicitly forbidden by the human's decision.
   Each repository interface is concrete, named for its aggregate, and declares a
-  required trusted-firm parameter (with exactly one enumerated exemption, FR-21).
+  required trusted-firm parameter except for exactly four enumerated
+  identity-bootstrap lookups (FR-21).
 - **ASP.NET Core's default in-memory cookie ticket handling as the production
   session of record** — explicitly overridden by R-2.
 
@@ -753,11 +780,22 @@ accept, return, serialize, and reference no `AccountantReviewPackage` or other
 executable `CaseReview` type. The caller invokes
 `ReviewPackageProjection.Project` before the value crosses into `Persistence`.
 
-There is **exactly one** enumerated exemption: **session lookup by `SessionId`**,
-which is the operation that *establishes* the trusted firm scope and therefore
-cannot require one as input. The exemption list SHALL contain that one entry and
-no other, SHALL be asserted by name, and the session lookup SHALL **return** the
-session's `ActiveFirmId` rather than accept one.
+There are **exactly four** enumerated firm-scope exemptions, all confined to the
+approved identity bootstrap:
+
+1. session lookup by `SessionId`, which establishes the local user and active
+   firm scope and therefore returns `ActiveFirmId` rather than accepting one;
+2. local-user lookup by OIDC issuer + subject at initial sign-in;
+3. local-user lookup by the opaque `UserId` recovered from a live server-side
+   session, for per-request active-state revalidation and firm-selection
+   identity recovery; and
+4. active-membership lookup by that local `UserId`, which is the input to the
+   decision about which firm — if any — the session may hold.
+
+`FirmScopeExemptions.All` SHALL contain those four entries and no others and
+SHALL be asserted by name and count. None returns a provider token, claims
+payload, profile field, or taxpayer value. Every taxpayer-data save, read, and
+purge remains firm-required with no omitting overload.
 
 **FR-22 `[new]` — The allowlist projection.** An `AccountantReviewPackage` SHALL
 be converted to persistence entities by a single explicit projection whose output
@@ -985,6 +1023,16 @@ arrives as a caller-supplied selector and is treated as an **unverified request*
 never as an authorization boundary — it is only ever used to look up a membership
 belonging to the authenticated user.
 
+The operation SHALL take its `UserId` only from the authenticated server-side
+session, reload the current `PortalUser` through `FindUserByIdAsync`, refuse a
+missing or inactive user, and reload current active memberships. After the
+selected membership is proved active and owned by that user, the operation SHALL
+recover issuer and subject only from the local `PortalUser` and issue the
+replacement session through the existing T18 sign-in/session-issuance flow.
+Issuer, subject, `UserId`, and trusted `FirmId` SHALL NOT be accepted from the
+request or from caller-supplied claims, and issuer/subject SHALL NOT enter the
+cookie.
+
 **FR-47 `[new]` — Per-request verification (R-1).** On **every protected
 taxpayer-data request**, the server SHALL re-verify, in this order, that: the
 session exists, is unrevoked, and is within both its idle and absolute bounds;
@@ -993,6 +1041,13 @@ that membership is active; and that membership's `FirmId` matches the session's
 `ActiveFirmId`. **Any failure — including a membership-store or persistence
 failure — SHALL fail closed**, refusing the request and returning no record
 content and no identifier.
+
+Authenticated tenancy-bootstrap requests (`GET /firms` and
+`POST /firms/select`) SHALL run the same live-session, valid-session-`UserId`,
+fresh local-user, active-user, and fresh active-membership reads. They MAY have a
+null `ActiveFirmId` and are exempt only from the final active-firm/matching-
+membership portion of R-1. No normal firm-scoped protected endpoint receives
+that exemption.
 
 `GET /`, `GET /health`, the sign-in page, and the OIDC callback mechanics are
 **exempt** from taxpayer-data membership verification and SHALL remain reachable
@@ -1507,8 +1562,8 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
     and projection type in `Tenancy` and `Persistence`, When their methods are
     read by reflection, Then every lookup, save, and delete declares a required
     firm-identifier parameter and **no overload, optional parameter, or default
-    omits it**, except exactly the one enumerated session-lookup exemption of
-    FR-21.
+    omits it**, except exactly the four enumerated identity-bootstrap operations
+    of FR-21.
 42. **Package firm mismatch.** Given trusted `FirmId` `F1` and a package whose
     `FirmId` is `F2`, When projection is called, Then it is refused, no
     persistence record is produced, and nothing is written.
@@ -1963,18 +2018,20 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
 ### Per-request verification (R-1)
 
 157. **Inactive local user is refused.** Given a live session whose local user has
-     been marked inactive, When a protected request is made, Then it is refused
-     and no record content is returned.
+     been marked inactive, When either a tenancy-bootstrap request or a normal
+     firm-scoped protected request is made, Then it is refused and no record
+     content is returned.
 158. **Missing membership is refused.** Given a live session whose
      `FirmMembership` row no longer exists, When a protected request is made, Then
      it is refused.
 159. **Membership/session firm mismatch is refused.** Given a live session whose
      `ActiveFirmId` no longer matches the user's membership `FirmId`, When a
      protected request is made, Then it is refused.
-160. **Membership-store failure fails closed.** Given a membership lookup that
-     throws or times out, When a protected request is made, Then it is refused
-     with the fixed error response and no record content, and no cached
-     authorization decision is used.
+160. **Identity- or membership-store failure fails closed.** Given the
+     user-by-id or membership lookup throws or times out, When a bootstrap or
+     firm-scoped protected request is made, Then it is refused with the fixed
+     error response and no record content, and no cached authorization decision
+     is used.
 161. **Exempt routes skip membership verification.** Given a membership store that
      throws on every call, When `GET /`, `GET /health`, `GET /sign-in`, and the
      OIDC callback path are requested, Then each still behaves exactly as
@@ -2047,10 +2104,13 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
 181. **Cross-instance revocation.** Given the same two stores and a session
      created through the first, When it is revoked through the second, Then the
      first refuses it on the next lookup.
-182. **The session-lookup exemption is exactly one entry.** Given the enumerated
-     exemption list from FR-21, When it is read, Then it contains exactly the
-     session-lookup-by-`SessionId` operation and nothing else, and that operation
-     returns the session's `ActiveFirmId` rather than accepting a firm parameter.
+182. **The firm-scope exemption inventory is exactly four entries.** Given
+     `FirmScopeExemptions.All`, When it is read, Then it contains exactly:
+     session lookup by `SessionId`, user lookup by issuer + subject, user lookup
+     by the session's opaque `UserId`, and active-membership lookup by `UserId`.
+     Every entry omits a trusted firm only because it operates on the approved
+     identity bootstrap; the session lookup returns `ActiveFirmId` rather than
+     accepting one.
 183. **The identity carve-out is exactly three tables.** Given the EF model, When
      every entity exempt from FR-18's non-nullable-`FirmId` rule is enumerated,
      Then the set is exactly the user, firm-membership, and session entities.
@@ -2130,12 +2190,15 @@ Each criterion is a single mechanically-checkable condition (Given/When/Then).
   unavailable originating `DateTime.Kind` provenance (FR-33, FR-34, FR-35;
   AC-148–AC-156). Still a v1
   product-retention rule, **not** a statutory CRA assertion.
-- **R-1 — per-request membership verification: CONFIRMED.** Every protected
-  taxpayer-data request re-verifies the local user's active state, the
-  membership's existence, the membership's active state, and the membership's
-  match to the session's `ActiveFirmId`; membership or persistence failure fails
-  closed; `/`, `/health`, `/sign-in`, and the OIDC callback mechanics are exempt
-  (FR-47; AC-157–AC-161).
+- **R-1 — per-request membership verification: CONFIRMED and clarified by
+  T18A.** Every firm-scoped taxpayer-data request re-verifies the local user's
+  active state, the membership's existence, active state, and match to the
+  session's `ActiveFirmId`; membership or persistence failure fails closed.
+  Authenticated tenancy-bootstrap endpoints may be reached with a null
+  `ActiveFirmId`, but still require a live session, a fresh local-user-by-id
+  lookup, an active user, and fresh active memberships. `/`, `/health`,
+  `/sign-in`, and the OIDC callback mechanics remain fully exempt (FR-47;
+  AC-157–AC-161).
 - **R-2 — server-side session revocation: OVERRIDDEN INTO SCOPE.** Cookie
   clearing alone was rejected as insufficient. 011 ships a durable, shared,
   Azure-SQL-backed session store; the cookie carries only a protected opaque
