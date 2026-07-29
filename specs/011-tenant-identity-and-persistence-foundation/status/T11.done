@@ -1,0 +1,63 @@
+TaskID: T11
+PR: #110
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/110
+Implementation commit: ebaabadf25e53a99640801a68947426c7be376c9
+Branch: feat/011-w3-t11
+Base commit: daf247fd2fd9234f31bf6bcd04de14e5e7b5a4d1
+
+Focused tests:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --no-restore
+  - Passed: 51
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Warnings: 0
+  - Errors: 0
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln --no-build
+  - Passed: 2,890
+  - Failed: 0
+  - Skipped: 0
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran and met their recorded floors.
+  - Passed: 2,890
+  - Failed: 0
+  - Skipped: 0
+
+Additional verification:
+- PASS: EF Core reports no pending model changes after the generated migration.
+- PASS: the initial migration applies and rolls back through the SQLite relational harness.
+- PASS: the migration Down drops exactly every table Up creates, including AuthenticationSessions.
+- PASS: the migration scanner excludes only the Migration attribute's id token and still catches a planted nine-digit run elsewhere in the same file.
+- PASS: git diff --check
+
+Scope:
+- The implementation commit changes exactly the 20 T11-allowlisted files:
+  - src/Persistence/TaxAiDbContext.cs
+  - src/Persistence/Configurations/PersistedReviewRecordConfiguration.cs
+  - src/Persistence/Configurations/PersistedSlipConfiguration.cs
+  - src/Persistence/Configurations/PersistedBoxAmountConfiguration.cs
+  - src/Persistence/Configurations/PersistedLineEntryConfiguration.cs
+  - src/Persistence/Configurations/PersistedSourceBoxCodeConfiguration.cs
+  - src/Persistence/Configurations/PersistedUnmappedBoxCodeConfiguration.cs
+  - src/Persistence/Configurations/FirmConfiguration.cs
+  - src/Persistence/Configurations/PortalUserConfiguration.cs
+  - src/Persistence/Configurations/FirmMembershipConfiguration.cs
+  - src/Persistence/Configurations/AuthenticationSessionConfiguration.cs
+  - src/Persistence/Migrations/20260729021907_InitialPersistence.cs
+  - src/Persistence/Migrations/20260729021907_InitialPersistence.Designer.cs
+  - src/Persistence/Migrations/TaxAiDbContextModelSnapshot.cs
+  - tests/Persistence.Tests/Support/RelationalTestContext.cs
+  - tests/Persistence.Tests/Support/SyntheticFixtures.cs
+  - tests/Persistence.Tests/Schema/ModelShapeTests.cs
+  - tests/Persistence.Tests/Schema/TenantIsolationSchemaTests.cs
+  - tests/Persistence.Tests/Schema/PiiSchemaTests.cs
+  - tests/Persistence.Tests/Schema/MigrationTests.cs
+- This completion commit adds only this T11.done marker.
+- No PRD, architecture, tasks.md, project file, sibling task file, sibling status marker, test-manifest file, or earlier module file changed.
+
+Not done here, by rule:
+- Merging or approval. Both remain human-only.
