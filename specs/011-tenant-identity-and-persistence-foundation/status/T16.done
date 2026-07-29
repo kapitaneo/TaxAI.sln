@@ -1,0 +1,72 @@
+TaskID: T16
+Task: Persistence composition surface (spec 011, Wave 5)
+PR: #116
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/116
+Implementation commit: bf3f203b3a6c9bd9784b813a5f4c97acb36180ab
+Branch: codex/011-t16
+Base: master
+
+Focused tests:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj --filter
+  "FullyQualifiedName~PersistenceRegistrationTests|FullyQualifiedName~ConnectionStringGuardTests|FullyQualifiedName~DevelopmentSeederTests"
+  - Passed: 24
+  - Failed: 0
+  - Skipped: 0
+
+Persistence suite:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj
+  - Passed: 130
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 0
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 2,983
+  - Failed: 0
+  - Skipped: 0
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - Passed: 2,983
+  - Failed: 0
+  - Skipped: 0
+
+Additional verification:
+- PASS: git diff --check
+
+Delivered behavior:
+- AddTaxAiPersistence validates configuration, registers the SQL Server context,
+  and wires every Tenancy persistence port without adding EF Core to the portal.
+- SqlConnectionStringGuard refuses an absent string, optional encryption, or
+  disabled certificate validation with fixed diagnostics that echo no secret.
+- GuidOpaqueIdentifierSource creates non-empty opaque identifiers without
+  deriving them from caller or taxpayer content.
+- DevelopmentFixtureSeeder writes one idempotent, deterministic, obviously
+  synthetic review fixture in one transaction. It seeds no user, membership,
+  session, credential, contact field, government identifier, or nine-digit run.
+- No schema creation, migration-at-startup, timer, hosted service, scheduler, or
+  other background mutation path was added.
+
+Scope:
+- The implementation commit changes exactly the seven T16-owned files:
+  - src/Persistence/PersistenceRegistration.cs
+  - src/Persistence/Services/GuidOpaqueIdentifierSource.cs
+  - src/Persistence/Services/SqlConnectionStringGuard.cs
+  - src/Persistence/Services/DevelopmentFixtureSeeder.cs
+  - tests/Persistence.Tests/Composition/PersistenceRegistrationTests.cs
+  - tests/Persistence.Tests/Composition/ConnectionStringGuardTests.cs
+  - tests/Persistence.Tests/Composition/DevelopmentSeederTests.cs
+- This completion commit adds only this T16.done marker.
+- No PRD, architecture, tasks.md, sibling-task file or marker, portal file,
+  migration, test manifest, or pre-existing tax-module file changed.
+
+Not done here, by rule:
+- No merge or self-approval was performed. Both remain human-only.
+- T17 was not started.
