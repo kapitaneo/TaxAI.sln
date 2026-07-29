@@ -1,0 +1,47 @@
+TaskID:              T01
+Task:                Firm-scoped read-only accountant review screen (spec 012)
+PR:                  #131  https://github.com/kapitaneo/TaxAI.sln/pull/131
+Implementation SHA:  bf23ae22a8be74bc4546193b26703b589afcba2b
+Branch:               codex/012-t01
+Base:                 38560a0f (origin/master after spec 013 finalization)
+
+Delivered
+  - one authenticated GET /reviews/{recordId:guid} route;
+  - active firm derived only from the validated server-side session;
+  - active-user and active-membership verification before repository access;
+  - byte-identical empty 404 responses for missing and foreign-firm records;
+  - a closed, server-rendered browser projection containing only the approved
+    display fields;
+  - separately addressable immutable review-package versions with no mutation
+    or latest-version behavior;
+  - no SIN in any form and no prohibited browser, HTML, log, diagnostic, or
+    client-side identifier surface;
+  - the existing deployment refusal unchanged.
+
+Verification
+  dotnet test tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj --no-restore
+    -> Passed: 431; Failed: 0; Skipped: 0.
+
+  dotnet test TaxAI.sln --no-restore
+    -> Passed: 3,213; Failed: 0; Skipped: 0.
+
+  pwsh ./scripts/Invoke-SolutionTests.ps1
+    -> All 8 registered projects executed.
+    -> Passed: 3,213; Failed: 0; Skipped: 0.
+    -> Every project met its recorded floor.
+
+  dotnet publish src/TaxAI.Portal/TaxAI.Portal.csproj -c Release --no-restore
+    -> Succeeded.
+
+  git diff --check
+    -> Succeeded.
+
+Boundaries retained
+  - No Tenancy, Persistence, CaseReview, TaxLogicEngine, migration, schema,
+    project, package, or spec 013 artifact changed.
+  - Portal project references remain exactly the existing four.
+  - The Portal test floor is raised only to the verified total of 431.
+  - The non-Development deployment refusal remains authoritative.
+
+Not done here, by rule
+  - Merging or self-approval. A human reviews and merges PR #131.
