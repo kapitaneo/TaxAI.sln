@@ -103,9 +103,9 @@ public sealed class CaseReviewBoundaryTests
                      "Content",
                  })
         {
-            Assert.Empty(
-                project.Descendants()
-                    .Where(element => element.Name.LocalName == forbidden));
+            Assert.DoesNotContain(
+                project.Descendants(),
+                element => element.Name.LocalName == forbidden);
         }
 
         Assert.Empty(ProductionAssembly.GetManifestResourceNames());
@@ -358,18 +358,18 @@ public sealed class CaseReviewBoundaryTests
                     StringComparison.OrdinalIgnoreCase);
             });
 
-        Assert.Empty(
-            typeof(ReviewedSlip).GetProperties()
-                .Where(property =>
-                    property.Name.Contains(
-                        "Acknowledg",
-                        StringComparison.OrdinalIgnoreCase)));
-        Assert.Empty(
-            typeof(ReviewedBoxAmount).GetProperties()
-                .Where(property =>
-                    property.Name.Contains(
-                        "Acknowledg",
-                        StringComparison.OrdinalIgnoreCase)));
+        Assert.DoesNotContain(
+            typeof(ReviewedSlip).GetProperties(),
+            property =>
+                property.Name.Contains(
+                    "Acknowledg",
+                    StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            typeof(ReviewedBoxAmount).GetProperties(),
+            property =>
+                property.Name.Contains(
+                    "Acknowledg",
+                    StringComparison.OrdinalIgnoreCase));
     }
 
     // ------------------------------------------------------------- year boundary

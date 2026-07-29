@@ -101,7 +101,7 @@
   - AC-1…AC-50 verification recorded in
     `specs/010-portal-foundation/verification.md`.
 
-## Implemented — spec 011 final verification remains
+## Completed — specs 011 and 013
 
 - Spec 011 — Tenant Identity and Persistence Foundation:
   - `Tenancy` now owns the deterministic trusted-firm boundary, persisted
@@ -124,17 +124,27 @@
     masked, partial, stored, rendered, logged, or placed in a fixture — while the
     engine's existing in-memory masking contract remains unchanged;
   - the exclusive seven-year retention boundary is an engineering product
-    decision, not a CRA fact or statutory statement.
+    decision, not a CRA fact or statutory statement;
+  - T21 final verification, Amendments audit, manifest-floor validation, and
+    AC-by-AC evidence are merged.
 
-The functional and documentation waves through T20 are implemented. Spec 011's
-explicit T21 end-to-end verification, Amendments audit, manifest-floor update,
-and AC-by-AC `verification.md` remain separate work and must be invoked by that
-TaskID.
+- Spec 013 — .NET 10 Platform Upgrade:
+  - all production and test projects target exactly `net10.0`;
+  - SDK `10.0.302` and repository-local `dotnet-ef` `10.0.10` are pinned;
+  - ASP.NET Core, EF Core, SQL Server, SQLite, OIDC, MVC Testing, and the
+    approved xunit v2 test-package matrix are aligned;
+  - the original migration set, model snapshot, relational schema, SQL Server
+    DDL, stored-data compatibility, product behavior, public/internal contracts,
+    route/authentication outcomes, security boundaries, and warning ceiling are
+    preserved;
+  - the repository preflight, all eight test projects, pending-model check, and
+    Release publish are recorded in
+    `specs/013-dotnet-10-platform-upgrade/verification.md`.
 
 ## Next
 
-After spec 011's explicit verification task, the next product decision is the
-first taxpayer-data surface. Spec 011 resolves spec 010 question A
+The next product decision is the first taxpayer-data surface. Spec 011 resolves
+spec 010 question A
 (authentication and authorization), question B (tenant/firm isolation), the SIN
 part of question C (**render nothing in any form**), question D (logging,
 telemetry, and safe errors), and question E (required Canadian residency,

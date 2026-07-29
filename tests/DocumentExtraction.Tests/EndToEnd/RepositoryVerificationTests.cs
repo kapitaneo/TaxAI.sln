@@ -46,7 +46,7 @@ public sealed class RepositoryVerificationTests
 
         foreach (var (name, path) in ExpectedProjects)
         {
-            var match = Assert.Single(declared.Where(project => project.Name == name));
+            var match = Assert.Single(declared, project => project.Name == name);
             Assert.Equal(path, match.Path);
 
             var projectPath = Path.GetFullPath(Path.Combine(RepositoryRoot, path));
@@ -166,8 +166,11 @@ public sealed class RepositoryVerificationTests
         Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
         Assert.True(parameters[1].HasDefaultValue);
 
-        Assert.Empty(typeof(ValidatedExtraction).Assembly.GetTypes()
-            .Where(type => type.IsClass && typeof(IDocumentExtractionIngress).IsAssignableFrom(type)));
+        Assert.DoesNotContain(
+            typeof(ValidatedExtraction).Assembly.GetTypes(),
+            type =>
+                type.IsClass &&
+                typeof(IDocumentExtractionIngress).IsAssignableFrom(type));
     }
 
     // ------------------------------------------------------ AC-30: reused types
@@ -323,12 +326,15 @@ public sealed class RepositoryVerificationTests
             .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         Assert.Single(specCommit);
 
-        var changed = RunGit(
+        var changedSourceOrResources = RunGit(
                 "diff", "--name-only", $"{specCommit[0]}^", "HEAD", "--",
                 "src/TaxLogicEngine", "src/TaxCases")
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(path =>
+                !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
-        Assert.Empty(changed);
+        Assert.Empty(changedSourceOrResources);
     }
 
     // ------------------------------------------------------------------ helpers

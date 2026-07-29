@@ -5,7 +5,7 @@ This file provides repository-level guidance to Claude Code (claude.ai/code) whe
 ## Product framing
 
 TaxAI is an AI-powered Canadian tax filing assistant. Its deterministic core is
-**TaxLogicEngine**, a .NET 8.0 class library that implements CRA slip parsing
+**TaxLogicEngine**, a .NET 10.0 class library that implements CRA slip parsing
 (T4, T5) and box→CRA-line mapping via JSON config. Deterministic case,
 extraction, processing, review, and tenancy modules surround that core;
 infrastructure adapters live separately in `Persistence`, and the portal is the
@@ -53,9 +53,9 @@ the same PR that introduces it, or the gate fails on it by design.
 
 ## Repository layout
 
-- **`src/TaxLogicEngine/`** — the production tax engine (net8.0, nullable enabled). Has its own `CLAUDE.md` with the tax-domain rules and type inventory.
+- **`src/TaxLogicEngine/`** — the production tax engine (net10.0, nullable enabled). Has its own `CLAUDE.md` with the tax-domain rules and type inventory.
 - **`src/TaxCases/`** — the implemented deterministic Tax Case Core module
-  (net8.0, nullable enabled). Its local `CLAUDE.md` owns the approved module
+  (net10.0, nullable enabled). Its local `CLAUDE.md` owns the approved module
   boundary and public-contract inventory.
 - **`src/DocumentExtraction/`** — the deterministic, provider-independent
   ingestion contract between future OCR/LLM adapters and the tax domain.
@@ -299,6 +299,19 @@ not be deployed anywhere that can receive real taxpayer data until a deployment
 specification supplies and verifies the Canadian Azure Storage and Key Vault key
 ring plus the hosting, TLS, exposure, residency, secrets, operations, and
 provisioning posture.
+
+Spec 013 (.NET 10 Platform Upgrade) is complete. Every production and test
+project in `TaxAI.sln` targets exactly `net10.0`; `global.json` pins SDK
+`10.0.302`; the repository-local `dotnet-ef`, ASP.NET Core, and EF Core packages
+are aligned to `10.0.10`; and every test project retains the approved xunit v2
+package matrix. The executable repository preflight, all eight test projects,
+EF model/schema/DDL and migration-hash equivalence, route/authentication and
+security equivalence, pending-model check, and Release publish are recorded in
+`specs/013-dotnet-10-platform-upgrade/verification.md`.
+
+This platform upgrade does not authorize production deployment. The same
+Canadian residency, Data Protection, secrets, TLS/exposure, operations,
+provisioning, and non-Development startup-refusal requirements remain in force.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

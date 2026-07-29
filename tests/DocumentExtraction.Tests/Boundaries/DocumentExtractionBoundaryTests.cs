@@ -64,7 +64,9 @@ public sealed class DocumentExtractionBoundaryTests
         Assert.Equal("Microsoft.NET.Sdk", project.Root!.Attribute("Sdk")!.Value);
         foreach (var forbidden in new[] { "PackageReference", "FrameworkReference", "EmbeddedResource", "Content" })
         {
-            Assert.Empty(project.Descendants().Where(element => element.Name.LocalName == forbidden));
+            Assert.DoesNotContain(
+                project.Descendants(),
+                element => element.Name.LocalName == forbidden);
         }
     }
 

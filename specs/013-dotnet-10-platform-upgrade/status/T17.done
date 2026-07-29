@@ -1,0 +1,19 @@
+TaskID: T17
+Task: Document local, CI, App Service, and rollback requirements
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- README documents exact SDK/tool restore and resolution, restore/build/raw
+  test/full execution gate, pending-model, Release publish, and diff checks.
+- Future CI gate order and future code-based Azure App Service .NET 10 LTS,
+  Canada Central/Canada East, TLS, identity/Key Vault, Canadian Data Protection
+  key, and preflight requirements are documented.
+- Rollback covers baseline SHA, source/SDK/runtime/application reversal, and
+  explicitly forbids database rollback.
+- README, NEXT, and root CLAUDE active guidance is current. AGENTS and local
+  instructions required no version-only coverage edit.
+- Production deployment remains blocked.
+
+Evidence: README.md and specs/013-dotnet-10-platform-upgrade/verification.md

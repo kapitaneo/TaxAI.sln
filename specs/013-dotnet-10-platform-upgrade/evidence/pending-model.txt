@@ -1,0 +1,20 @@
+Command:
+dotnet ef migrations has-pending-model-changes --project src/Persistence/Persistence.csproj --startup-project src/TaxAI.Portal/TaxAI.Portal.csproj
+
+Environment:
+- ASPNETCORE_ENVIRONMENT=Development
+- ConnectionStrings__TaxAiDatabase supplied in-process as a synthetic,
+  encrypted, certificate-validating SQL Server connection string with an
+  explicit non-secret Application Name.
+- The value was not written to the repository or echoed.
+
+Exit code: 0
+
+Output:
+Build started...
+Build succeeded.
+No changes have been made to the model since the last migration.
+
+Database activity:
+None. The command constructed the design-time model and compared it with the
+snapshot; it did not connect to, create, migrate, or update a database.

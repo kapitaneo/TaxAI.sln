@@ -1,0 +1,16 @@
+TaskID: T13
+Task: Complete the ASP.NET Core 9 and 10 compatibility ledger
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- Every official ASP.NET Core 9/10 index item has a disposition and proof.
+- The cookie API-endpoint change is explicitly applicable and verified by the
+  unchanged route/auth comparator and identity/security suites.
+- No endpoint metadata was added or removed to manufacture compatibility.
+- OIDC, cookie, durable session, revocation, firm selection, R-1,
+  antiforgery, authorization, PII, and startup-refusal tests pass.
+
+Ledger: specs/013-dotnet-10-platform-upgrade/compatibility/aspnet-core.md
+Evidence: specs/013-dotnet-10-platform-upgrade/security-verification.md

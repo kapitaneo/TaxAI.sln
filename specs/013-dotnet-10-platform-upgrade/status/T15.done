@@ -1,0 +1,18 @@
+TaskID: T15
+Task: Prove zero EF model, schema, DDL, or migration drift
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- Canonical .NET 10 EF model, relational schema, and SQL Server DDL artifacts
+  equal the frozen baseline after only the three authorized symmetric metadata
+  normalizations.
+- Local dotnet-ef 10.0.10 reports no pending model.
+- The migration directory contains exactly the original three files and every
+  SHA-256 matches the approved baseline.
+- No migration, snapshot, schema, mapping, suppression, empty migration,
+  UseAzureSql, JSON remap, compatibility override, or pre-10 switch changed.
+- No database was contacted or modified.
+
+Evidence: specs/013-dotnet-10-platform-upgrade/ef-verification.md

@@ -1,0 +1,341 @@
+{
+  "baselineCommit": "13097dada6b1aae070fc0006d48a6862ce9904f8",
+  "endpoints": [
+    {
+      "path": "/",
+      "methods": [
+        "GET"
+      ],
+      "authorization": "anonymous",
+      "antiforgery": false
+    },
+    {
+      "path": "/firms",
+      "methods": [
+        "GET"
+      ],
+      "authorization": "required",
+      "antiforgery": false
+    },
+    {
+      "path": "/firms/select",
+      "methods": [
+        "POST"
+      ],
+      "authorization": "required",
+      "antiforgery": true
+    },
+    {
+      "path": "/health",
+      "methods": [
+        "GET"
+      ],
+      "authorization": "anonymous",
+      "antiforgery": false
+    },
+    {
+      "path": "/sign-in",
+      "methods": [
+        "GET"
+      ],
+      "authorization": "anonymous",
+      "antiforgery": false
+    },
+    {
+      "path": "/sign-out",
+      "methods": [
+        "POST"
+      ],
+      "authorization": "required",
+      "antiforgery": true
+    }
+  ],
+  "responses": [
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "text/html; charset=utf-8",
+      "bodyLength": 252,
+      "bodySha256": "74B484F1C7FD40AE1D5710BE6D467EEE55D1C35B8E87CD8F6DD0A4E7DB576BDD"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "POST",
+      "path": "/",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/does-not-exist",
+      "status": 404,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/firms",
+      "status": 401,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "POST",
+      "path": "/firms",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/firms/select",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "POST",
+      "path": "/firms/select",
+      "status": 401,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "text/plain; charset=utf-8",
+      "bodyLength": 7,
+      "bodySha256": "7F1E323B6272C6209A590FE8684BC64142A226CC9F73783BC027BEFEDE0EA0EE"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "POST",
+      "path": "/health",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/sign-in",
+      "status": 302,
+      "location": "https://identity.example.test/authorize?client_id\u0026code_challenge\u0026code_challenge_method\u0026nonce\u0026redirect_uri\u0026response_mode\u0026response_type\u0026scope\u0026state\u0026x-client-SKU\u0026x-client-ver",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "POST",
+      "path": "/sign-in",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "GET",
+      "path": "/sign-out",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "anonymous",
+      "method": "POST",
+      "path": "/sign-out",
+      "status": 401,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "text/html; charset=utf-8",
+      "bodyLength": 252,
+      "bodySha256": "74B484F1C7FD40AE1D5710BE6D467EEE55D1C35B8E87CD8F6DD0A4E7DB576BDD"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "POST",
+      "path": "/",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/does-not-exist",
+      "status": 404,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/firms",
+      "status": 200,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "text/html; charset=utf-8",
+      "bodyLength": 418,
+      "bodySha256": "E9A4867DED5CEE843AD601CC284C2A5B2206137511FF1DDC7BA6E01755D19575"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "POST",
+      "path": "/firms",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/firms/select",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "POST",
+      "path": "/firms/select",
+      "status": 400,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "text/plain; charset=utf-8",
+      "bodyLength": 31,
+      "bodySha256": "824316D6DA10E30BB2D7EBA9B3E6A191F8C91C48392A4C7C1F8AA60F2E434B89"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "text/plain; charset=utf-8",
+      "bodyLength": 7,
+      "bodySha256": "7F1E323B6272C6209A590FE8684BC64142A226CC9F73783BC027BEFEDE0EA0EE"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "POST",
+      "path": "/health",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/sign-in",
+      "status": 302,
+      "location": "https://identity.example.test/authorize?client_id\u0026code_challenge\u0026code_challenge_method\u0026nonce\u0026redirect_uri\u0026response_mode\u0026response_type\u0026scope\u0026state\u0026x-client-SKU\u0026x-client-ver",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "POST",
+      "path": "/sign-in",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "GET",
+      "path": "/sign-out",
+      "status": 405,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "authenticationState": "authenticated",
+      "method": "POST",
+      "path": "/sign-out",
+      "status": 200,
+      "location": "",
+      "wwwAuthenticate": "",
+      "contentType": "",
+      "bodyLength": 0,
+      "bodySha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    }
+  ]
+}

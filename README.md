@@ -1,7 +1,7 @@
 # TaxAI
 
 TaxAI is the foundation of a Canadian tax filing assistant, built as a
-structured modular monolith. Its core is **TaxLogicEngine**, a .NET 8.0 class
+structured modular monolith. Its core is **TaxLogicEngine**, a .NET 10.0 class
 library of deterministic, provider-independent Canadian tax logic.
 
 This README describes only what is implemented today. The forward roadmap lives
@@ -103,24 +103,84 @@ Each production module carries a local `CLAUDE.md` defining its boundary.
 
 ## Build and test
 
-```bash
-# Build
+Install the .NET 10 SDK and run commands from the repository root. `global.json`
+requires SDK `10.0.302` exactly; the local tool manifest requires
+`dotnet-ef` `10.0.10`.
+
+```powershell
+dotnet tool restore
+dotnet --version
+dotnet ef --version
+dotnet restore TaxAI.sln
 dotnet build TaxAI.sln
-
-# Run the full suite through the execution gate (required for task completion)
-pwsh ./scripts/Invoke-SolutionTests.ps1
-
-# Run all tests directly
 dotnet test TaxAI.sln
-
-# Run a single test
-dotnet test tests/TaxLogicEngine.Tests --filter "FullyQualifiedName~TestMethodName"
+pwsh ./scripts/Invoke-SolutionTests.ps1
+dotnet publish src/TaxAI.Portal/TaxAI.Portal.csproj -c Release
+git diff --check
 ```
 
 A green direct `dotnet test` result is not by itself proof that every assembly
 ran. The PowerShell gate verifies that each project listed in
 `scripts/test-projects.json` ran, skipped nothing, failed nothing, and met its
-recorded minimum test floor.
+recorded minimum test floor. It first runs the .NET 10 preflight, which verifies
+the exact SDK, every solution TFM, the direct package matrix, and local EF tool
+manifest.
+
+To verify the EF model without connecting to a database, supply a process-only
+synthetic SQL Server connection string that requires encryption and certificate
+validation, then run:
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+$env:ConnectionStrings__TaxAiDatabase = '<synthetic encrypted SQL Server connection string>'
+dotnet ef migrations has-pending-model-changes `
+  --project src/Persistence/Persistence.csproj `
+  --startup-project src/TaxAI.Portal/TaxAI.Portal.csproj
+Remove-Item Env:ConnectionStrings__TaxAiDatabase
+Remove-Item Env:ASPNETCORE_ENVIRONMENT
+```
+
+The expected result is `No changes have been made to the model since the last
+migration.` This command must not connect to, create, update, or migrate a
+database.
+
+## Future CI gate
+
+No CI/CD definition is currently tracked. Any future pipeline must install SDK
+`10.0.302` and run the commands above in the same order: tool restore, SDK/tool
+version checks, solution restore, build, raw tests, the PowerShell execution
+gate, pending-model verification with a non-production synthetic secret,
+Release publish, and `git diff --check`. It must preserve zero failed/skipped
+tests, all eight manifest floors, and the approved warning ceiling.
+
+## Azure deployment remains blocked
+
+The Release publish proves buildability; it is not deployment authorization.
+Before any future code-based Azure App Service deployment, a separate approved
+deployment specification must verify that `.NET 10 (LTS)` is available for the
+chosen App Service OS/runtime and that every service and backup remains in
+Canada Central or Canada East. It must also supply TLS/exposure controls,
+managed identity and Key Vault secrets, a Canadian Azure Storage/Key Vault Data
+Protection key ring, operations, and production provisioning.
+
+Until then, the existing non-Development startup refusal remains authoritative,
+and this application may not receive real taxpayer data in production.
+
+## Roll back the platform upgrade
+
+The last verified .NET 8 source baseline is
+`13097dada6b1aae070fc0006d48a6862ce9904f8`. A rollback is a human-controlled
+source/application operation:
+
+1. create a recovery branch or release from that commit;
+2. restore the .NET 8 SDK/runtime and the tool/package versions recorded under
+   `specs/013-dotnet-10-platform-upgrade/baselines/`;
+3. rebuild and run the baseline gates;
+4. for a future deployment, swap back to the last verified .NET 8 App Service
+   slot or revision only after its .NET 8 runtime is available.
+
+Do not roll back, recreate, or migrate the database. Spec 013 changes no schema,
+migration history, model snapshot, production mapping, or stored data.
 
 ## Run the application in Development
 

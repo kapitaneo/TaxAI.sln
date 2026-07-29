@@ -42,6 +42,7 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $PSScriptRoot 'test-projects.json'
+$preflightPath = Join-Path $PSScriptRoot 'Assert-DotNet10Toolchain.ps1'
 $solutionPath = Join-Path $repositoryRoot 'TaxAI.sln'
 
 if (-not $ResultsDirectory) {
@@ -56,6 +57,17 @@ if (-not (Test-Path $manifestPath)) {
 if (-not (Test-Path $solutionPath)) {
     Write-Host "FATAL: solution not found at $solutionPath" -ForegroundColor Red
     exit 2
+}
+
+if (-not (Test-Path $preflightPath)) {
+    Write-Host "FATAL: .NET 10 preflight not found at $preflightPath" -ForegroundColor Red
+    exit 2
+}
+
+& $preflightPath
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'TEST EXECUTION GATE FAILED: .NET 10 preflight failed.' -ForegroundColor Red
+    exit 1
 }
 
 # A stale TRX from a previous run would let a project that did not run this time

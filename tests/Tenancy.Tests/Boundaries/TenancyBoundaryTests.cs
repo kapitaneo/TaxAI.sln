@@ -94,8 +94,12 @@ public sealed class TenancyBoundaryTests
         // or an OCR client has stopped being deterministic.
         var project = XDocument.Load(TenancyProject);
 
-        Assert.Empty(project.Descendants().Where(element => element.Name.LocalName == "PackageReference"));
-        Assert.Empty(project.Descendants().Where(element => element.Name.LocalName == "FrameworkReference"));
+        Assert.DoesNotContain(
+            project.Descendants(),
+            element => element.Name.LocalName == "PackageReference");
+        Assert.DoesNotContain(
+            project.Descendants(),
+            element => element.Name.LocalName == "FrameworkReference");
     }
 
     // ------------------------------------------------- forbidden tokens (AC-5)
@@ -248,10 +252,10 @@ public sealed class TenancyBoundaryTests
     }
 
     [Theory] // AC-19
-    [InlineData("Tenancy.Tests", "xunit", "2.5.3")]
-    [InlineData("Tenancy.Tests", "xunit.runner.visualstudio", "2.5.3")]
-    [InlineData("Tenancy.Tests", "Microsoft.NET.Test.Sdk", "17.8.0")]
-    [InlineData("Tenancy.Tests", "coverlet.collector", "6.0.0")]
+    [InlineData("Tenancy.Tests", "xunit", "2.9.3")]
+    [InlineData("Tenancy.Tests", "xunit.runner.visualstudio", "3.1.5")]
+    [InlineData("Tenancy.Tests", "Microsoft.NET.Test.Sdk", "18.8.1")]
+    [InlineData("Tenancy.Tests", "coverlet.collector", "10.0.1")]
     [InlineData("Persistence.Tests", "xunit", "2.9.3")]
     [InlineData("Persistence.Tests", "xunit.runner.visualstudio", "3.1.5")]
     [InlineData("Persistence.Tests", "Microsoft.NET.Test.Sdk", "18.8.1")]
@@ -319,8 +323,12 @@ public sealed class TenancyBoundaryTests
             Path.Combine(RepositoryRoot, "src", module, $"{module}.csproj"));
 
         Assert.Equal("Microsoft.NET.Sdk", project.Root!.Attribute("Sdk")!.Value);
-        Assert.Empty(project.Descendants().Where(element => element.Name.LocalName == "PackageReference"));
-        Assert.Empty(project.Descendants().Where(element => element.Name.LocalName == "FrameworkReference"));
+        Assert.DoesNotContain(
+            project.Descendants(),
+            element => element.Name.LocalName == "PackageReference");
+        Assert.DoesNotContain(
+            project.Descendants(),
+            element => element.Name.LocalName == "FrameworkReference");
     }
 
     [Fact] // AC-22
