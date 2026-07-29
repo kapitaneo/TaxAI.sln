@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -20,6 +21,16 @@ public sealed class EfUpgradeBaselineTests
 
     private const string InitialMigrationId =
         "20260729021907_InitialPersistence";
+
+    private static readonly Regex CoreLibraryAssemblyVersion = new(
+        @"(?<=System\.Private\.CoreLib, Version=)\d+\.\d+\.\d+\.\d+",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
+
+    private static readonly Regex MigrationHistoryProductVersion = new(
+        $@"(?<prefix>INSERT INTO \[__EFMigrationsHistory\] \(\[MigrationId\], \[ProductVersion\]\)\nVALUES \(N'{InitialMigrationId}', N')[^']+(?<suffix>'\);)",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -43,8 +54,8 @@ public sealed class EfUpgradeBaselineTests
         var path = Path.Combine(BaselineRoot, "ef-model.json");
 
         Assert.Equal(
-            NormalizeNewlines(File.ReadAllText(path)),
-            Serialize(actual));
+            NormalizeModelArtifact(File.ReadAllText(path)),
+            NormalizeModelArtifact(Serialize(actual)));
     }
 
     [Fact]
@@ -326,8 +337,44 @@ public sealed class EfUpgradeBaselineTests
             .Replace('\r', '\n')
             .TrimEnd('\n') + "\n";
 
-    private static string NormalizeDdl(string value) =>
-        NormalizeNewlines(value);
+    private static string NormalizeModelArtifact(string value) =>
+        CoreLibraryAssemblyVersion.Replace(
+            NormalizeNewlines(value),
+            "<framework-version>");
+
+    private static string NormalizeDdl(string value)
+    {
+        var normalized = MigrationHistoryProductVersion.Replace(
+            NormalizeNewlines(value),
+            "${prefix}<product-version>${suffix}");
+        var lines = normalized.Split('\n');
+        var retained = new List<string>(lines.Length);
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (!string.Equals(
+                    lines[index].Trim(' ', '\t'),
+                    "GO",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                retained.Add(lines[index]);
+                continue;
+            }
+
+            if (retained.Count > 0 &&
+                string.Equals(
+                    retained[^1],
+                    "BEGIN TRANSACTION;",
+                    StringComparison.Ordinal) &&
+                index + 1 < lines.Length &&
+                lines[index + 1].Length == 0)
+            {
+                index++;
+            }
+        }
+
+        return NormalizeNewlines(string.Join('\n', retained));
+    }
 
     private static string FindRepositoryRoot()
     {
