@@ -223,9 +223,26 @@ from the baseline SHA and compare upgraded output exactly:
   precision/scale, defaults/computed SQL, keys/FKs/actions, and indexes;
 - SQL Server DDL from zero through `20260729021907_InitialPersistence`.
 
-Only newline and deterministic-order normalization are allowed. Tool-version
-metadata may be reported separately but cannot conceal a model/schema/DDL
-difference. Any difference blocks completion.
+The comparison must preserve exact application model, relational schema, and
+database behaviour. In addition to the newline/final-newline and deterministic
+ordering normalization already used by the Wave 0 comparator, only the following
+deterministic tool/runtime metadata normalization is allowed:
+
+- normalization of the System.Private.CoreLib assembly Version component inside
+  CLR type metadata, while preserving the exact CLR type, generic structure,
+  nullability, assembly name, culture, and public-key token;
+- removal of standalone GO batch-separator lines from generated SQL;
+- normalization of only the __EFMigrationsHistory ProductVersion value.
+
+These normalizations must be applied symmetrically to baseline and upgraded
+artifacts.
+
+No normalization may conceal a difference in entities, properties, CLR types,
+converters, tables, schemas, columns, SQL types, nullability, lengths,
+precision/scale, defaults, computed SQL, keys, foreign keys, delete actions,
+indexes, migration operations, or executable SQL statements.
+
+Any such semantic difference blocks completion.
 
 ### Preserved behaviour and boundaries
 
@@ -377,10 +394,13 @@ Each criterion is one mechanically executable check.
     and all three hashes match.
 15. **Exact EF model.** Given deterministic baseline/upgraded model manifests,
     When compared, Then every model-bearing value is exactly equal.
+    System.Private.CoreLib assembly-version metadata is normalized according to
+    FR-15 before comparison.
 16. **Exact schema.** Given deterministic baseline/upgraded relational schema
     manifests, When compared, Then every schema-bearing value is exactly equal.
-17. **Exact DDL.** Given baseline/upgraded SQL Server scripts normalized only as
-    FR-15 allows, When compared, Then their bytes are equal.
+17. **Exact DDL.** Given baseline and upgraded SQL Server scripts, When
+    both are normalized only by the targeted FR-15 runtime/tooling metadata rules,
+    Then the remaining executable SQL and schema-bearing content are exactly equal.
 18. **Collection queries.** Given every inventoried parameterized-collection
     query, When run on baseline fixtures under EF10, Then ordered results and
     trusted-firm scope equal baseline.
