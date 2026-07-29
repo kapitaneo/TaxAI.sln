@@ -1,0 +1,60 @@
+TaskID: T03
+Task: Atomic Portal and Persistence .NET 10 upgrade
+PR: #128
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/128
+Implementation commit: 7d32da1c381f8c8f76da3fad83af0726cc90a684
+Branch: codex/spec-013-t03-portal
+Base: 2b29ab10644089c03739e4d347bf96b4395f2908 (origin/master)
+
+Delivered:
+- Migrated TaxAI.Portal and TaxAI.Portal.Tests to net10.0 as one atomic green
+  boundary with the Persistence responsibilities absorbed from T05.
+- Aligned the Portal OIDC, MVC Testing, and approved test packages with the
+  exact .NET 10 versions required by spec 013.
+- Preserved Portal routes and the OIDC, cookie-authentication, durable
+  server-side-session, Data Protection, firm-selection, R-1 authorization,
+  antiforgery, PII, and startup-refusal security contracts.
+- Remediated the xUnit2029 and xUnit2031 diagnostics exposed by the approved
+  test-package upgrade without suppression, severity changes, NoWarn, or
+  analyzer disabling.
+- Kept Portal public/internal behavior and endpoint metadata compatible with
+  the frozen upgrade baseline.
+- Completed the atomic full-solution warning gate with zero errors, no new
+  diagnostics, and only the original approved 11-warning multiset.
+- T05's absorbed Persistence implementation is evidenced by this same PR and
+  final implementation SHA, with its responsibility summary recorded in
+  T05.done.
+
+Verification:
+- PASS: dotnet test tests/Persistence.Tests/Persistence.Tests.csproj
+  - 146 passed; 0 failed; 0 skipped.
+- PASS: dotnet build TaxAI.sln
+  - 0 errors.
+  - Approved warning multiset only: CS0649 x2, xUnit2008 x2,
+    xUnit1031 x6, xUnit2013 x1 (11 total).
+  - No NU1902, NU1903, xUnit2029, or xUnit2031 diagnostics.
+- PASS: dotnet test TaxAI.sln
+  - TaxLogicEngine.Tests: 261 passed.
+  - TaxCases.Tests: 337 passed.
+  - DocumentExtraction.Tests: 673 passed.
+  - CaseProcessing.Tests: 594 passed.
+  - CaseReview.Tests: 482 passed.
+  - TaxAI.Portal.Tests: 410 passed.
+  - Tenancy.Tests: 289 passed.
+  - Persistence.Tests: 146 passed.
+  - Aggregate: 3,192 passed; 0 failed; 0 skipped.
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All eight registered projects ran and met their floors.
+  - Aggregate: 3,192 passed; 0 failed; 0 skipped.
+- PASS: dotnet publish src/TaxAI.Portal/TaxAI.Portal.csproj -c Release
+  - Published successfully for net10.0.
+- PASS: git diff --check.
+
+Scope:
+- The implementation follows the corrected atomic T03 allowlist and includes
+  the full T05 file ownership absorbed by T03.
+- This completion commit adds only this T03.done marker.
+- T04 was not implemented.
+
+Not done:
+- No merge or self-approval was performed; both remain human-only.

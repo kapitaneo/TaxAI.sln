@@ -142,9 +142,17 @@ make separate green merge boundaries impossible.
   ordered/firm-scoped results, SQL disposition, `Application Name` behavior,
   absence of `UseAzureSql`/compatibility-level/`json` remapping, and SQLite
   DateTimeOffset/affinity/UTC/exclusive-boundary behavior without the pre-10
-  switch. Re-run the Wave 0 EF equivalence comparator unchanged, require no
-  pending model using Persistence plus the Portal startup project, and prove
-  the migration sources, model, relational schema, and DDL remain unchanged.
+  switch. Re-run the Wave 0 EF equivalence comparator with only the targeted
+  symmetric FR-15 normalization authorized below, require no pending model using
+  Persistence plus the Portal startup project, and prove the migration sources,
+  model, relational schema, and DDL remain unchanged.
+
+  The frozen EF comparator may be amended only for `System.Private.CoreLib`
+  assembly Version metadata, standalone `GO` batch-separator lines, and
+  `__EFMigrationsHistory` `ProductVersion`. Apply these normalizations
+  symmetrically to baseline and upgraded artifacts. Broad whitespace stripping,
+  SQL-token removal, baseline regeneration, migration changes, or
+  schema-difference masking remain prohibited.
 
   Modify listed Portal or Persistence production seams only if a compiler or
   proved behavioral regression requires the smallest behavior-preserving

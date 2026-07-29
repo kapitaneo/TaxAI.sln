@@ -553,8 +553,8 @@ public sealed class SignInTests
             Assert.Single(
                 response.Headers
                     .Where(header => header.Key.Equals("Set-Cookie", StringComparison.OrdinalIgnoreCase))
-                    .SelectMany(header => header.Value)
-                    .Where(value => value.StartsWith(CookieName + "=", StringComparison.Ordinal)));
+                    .SelectMany(header => header.Value),
+                value => value.StartsWith(CookieName + "=", StringComparison.Ordinal));
     }
 
     /// <summary>What the next call to the harness sign-in path should present.</summary>

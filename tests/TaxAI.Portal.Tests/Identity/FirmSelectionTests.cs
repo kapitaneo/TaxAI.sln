@@ -51,8 +51,12 @@ public sealed class FirmSelectionTests
         var rows = sessions.All;
         Assert.Equal(2, rows.Count);
 
-        var revoked = Assert.Single(rows.Where(row => row.SessionId == oldSession.SessionId));
-        var replacement = Assert.Single(rows.Where(row => row.SessionId != oldSession.SessionId));
+        var revoked = Assert.Single(
+            rows,
+            row => row.SessionId == oldSession.SessionId);
+        var replacement = Assert.Single(
+            rows,
+            row => row.SessionId != oldSession.SessionId);
 
         Assert.NotNull(revoked.RevokedAtUtc);
         Assert.Equal(user.UserId, replacement.UserId);

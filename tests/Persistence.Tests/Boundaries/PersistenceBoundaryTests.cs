@@ -18,6 +18,12 @@ public sealed class PersistenceBoundaryTests
     private static readonly string PersistenceProject =
         Path.Combine(PersistenceRoot, "Persistence.csproj");
 
+    private static readonly string PersistenceTestProject = Path.Combine(
+        RepositoryRoot,
+        "tests",
+        "Persistence.Tests",
+        "Persistence.Tests.csproj");
+
     /// <summary>
     /// The baseline surface that every persistence implementation must retain.
     /// Later waves add files without invalidating this scanner guard.
@@ -37,7 +43,7 @@ public sealed class PersistenceBoundaryTests
         var project = XDocument.Load(PersistenceProject);
 
         Assert.Equal("Microsoft.NET.Sdk", project.Root!.Attribute("Sdk")!.Value);
-        Assert.Equal("net8.0", Property(project, "TargetFramework"));
+        Assert.Equal("net10.0", Property(project, "TargetFramework"));
         Assert.Equal("enable", Property(project, "Nullable"));
     }
 
@@ -57,9 +63,12 @@ public sealed class PersistenceBoundaryTests
         // One provider, pinned. A second would mean two answers about how a
         // decimal column round-trips, and the exact-round-trip refusal would then
         // depend on which one was configured.
-        var packages = XDocument.Load(PersistenceProject)
+        var project = XDocument.Load(PersistenceProject);
+        var packageReferences = project
             .Descendants()
             .Where(element => element.Name.LocalName == "PackageReference")
+            .ToArray();
+        var packages = packageReferences
             .ToDictionary(
                 element => element.Attribute("Include")!.Value,
                 element => element.Attribute("Version")!.Value,
@@ -69,7 +78,14 @@ public sealed class PersistenceBoundaryTests
             new[] { "Microsoft.EntityFrameworkCore.Design", "Microsoft.EntityFrameworkCore.SqlServer" },
             packages.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray());
 
-        Assert.All(packages.Values, version => Assert.Matches(@"^8\.0\.\d+$", version));
+        Assert.All(packages.Values, version => Assert.Equal("10.0.10", version));
+
+        var design = Assert.Single(
+            packageReferences,
+            element =>
+                element.Attribute("Include")!.Value ==
+                "Microsoft.EntityFrameworkCore.Design");
+        Assert.Equal("all", design.Attribute("PrivateAssets")?.Value);
 
         foreach (var forbidden in new[] { "Npgsql", "MySql", "Oracle", "Sqlite", "Firebird" })
         {
@@ -77,6 +93,41 @@ public sealed class PersistenceBoundaryTests
                 packages.Keys,
                 name => name.Contains(forbidden, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    [Fact]
+    public void TheTestProjectTargetsNet10AndPinsTheApprovedPackagesExactly()
+    {
+        var project = XDocument.Load(PersistenceTestProject);
+
+        Assert.Equal("net10.0", Property(project, "TargetFramework"));
+
+        var packages = project
+            .Descendants()
+            .Where(element => element.Name.LocalName == "PackageReference")
+            .ToDictionary(
+                element => element.Attribute("Include")!.Value,
+                element => element.Attribute("Version")!.Value,
+                StringComparer.Ordinal);
+
+        var expectedPackages = new[]
+        {
+            "coverlet.collector",
+            "Microsoft.EntityFrameworkCore.Sqlite",
+            "Microsoft.NET.Test.Sdk",
+            "SQLitePCLRaw.bundle_e_sqlite3",
+            "xunit",
+            "xunit.runner.visualstudio",
+        };
+        Assert.Equal(
+            expectedPackages.OrderBy(name => name, StringComparer.Ordinal),
+            packages.Keys.OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal("10.0.1", packages["coverlet.collector"]);
+        Assert.Equal("10.0.10", packages["Microsoft.EntityFrameworkCore.Sqlite"]);
+        Assert.Equal("18.8.1", packages["Microsoft.NET.Test.Sdk"]);
+        Assert.Equal("2.1.12", packages["SQLitePCLRaw.bundle_e_sqlite3"]);
+        Assert.Equal("2.9.3", packages["xunit"]);
+        Assert.Equal("3.1.5", packages["xunit.runner.visualstudio"]);
     }
 
     [Fact] // AC-7

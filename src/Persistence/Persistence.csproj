@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -12,8 +12,16 @@
        One provider, pinned: a second would mean two answers about how a decimal
        column round-trips. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" PrivateAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None
+      Include="$(PkgMicrosoft_EntityFrameworkCore_Design)\lib\net10.0\Microsoft.EntityFrameworkCore.Design.dll"
+      Link="Microsoft.EntityFrameworkCore.Design.dll"
+      CopyToOutputDirectory="PreserveNewest"
+      CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <ItemGroup>

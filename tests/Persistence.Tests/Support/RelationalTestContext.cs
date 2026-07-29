@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Tenancy.Models;
 
 namespace Persistence.Tests.Support;
@@ -42,7 +44,8 @@ internal sealed class RelationalTestContext : IAsyncDisposable
         if (applyMigrations)
         {
             await using var context = relational.CreateContext();
-            await context.Database.MigrateAsync();
+            var targetMigration = context.Database.GetMigrations().Single();
+            await context.Database.MigrateAsync(targetMigration);
         }
 
         return relational;
@@ -53,6 +56,7 @@ internal sealed class RelationalTestContext : IAsyncDisposable
         var connection = OpenConnection(_connectionString);
         var options = new DbContextOptionsBuilder<TaxAiDbContext>()
             .UseSqlite(connection, contextOwnsConnection: true)
+            .AddInterceptors(SqliteMigrationLockCleanupInterceptor.Instance)
             .EnableDetailedErrors()
             .Options;
 
@@ -82,5 +86,89 @@ internal sealed class RelationalTestContext : IAsyncDisposable
             PersistedSchema.IdentifierCollation,
             static (left, right) => StringComparer.Ordinal.Compare(left, right));
         return connection;
+    }
+
+    /// <summary>
+    /// EF9 added a provider-owned SQLite migration-lock table. The relational
+    /// harness has no concurrent migrator and historically asserts that rolling
+    /// the one migration back leaves no user tables, so remove the empty lock
+    /// table immediately after the provider releases it.
+    /// </summary>
+    private sealed class SqliteMigrationLockCleanupInterceptor :
+        DbCommandInterceptor
+    {
+        internal static readonly SqliteMigrationLockCleanupInterceptor Instance =
+            new();
+
+        public override int NonQueryExecuted(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            int result)
+        {
+            if (IsMigrationLockRelease(command))
+            {
+                using var cleanup = command.Connection!.CreateCommand();
+                cleanup.CommandText =
+                    "DROP TABLE IF EXISTS \"__EFMigrationsLock\";";
+                cleanup.ExecuteNonQuery();
+            }
+
+            return result;
+        }
+
+        public override async ValueTask<int> NonQueryExecutedAsync(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            int result,
+            CancellationToken cancellationToken = default)
+        {
+            if (IsMigrationLockRelease(command))
+            {
+                await using var cleanup = command.Connection!.CreateCommand();
+                cleanup.CommandText =
+                    "DROP TABLE IF EXISTS \"__EFMigrationsLock\";";
+                await cleanup.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return result;
+        }
+
+        public override object? ScalarExecuted(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            object? result)
+        {
+            if (IsMigrationLockRelease(command))
+            {
+                using var cleanup = command.Connection!.CreateCommand();
+                cleanup.CommandText =
+                    "DROP TABLE IF EXISTS \"__EFMigrationsLock\";";
+                cleanup.ExecuteNonQuery();
+            }
+
+            return result;
+        }
+
+        public override async ValueTask<object?> ScalarExecutedAsync(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            object? result,
+            CancellationToken cancellationToken = default)
+        {
+            if (IsMigrationLockRelease(command))
+            {
+                await using var cleanup = command.Connection!.CreateCommand();
+                cleanup.CommandText =
+                    "DROP TABLE IF EXISTS \"__EFMigrationsLock\";";
+                await cleanup.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return result;
+        }
+
+        private static bool IsMigrationLockRelease(DbCommand command) =>
+            command.CommandText.StartsWith(
+                "DELETE FROM \"__EFMigrationsLock\"",
+                StringComparison.Ordinal);
     }
 }

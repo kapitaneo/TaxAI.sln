@@ -319,7 +319,8 @@ internal sealed class VersionRaceDatabase : IAsyncDisposable
 
         var database = new VersionRaceDatabase(connection);
         await using var context = database.CreateContext();
-        await context.Database.MigrateAsync();
+        var targetMigration = context.Database.GetMigrations().Single();
+        await context.Database.MigrateAsync(targetMigration);
         return database;
     }
 

@@ -64,9 +64,10 @@ public sealed class SolutionAndRegressionTests
 
         // Presence-and-uniqueness, never a total count.
         Assert.Single(
-            projectLines.Where(line =>
+            projectLines,
+            line =>
                 line.Contains($"\"{name}\", \"{path}\"", StringComparison.Ordinal) &&
-                line.Contains(guid, StringComparison.Ordinal)));
+                line.Contains(guid, StringComparison.Ordinal));
     }
 
     [Theory] // AC-6
@@ -278,7 +279,9 @@ public sealed class SolutionAndRegressionTests
 
         foreach (var forbidden in new[] { "PackageReference", "FrameworkReference" })
         {
-            Assert.Empty(project.Descendants().Where(element => element.Name.LocalName == forbidden));
+            Assert.DoesNotContain(
+                project.Descendants(),
+                element => element.Name.LocalName == forbidden);
         }
     }
 

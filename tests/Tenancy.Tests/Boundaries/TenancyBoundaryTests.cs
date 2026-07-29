@@ -252,10 +252,10 @@ public sealed class TenancyBoundaryTests
     [InlineData("Tenancy.Tests", "xunit.runner.visualstudio", "2.5.3")]
     [InlineData("Tenancy.Tests", "Microsoft.NET.Test.Sdk", "17.8.0")]
     [InlineData("Tenancy.Tests", "coverlet.collector", "6.0.0")]
-    [InlineData("Persistence.Tests", "xunit", "2.5.3")]
-    [InlineData("Persistence.Tests", "xunit.runner.visualstudio", "2.5.3")]
-    [InlineData("Persistence.Tests", "Microsoft.NET.Test.Sdk", "17.8.0")]
-    [InlineData("Persistence.Tests", "coverlet.collector", "6.0.0")]
+    [InlineData("Persistence.Tests", "xunit", "2.9.3")]
+    [InlineData("Persistence.Tests", "xunit.runner.visualstudio", "3.1.5")]
+    [InlineData("Persistence.Tests", "Microsoft.NET.Test.Sdk", "18.8.1")]
+    [InlineData("Persistence.Tests", "coverlet.collector", "10.0.1")]
     public void TheNewTestProjectPinsTheRepositoryStandardToolingVersion(
         string project, string package, string expected)
     {

@@ -78,7 +78,7 @@ public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Pr
                      "Production",
                      "Development",
                      "Version",
-                     "net8.0",
+                     "net10.0",
                      Environment.MachineName,
                      Environment.UserName,
                      ":\\",

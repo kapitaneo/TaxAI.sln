@@ -267,8 +267,9 @@ public sealed class AmendmentAuditTests
         foreach (var row in rows)
         {
             var amendment = Assert.Single(
-                ledger.Where(candidate =>
-                    row.Contains(candidate.RowKey, StringComparison.Ordinal)));
+                ledger,
+                candidate =>
+                    row.Contains(candidate.RowKey, StringComparison.Ordinal));
 
             Assert.False(string.IsNullOrWhiteSpace(amendment.ReplacementName));
             Assert.Matches(
@@ -287,8 +288,9 @@ public sealed class AmendmentAuditTests
 
         foreach (var amendment in ledger)
         {
-            Assert.Single(rows.Where(row =>
-                row.Contains(amendment.RowKey, StringComparison.Ordinal)));
+            Assert.Single(
+                rows,
+                row => row.Contains(amendment.RowKey, StringComparison.Ordinal));
         }
     }
 

@@ -58,11 +58,12 @@ public sealed class UpgradeBaselineContractTests
                     $"\"{project.Path.Replace('/', '\\')}\""));
 
             var current = Assert.Single(
-                actual.Projects.Where(candidate =>
+                actual.Projects,
+                candidate =>
                     string.Equals(
                         candidate.Path,
                         project.Path,
-                        StringComparison.Ordinal)));
+                        StringComparison.Ordinal));
 
             Assert.Equal(project.Name, current.Name);
             Assert.Equal(project.AssemblyName, current.AssemblyName);
@@ -108,11 +109,12 @@ public sealed class UpgradeBaselineContractTests
         foreach (var expected in baseline.Assemblies)
         {
             var current = Assert.Single(
-                actual.Assemblies.Where(assembly =>
+                actual.Assemblies,
+                assembly =>
                     string.Equals(
                         assembly.Name,
                         expected.Name,
-                        StringComparison.Ordinal)));
+                        StringComparison.Ordinal));
 
             Assert.Equal(expected.FriendAssemblies, current.FriendAssemblies);
             Assert.Equal(expected.EmbeddedResources, current.EmbeddedResources);

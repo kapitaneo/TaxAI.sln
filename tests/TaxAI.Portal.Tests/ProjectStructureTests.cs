@@ -48,7 +48,7 @@ public sealed class ProjectStructureTests
     }
 
     [Theory] // AC-2
-    [InlineData("TargetFramework", "net8.0")]
+    [InlineData("TargetFramework", "net10.0")]
     [InlineData("Nullable", "enable")]
     [InlineData("ImplicitUsings", "enable")]
     public void PortalProject_DeclaresTheApprovedProperty(string property, string expected)
@@ -95,8 +95,7 @@ public sealed class ProjectStructureTests
                     "Microsoft.AspNetCore.Authentication.OpenIdConnect")
                 .Select(element => element.Attribute("Version")?.Value));
 
-        Assert.NotNull(version);
-        Assert.Matches(new Regex(@"^8\.0\.\d+$"), version!);
+        Assert.Equal("10.0.10", version);
     }
 
     [Theory] // spec 011 AC-11
@@ -138,10 +137,10 @@ public sealed class ProjectStructureTests
     // ------------------------------------------------------------------ AC-4
 
     [Theory] // AC-4
-    [InlineData("xunit", "2.5.3")]
-    [InlineData("xunit.runner.visualstudio", "2.5.3")]
-    [InlineData("Microsoft.NET.Test.Sdk", "17.8.0")]
-    [InlineData("coverlet.collector", "6.0.0")]
+    [InlineData("xunit", "2.9.3")]
+    [InlineData("xunit.runner.visualstudio", "3.1.5")]
+    [InlineData("Microsoft.NET.Test.Sdk", "18.8.1")]
+    [InlineData("coverlet.collector", "10.0.1")]
     public void TestProject_PinsTheRepositoryStandardToolingVersion(string package, string expected)
     {
         Assert.True(File.Exists(TestProject), $"{TestProject} must exist.");
@@ -157,6 +156,11 @@ public sealed class ProjectStructureTests
     [Fact]
     public void TestProject_AddsOnlyTheInProcessWebTestHost()
     {
+        Assert.Equal(
+            new[] { "net10.0" },
+            Elements(TestProject, "TargetFramework")
+                .Select(element => element.Value));
+
         // One new package enters the repository, in a test project, and it binds
         // no network port. Anything else here would be a dependency the plan did
         // not approve.
@@ -173,6 +177,14 @@ public sealed class ProjectStructureTests
             .ToArray();
 
         Assert.Equal(new[] { "Microsoft.AspNetCore.Mvc.Testing" }, extra);
+
+        var mvcTestingVersion = Assert.Single(
+            Elements(TestProject, "PackageReference")
+                .Where(element =>
+                    element.Attribute("Include")?.Value ==
+                    "Microsoft.AspNetCore.Mvc.Testing")
+                .Select(element => element.Attribute("Version")?.Value));
+        Assert.Equal("10.0.10", mvcTestingVersion);
     }
 
     // ------------------------------------------------------------------ AC-5
