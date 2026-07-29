@@ -1,0 +1,18 @@
+TaskID: T11
+Task: Enforce the exact repository-wide .NET 10 toolchain
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Delivered:
+- scripts/Assert-DotNet10Toolchain.ps1 validates SDK 10.0.302, every approved
+  solution path, single net10.0 TFMs, exact Microsoft/test package matrices,
+  xunit.v3 absence, the local EF manifest, old-TFM absence, and forbidden
+  central/speculative project files without asserting a project-count literal.
+- Invoke-SolutionTests.ps1 runs the preflight before its existing TRX gate.
+- DotNet10RepositoryTests independently enforces the repository contract.
+- The Portal manifest floor is 411 and the full missing/failed/skipped/
+  unregistered/floor refusal behavior remains active.
+
+Verification: preflight PASS; all eight projects ran and met their floors.
+Evidence: specs/013-dotnet-10-platform-upgrade/verification.md

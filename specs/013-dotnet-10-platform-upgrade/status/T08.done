@@ -1,0 +1,17 @@
+TaskID: T08
+Task: Upgrade CaseProcessing and its test project
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- CaseProcessing and CaseProcessing.Tests each target exactly net10.0.
+- CaseProcessing.Tests uses the approved xunit v2 package matrix.
+- Exact references, parser/mapper delegation, error ordering, tax-year
+  isolation, raw-payload omission, masked identifier behavior, and contracts
+  remain unchanged.
+- The analyzer-exposed boundary assertion was corrected without suppression or
+  behavior change.
+- CaseProcessing.Tests: 594 passed; 0 failed; 0 skipped.
+
+Evidence: specs/013-dotnet-10-platform-upgrade/verification.md

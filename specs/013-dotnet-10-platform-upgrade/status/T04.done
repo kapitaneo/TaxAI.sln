@@ -1,0 +1,17 @@
+TaskID: T04
+Task: Upgrade TaxCases and its test project
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- TaxCases and TaxCases.Tests each target exactly net10.0.
+- TaxCases.Tests uses the approved xunit v2 package matrix; xunit.v3 and
+  accidental telemetry references are absent.
+- TaxCases retains its exact TaxLogicEngine reference and has no production
+  package or framework reference.
+- Immutable aggregate, tax-year, PII, boundary, contract, and end-to-end tests
+  pass unchanged.
+- TaxCases.Tests: 337 passed; 0 failed; 0 skipped.
+
+Evidence: specs/013-dotnet-10-platform-upgrade/verification.md

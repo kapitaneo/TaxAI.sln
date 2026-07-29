@@ -1,0 +1,17 @@
+TaskID: T09
+Task: Upgrade DocumentExtraction and its test project
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- DocumentExtraction and DocumentExtraction.Tests each target exactly net10.0.
+- DocumentExtraction.Tests uses the approved xunit v2 package matrix.
+- The exact inward reference, untrusted-input boundary, payload identity,
+  validation/error order, year isolation, PII omission, and contracts remain
+  unchanged.
+- Historical immutability continues to cover source/resources while excluding
+  only the planned project-manifest TFM edit.
+- DocumentExtraction.Tests: 673 passed; 0 failed; 0 skipped.
+
+Evidence: specs/013-dotnet-10-platform-upgrade/verification.md

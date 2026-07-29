@@ -1,0 +1,17 @@
+TaskID: T07
+Task: Upgrade CaseReview and its test project
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Verified complete:
+- CaseReview and CaseReview.Tests each target exactly net10.0.
+- CaseReview.Tests uses the approved xunit v2 package matrix.
+- Production references, immutable review/sign-off behavior, unmapped-code
+  acknowledgement, ordered snapshots, PII defenses, and public/internal
+  contracts remain unchanged.
+- Analyzer-exposed assertions use equivalent approved overloads with no
+  suppression or behavior change.
+- CaseReview.Tests: 482 passed; 0 failed; 0 skipped.
+
+Evidence: specs/013-dotnet-10-platform-upgrade/verification.md

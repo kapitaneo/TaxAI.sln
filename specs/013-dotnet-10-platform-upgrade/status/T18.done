@@ -1,0 +1,21 @@
+TaskID: T18
+Task: Execute every acceptance gate and mark spec 013 complete
+PR: #130
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/130
+Implementation commit: 86c82c6c440a15be8e5cc6d1648d534f911523be
+
+Final result:
+- AC-1 through AC-32: PASS.
+- SDK 10.0.302 and dotnet-ef 10.0.10 resolve exactly.
+- All 16 solution projects target exactly net10.0.
+- Build: 0 errors; exactly the approved 11-warning non-incremental multiset.
+- Tests: 3,193 passed across all eight projects; 0 failed; 0 skipped; every
+  floor met.
+- Pending EF model: none.
+- Migration set/hashes, model, schema, DDL, public/internal contracts,
+  resources, route/auth behavior, and security boundaries remain equivalent.
+- Release Portal publish and git diff --check pass.
+- Rollback baseline is 13097dada6b1aae070fc0006d48a6862ce9904f8.
+- Production deployment remains blocked.
+
+Final record: specs/013-dotnet-10-platform-upgrade/verification.md
