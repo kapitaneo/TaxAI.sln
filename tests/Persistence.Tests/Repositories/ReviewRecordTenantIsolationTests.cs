@@ -14,13 +14,11 @@ public sealed class ReviewRecordTenantIsolationTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
+        var projected = ReviewRecordRepositoryTestData.Project();
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
 
         var crossFirm = await repository.FindAsync(
@@ -42,33 +40,34 @@ public sealed class ReviewRecordTenantIsolationTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var firmOneRepository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
-        var firmTwoRepository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
-
-        var firmOneSave = await firmOneRepository.SaveAsync(
-            ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(
+        var firmOneRepository = new SqlReviewRecordRepository(context);
+        var firmTwoRepository = new SqlReviewRecordRepository(context);
+        var firmOneProjected = ReviewRecordRepositoryTestData.Project(
+            package: ReviewRecordRepositoryTestData.Package(
                 reviewedSlips:
                 [
                     ReviewRecordRepositoryTestData.Slip(
                         taxpayerDisplayName: "Test Taxpayer Firm A"),
                 ]),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
-            CancellationToken.None);
-        var firmTwoSave = await firmTwoRepository.SaveAsync(
-            ReviewRecordRepositoryTestData.TrustedFirmTwo,
-            ReviewRecordRepositoryTestData.Package(
+            identifiers: new RepositorySequenceIdentifierSource());
+        var firmTwoProjected = ReviewRecordRepositoryTestData.Project(
+            package: ReviewRecordRepositoryTestData.Package(
                 firmId: ReviewRecordRepositoryTestData.FirmTwo,
                 reviewedSlips:
                 [
                     ReviewRecordRepositoryTestData.Slip(
                         taxpayerDisplayName: "Test Taxpayer Firm B"),
                 ]),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            trustedFirm: ReviewRecordRepositoryTestData.TrustedFirmTwo,
+            identifiers: new RepositorySequenceIdentifierSource());
+
+        var firmOneSave = await firmOneRepository.SaveAsync(
+            ReviewRecordRepositoryTestData.TrustedFirmOne,
+            firmOneProjected,
+            CancellationToken.None);
+        var firmTwoSave = await firmTwoRepository.SaveAsync(
+            ReviewRecordRepositoryTestData.TrustedFirmTwo,
+            firmTwoProjected,
             CancellationToken.None);
 
         Assert.Equal(firmOneSave.Value!.RecordId, firmTwoSave.Value!.RecordId);
@@ -93,19 +92,19 @@ public sealed class ReviewRecordTenantIsolationTests
     }
 
     [Fact]
-    public async Task PackageFirmMismatchIsRefusedBeforeAnythingIsWritten()
+    public async Task ProjectedRecordFirmMismatchIsRefusedBeforeAnythingIsWritten()
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
+        var projectedForFirmTwo = ReviewRecordRepositoryTestData.Project(
+            package: ReviewRecordRepositoryTestData.Package(
+                firmId: ReviewRecordRepositoryTestData.FirmTwo),
+            trustedFirm: ReviewRecordRepositoryTestData.TrustedFirmTwo);
 
         var result = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(
-                firmId: ReviewRecordRepositoryTestData.FirmTwo),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projectedForFirmTwo,
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -113,7 +112,8 @@ public sealed class ReviewRecordTenantIsolationTests
         Assert.Contains(
             result.Errors,
             error => error.Field == TenancyFields.FirmId &&
-                     error.Message == TenancyErrors.FirmMismatch);
+                     error.Message ==
+                         "The review record does not belong to the trusted firm.");
         Assert.Equal(
             0,
             await context.Set<PersistedReviewRecord>().CountAsync());

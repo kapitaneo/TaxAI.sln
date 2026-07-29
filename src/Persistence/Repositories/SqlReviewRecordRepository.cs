@@ -1,17 +1,15 @@
-using CaseReview.Models;
 using Microsoft.EntityFrameworkCore;
 using TaxLogicEngine.Models;
 using Tenancy.Contracts;
 using Tenancy.Models;
-using Tenancy.Services;
 
 namespace Persistence.Repositories;
 
 /// <summary>
 /// The relational implementation of the immutable review-record port.
 /// <para>
-/// Every query is scoped by the trusted firm. Saving projects through the
-/// closed allowlist before opening a transaction, then assigns the next version
+/// Every query is scoped by the trusted firm. Saving accepts only the completed
+/// <see cref="PersistedReviewRecord"/> projection, then assigns the next version
 /// and inserts the complete graph atomically. There is no update, upsert, or
 /// delete path.
 /// </para>
@@ -20,39 +18,33 @@ internal sealed class SqlReviewRecordRepository : IReviewRecordRepository
 {
     private const string SaveRefusedMessage =
         "The review record could not be saved.";
+    private const string FirmMismatchMessage =
+        "The review record does not belong to the trusted firm.";
 
     private readonly TaxAiDbContext _context;
-    private readonly IOpaqueIdentifierSource _identifiers;
 
-    public SqlReviewRecordRepository(
-        TaxAiDbContext context,
-        IOpaqueIdentifierSource identifiers)
+    public SqlReviewRecordRepository(TaxAiDbContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(identifiers);
 
         _context = context;
-        _identifiers = identifiers;
     }
 
     public async Task<ParseResult<PersistedReviewRecord>> SaveAsync(
         TrustedFirmId firm,
-        AccountantReviewPackage package,
-        DateTimeOffset evaluationInstantUtc,
+        PersistedReviewRecord record,
         CancellationToken cancellationToken)
     {
-        var projection = ReviewPackageProjection.Project(
-            firm,
-            package,
-            evaluationInstantUtc,
-            _identifiers);
+        ArgumentNullException.ThrowIfNull(firm);
+        ArgumentNullException.ThrowIfNull(record);
 
-        if (projection.IsFailure)
+        if (record.FirmId != firm.Value)
         {
-            return projection;
+            return ParseResult<PersistedReviewRecord>.Failure(
+                new ValidationError(
+                    TenancyFields.FirmId,
+                    FirmMismatchMessage));
         }
-
-        var projected = projection.Value!;
 
         await using var transaction =
             await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -61,25 +53,25 @@ internal sealed class SqlReviewRecordRepository : IReviewRecordRepository
         {
             var existingMaximum = await _context
                 .Set<PersistedReviewRecord>()
-                .Where(record =>
-                    record.FirmId == firm.Value &&
-                    record.CaseId == projected.CaseId &&
-                    record.ParticipantId == projected.ParticipantId &&
-                    record.TaxYear == projected.TaxYear)
-                .Select(record => (int?)record.PackageVersion)
+                .Where(candidate =>
+                    candidate.FirmId == firm.Value &&
+                    candidate.CaseId == record.CaseId &&
+                    candidate.ParticipantId == record.ParticipantId &&
+                    candidate.TaxYear == record.TaxYear)
+                .Select(candidate => (int?)candidate.PackageVersion)
                 .MaxAsync(cancellationToken)
                 ?? 0;
 
             var nextVersion = checked(existingMaximum + 1);
-            _context.Entry(projected)
+            _context.Entry(record)
                 .Property(record => record.PackageVersion)
                 .CurrentValue = nextVersion;
 
-            _context.Add(projected);
+            _context.Add(record);
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            return ParseResult<PersistedReviewRecord>.Success(projected);
+            return ParseResult<PersistedReviewRecord>.Success(record);
         }
         catch (DbUpdateException)
         {

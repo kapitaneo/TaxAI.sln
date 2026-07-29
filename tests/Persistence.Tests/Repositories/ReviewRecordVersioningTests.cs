@@ -15,9 +15,8 @@ public sealed class ReviewRecordVersioningTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
+        var identifiers = new RepositorySequenceIdentifierSource();
         var firstPackage = ReviewRecordRepositoryTestData.Package(
             reviewedSlips:
             [
@@ -32,11 +31,18 @@ public sealed class ReviewRecordVersioningTests
                     taxpayerDisplayName: "Test Taxpayer Regenerated",
                     employerDisplayName: "Example Employer Regenerated"),
             ]);
+        var firstProjected = ReviewRecordRepositoryTestData.Project(
+            firstPackage,
+            identifiers: identifiers);
+        var secondProjected = ReviewRecordRepositoryTestData.Project(
+            secondPackage,
+            evaluationInstantUtc:
+                ReviewRecordRepositoryTestData.EvaluationInstantUtc.AddMinutes(1),
+            identifiers: identifiers);
 
         var firstSave = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            firstPackage,
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            firstProjected,
             CancellationToken.None);
         var firstBeforeSecondSave = await repository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
@@ -46,8 +52,7 @@ public sealed class ReviewRecordVersioningTests
 
         var secondSave = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            secondPackage,
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc.AddMinutes(1),
+            secondProjected,
             CancellationToken.None);
         var firstAfterSecondSave = await repository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
@@ -77,24 +82,29 @@ public sealed class ReviewRecordVersioningTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
+        var identifiers = new RepositorySequenceIdentifierSource();
+        var firstProjected = ReviewRecordRepositoryTestData.Project(
+            ReviewRecordRepositoryTestData.Package(caseId: "case_alpha"),
+            identifiers: identifiers);
+        var secondProjected = ReviewRecordRepositoryTestData.Project(
+            ReviewRecordRepositoryTestData.Package(caseId: "case_beta"),
+            identifiers: identifiers);
+        var firstAgainProjected = ReviewRecordRepositoryTestData.Project(
+            ReviewRecordRepositoryTestData.Package(caseId: "case_alpha"),
+            identifiers: identifiers);
 
         var firstSubject = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(caseId: "case_alpha"),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            firstProjected,
             CancellationToken.None);
         var secondSubject = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(caseId: "case_beta"),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            secondProjected,
             CancellationToken.None);
         var firstSubjectAgain = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(caseId: "case_alpha"),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            firstAgainProjected,
             CancellationToken.None);
 
         Assert.Equal(1, firstSubject.Value!.PackageVersion);
@@ -111,13 +121,11 @@ public sealed class ReviewRecordVersioningTests
         string firstSnapshot;
         await using (var firstContext = database.CreateContext())
         {
-            var firstRepository = new SqlReviewRecordRepository(
-                firstContext,
-                new RepositorySequenceIdentifierSource());
+            var firstRepository = new SqlReviewRecordRepository(firstContext);
+            var firstProjected = ReviewRecordRepositoryTestData.Project();
             var firstSave = await firstRepository.SaveAsync(
                 ReviewRecordRepositoryTestData.TrustedFirmOne,
-                ReviewRecordRepositoryTestData.Package(),
-                ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+                firstProjected,
                 CancellationToken.None);
 
             firstRecordId = firstSave.Value!.RecordId;
@@ -127,14 +135,15 @@ public sealed class ReviewRecordVersioningTests
         await using (var racingContext = database.CreateContext(
             new InsertCompetingVersionInterceptor()))
         {
-            var racingRepository = new SqlReviewRecordRepository(
-                racingContext,
-                new RepositorySequenceIdentifierSource(first: 100));
+            var racingRepository = new SqlReviewRecordRepository(racingContext);
+            var racingProjected = ReviewRecordRepositoryTestData.Project(
+                evaluationInstantUtc:
+                    ReviewRecordRepositoryTestData.EvaluationInstantUtc.AddMinutes(1),
+                identifiers: new RepositorySequenceIdentifierSource(first: 100));
 
             var raced = await racingRepository.SaveAsync(
                 ReviewRecordRepositoryTestData.TrustedFirmOne,
-                ReviewRecordRepositoryTestData.Package(),
-                ReviewRecordRepositoryTestData.EvaluationInstantUtc.AddMinutes(1),
+                racingProjected,
                 CancellationToken.None);
 
             Assert.True(raced.IsFailure);
@@ -145,9 +154,8 @@ public sealed class ReviewRecordVersioningTests
         }
 
         await using var verificationContext = database.CreateContext();
-        var verificationRepository = new SqlReviewRecordRepository(
-            verificationContext,
-            new RepositorySequenceIdentifierSource(first: 200));
+        var verificationRepository =
+            new SqlReviewRecordRepository(verificationContext);
         var persisted = await verificationRepository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
             firstRecordId,

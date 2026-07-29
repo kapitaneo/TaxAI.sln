@@ -17,9 +17,7 @@ public sealed class ReviewRecordRepositoryTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
         var package = ReviewRecordRepositoryTestData.Package(
             reviewedSlips:
             [
@@ -40,11 +38,11 @@ public sealed class ReviewRecordRepositoryTests
                     ],
                     unmappedBoxCodes: ["unmapped_alpha"]),
             ]);
+        var projected = ReviewRecordRepositoryTestData.Project(package);
 
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            package,
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
 
         Assert.True(saved.IsSuccess);
@@ -84,14 +82,12 @@ public sealed class ReviewRecordRepositoryTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
+        var projected = ReviewRecordRepositoryTestData.Project();
 
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
 
         Assert.True(saved.IsSuccess);
@@ -114,14 +110,13 @@ public sealed class ReviewRecordRepositoryTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
+        var projected = ReviewRecordRepositoryTestData.Project(
+            ReviewRecordRepositoryTestData.Package(reviewedSlips: []));
 
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            ReviewRecordRepositoryTestData.Package(reviewedSlips: []),
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
         var found = await repository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
@@ -138,19 +133,17 @@ public sealed class ReviewRecordRepositoryTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
         var package = ReviewRecordRepositoryTestData.Package(
             reviewedSlips:
             [
                 ReviewRecordRepositoryTestData.Slip(unmappedBoxCodes: []),
             ]);
+        var projected = ReviewRecordRepositoryTestData.Project(package);
 
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            package,
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
         var found = await repository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
@@ -167,9 +160,7 @@ public sealed class ReviewRecordRepositoryTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
         var package = ReviewRecordRepositoryTestData.Package(
             reviewedSlips:
             [
@@ -177,11 +168,11 @@ public sealed class ReviewRecordRepositoryTests
                 ReviewRecordRepositoryTestData.OrderedSlip("a"),
                 ReviewRecordRepositoryTestData.OrderedSlip("b"),
             ]);
+        var projected = ReviewRecordRepositoryTestData.Project(package);
 
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            package,
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
         var found = await repository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
@@ -214,9 +205,7 @@ public sealed class ReviewRecordRepositoryTests
     {
         await using var database = await RelationalTestContext.CreateAsync();
         await using var context = database.CreateContext();
-        var repository = new SqlReviewRecordRepository(
-            context,
-            new RepositorySequenceIdentifierSource());
+        var repository = new SqlReviewRecordRepository(context);
         var package = ReviewRecordRepositoryTestData.Package(
             reviewedSlips:
             [
@@ -233,11 +222,11 @@ public sealed class ReviewRecordRepositoryTests
                         ReviewRecordRepositoryTestData.Line("same_line", 2.005m),
                     ]),
             ]);
+        var projected = ReviewRecordRepositoryTestData.Project(package);
 
         var saved = await repository.SaveAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
-            package,
-            ReviewRecordRepositoryTestData.EvaluationInstantUtc,
+            projected,
             CancellationToken.None);
         var found = await repository.FindAsync(
             ReviewRecordRepositoryTestData.TrustedFirmOne,
@@ -248,6 +237,31 @@ public sealed class ReviewRecordRepositoryTests
         Assert.Equal(2, entries.Length);
         Assert.All(entries, entry => Assert.Equal("same_line", entry.LineCode));
         Assert.Equal(new[] { 1.005m, 2.005m }, entries.Select(entry => entry.Amount));
+    }
+
+    [Fact]
+    public void RepositorySurfaceAcceptsOnlyTheAlreadyProjectedTenancyModel()
+    {
+        var save = typeof(SqlReviewRecordRepository)
+            .GetMethod(nameof(IReviewRecordRepository.SaveAsync))!;
+
+        Assert.Equal(
+            new[]
+            {
+                typeof(TrustedFirmId),
+                typeof(PersistedReviewRecord),
+                typeof(CancellationToken),
+            },
+            save.GetParameters().Select(parameter => parameter.ParameterType));
+        Assert.Equal(
+            typeof(Task<ParseResult<PersistedReviewRecord>>),
+            save.ReturnType);
+        Assert.DoesNotContain(
+            typeof(SqlReviewRecordRepository).Assembly.GetReferencedAssemblies(),
+            reference => string.Equals(
+                reference.Name,
+                "CaseReview",
+                StringComparison.Ordinal));
     }
 }
 
@@ -288,6 +302,25 @@ internal static class ReviewRecordRepositoryTestData
             SupportedTaxYear,
             slips,
             null);
+    }
+
+    internal static PersistedReviewRecord Project(
+        AccountantReviewPackage? package = null,
+        TrustedFirmId? trustedFirm = null,
+        DateTimeOffset? evaluationInstantUtc = null,
+        IOpaqueIdentifierSource? identifiers = null)
+    {
+        var projected = ReviewPackageProjection.Project(
+            trustedFirm ?? TrustedFirmOne,
+            package ?? Package(),
+            evaluationInstantUtc ?? EvaluationInstantUtc,
+            identifiers ?? new RepositorySequenceIdentifierSource());
+
+        Assert.True(
+            projected.IsSuccess,
+            $"Synthetic projection failed with {projected.Errors.Count} error(s).");
+
+        return projected.Value!;
     }
 
     internal static ReviewedSlip OrderedSlip(string marker) =>
