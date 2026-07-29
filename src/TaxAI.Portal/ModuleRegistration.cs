@@ -1,4 +1,5 @@
 using CaseProcessing.Services;
+using Persistence;
 using TaxLogicEngine.Services;
 
 namespace TaxAI.Portal;
@@ -14,7 +15,11 @@ namespace TaxAI.Portal;
 /// is authoritative.
 /// </para>
 /// <para>
-/// No <c>Add*</c> registration may appear outside this file.
+/// No <c>Add*</c> registration may appear outside this file, and this file calls
+/// <b>exactly one registration extension per contributing module</b>. A module
+/// that needs several things registered declares one extension and registers
+/// them itself; that is what keeps an ORM package out of this project's file
+/// while the container still gets a fully wired storage layer.
 /// </para>
 /// </summary>
 internal static class ModuleRegistration
@@ -40,14 +45,25 @@ internal static class ModuleRegistration
     /// constructible. Nothing resolves or invokes it: there is no endpoint that
     /// runs tax logic.
     /// </para>
+    /// <para>
+    /// The storage layer arrives through its module's own single extension. The
+    /// connection string is passed in rather than read here, because the host
+    /// has already refused to start without one — see
+    /// <see cref="PortalStartupGuards"/>.
+    /// </para>
     /// </remarks>
-    internal static IServiceCollection AddTaxAiModules(this IServiceCollection services)
+    internal static IServiceCollection AddTaxAiModules(
+        this IServiceCollection services,
+        string databaseConnectionString)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(databaseConnectionString);
 
         services.AddSingleton<IT4LineMapProvider, EmbeddedT4LineMapProvider>();
         services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
         services.AddSingleton<T4CaseProcessor>();
+
+        services.AddTaxAiPersistence(databaseConnectionString);
 
         return services;
     }

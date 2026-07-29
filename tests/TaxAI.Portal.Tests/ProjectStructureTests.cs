@@ -167,15 +167,36 @@ public sealed class ProjectStructureTests
     // ------------------------------------------------------------ AC-8, AC-9
 
     [Fact]
-    public void PortalProject_ReferencesExactlyCaseProcessingAndTaxLogicEngine() // AC-8
+    public void PortalProject_ReferencesExactlyTheFourInwardModules() // spec 011 AC-10
     {
+        // Replaces spec 010's two-entry assertion (superseded by FR-12). An
+        // exact four-entry set is strictly stronger than the pair it replaces:
+        // it still forbids everything the old one forbade, and now also names
+        // which additions were approved.
         Assert.Equal(
             new[]
             {
                 "../CaseProcessing/CaseProcessing.csproj",
+                "../Persistence/Persistence.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
+                "../Tenancy/Tenancy.csproj",
             },
             ProjectReferences(PortalProject));
+    }
+
+    [Theory] // spec 011 AC-10, AC-13
+    [InlineData("TaxCases")]
+    [InlineData("CaseReview")]
+    [InlineData("DocumentExtraction")]
+    public void PortalProject_ReferencesNoModuleReachedThroughAContract(string module)
+    {
+        // The storage layer's own dependencies arrive behind its contracts. A
+        // direct reference here would let the host name a taxpayer-data type,
+        // which is exactly what the gate stops.
+        Assert.DoesNotContain(
+            module,
+            File.ReadAllText(PortalProject),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

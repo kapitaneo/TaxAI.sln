@@ -6,12 +6,20 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- Dependencies point inward, and are exactly these two. The web SDK's
+  <!-- Dependencies point inward, and are exactly these four. The web SDK's
        implicit Microsoft.AspNetCore.App framework reference is the whole of this
-       project's dependency surface: no PackageReference belongs here. -->
+       project's dependency surface: no PackageReference belongs here.
+
+       Persistence owns the ORM and exposes one registration extension, which is
+       why adding storage to this host adds no ORM package to this file. The
+       modules behind Tenancy and Persistence — the case, extraction, and review
+       modules — are reached through their contracts and are never referenced
+       here directly. -->
   <ItemGroup>
     <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
+    <ProjectReference Include="..\Persistence\Persistence.csproj" />
     <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
+    <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
   </ItemGroup>
 
 </Project>

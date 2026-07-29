@@ -36,6 +36,7 @@ public sealed class PortalBoundaryTests
     {
         "ModuleRegistration.cs",
         "PortalContent.cs",
+        "PortalStartupGuards.cs",
         "Program.cs",
     };
 
@@ -91,37 +92,42 @@ public sealed class PortalBoundaryTests
     // --------------------------------------------- AC-40: compiled references
 
     [Fact]
-    public void TheCompiledPortal_ReferencesExactlyCaseProcessingAndTaxLogicEngine() // AC-40
+    public void TheCompiledPortal_ReferencesExactlyTheFourInwardModules() // spec 011 AC-10, AC-13
     {
         // The project file states intent; the assembly states what actually
-        // compiled in. A transitive DocumentExtraction leak — a type named in
-        // passing — would show up here and nowhere else.
+        // compiled in. A transitive leak — a type named in passing — would show
+        // up here and nowhere else. Tenancy references the review module and
+        // Persistence references Tenancy, yet neither of those may reach this
+        // assembly's reference list, because the host names none of their types.
         //
         // The framework filter is wider than the class libraries' equivalent by
         // necessity: a web host references dozens of shared-framework
         // assemblies. Anything outside System*/Microsoft.*/netstandard is a real
         // dependency of ours.
-        var nonFrameworkReferences = typeof(Program).Assembly
-            .GetReferencedAssemblies()
-            .Select(reference => reference.Name!)
-            .Where(name =>
-                !name.Equals("netstandard", StringComparison.Ordinal) &&
-                !name.StartsWith("System", StringComparison.Ordinal) &&
-                !name.StartsWith("Microsoft.", StringComparison.Ordinal))
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
+        var nonFrameworkReferences = CompiledNonFrameworkReferences();
 
-        Assert.Equal(new[] { "CaseProcessing", "TaxLogicEngine" }, nonFrameworkReferences);
+        Assert.Equal(
+            new[] { "CaseProcessing", "Persistence", "TaxLogicEngine", "Tenancy" },
+            nonFrameworkReferences);
+    }
+
+    [Theory] // spec 011 AC-13
+    [InlineData("TaxCases")]
+    [InlineData("CaseReview")]
+    [InlineData("DocumentExtraction")]
+    public void TheCompiledPortal_NamesNoModuleItReachesThroughAContract(string module)
+    {
+        Assert.DoesNotContain(module, CompiledNonFrameworkReferences());
     }
 
     [Fact]
-    public void ThePortalProject_ReferencesNeitherTaxCasesNorCaseReview() // AC-40
+    public void ThePortalProject_ReferencesNeitherTaxCasesNorCaseReview() // AC-40, spec 011 AC-13
     {
         var projectText = File.ReadAllText(Path.Combine(PortalRoot, "TaxAI.Portal.csproj"));
 
         // CaseReview exists and is merged; the portal still may not depend on
         // it. An AccountantReviewPackage is taxpayer data, and rendering it is
-        // exactly what the FR-18 gate stops.
+        // exactly what the gate stops.
         foreach (var forbidden in new[] { "TaxCases", "CaseReview", "DocumentExtraction" })
         {
             Assert.DoesNotContain(forbidden, projectText, StringComparison.OrdinalIgnoreCase);
@@ -134,33 +140,126 @@ public sealed class PortalBoundaryTests
                 reference.Name!.Equals("CaseReview", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Theory] // spec 011 AC-12
+    [InlineData("EntityFrameworkCore")]
+    [InlineData("DbContext")]
+    [InlineData("DbSet")]
+    [InlineData("SqlConnection")]
+    [InlineData("System.Data")]
+    [InlineData("Sqlite")]
+    [InlineData("Npgsql")]
+    public void ThePortalProject_DeclaresNoOrmDependency(string forbidden)
+    {
+        // The storage module exposes one registration extension, which is what
+        // keeps the ORM out of this project file entirely. If it ever appears
+        // here, the host has acquired a second way to reach the database — one
+        // that answers to no repository and no trusted firm.
+        Assert.DoesNotContain(
+            forbidden,
+            File.ReadAllText(Path.Combine(PortalRoot, "TaxAI.Portal.csproj")),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     // -------------------------------------- AC-22: wiring lives in one place
 
-    [Fact]
-    public void EveryServiceRegistrationLivesInTheCompositionRoot() // AC-22
-    {
-        var registration = new Regex(
-            @"\bAddSingleton\b|\bAddScoped\b|\bAddTransient\b|\bTryAdd\w*\b",
-            RegexOptions.CultureInvariant,
-            TimeSpan.FromSeconds(1));
+    /// <summary>
+    /// Anything shaped like a registration: <c>Add…</c> or <c>TryAdd…</c>
+    /// followed by a capital. Deliberately wider than a list of the container's
+    /// own method names, so a module's bespoke <c>AddSomething</c> extension
+    /// cannot slip past by not being called <c>AddSingleton</c>.
+    /// </summary>
+    private static readonly Regex RegistrationVerb = new(
+        @"\b(?:Add|TryAdd)[A-Z][A-Za-z0-9_]*",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
 
-        var offending = ProductionSourceFiles()
-            .Where(path => Path.GetFileName(path) != "ModuleRegistration.cs")
-            .Where(path => ExecutableLines(path).Any(line => registration.IsMatch(line)))
-            .Select(Path.GetFileName)
+    /// <summary>
+    /// The exact registration-shaped tokens each production file may use.
+    /// Replaces spec 010's "no registration outside the composition root, and
+    /// exactly three inside it": an exact per-file allow-list still forbids
+    /// every registration the old rule forbade, and additionally forbids an
+    /// unapproved one from appearing <i>inside</i> the composition root.
+    /// </summary>
+    public static TheoryData<string, string[]> ApprovedRegistrationTokens() => new()
+    {
+        // AddServerHeader is an option assignment on Kestrel, not a
+        // registration; it is enumerated rather than special-cased so nothing is
+        // silently exempt. AddTaxAiModules is the single call into the
+        // composition root.
+        { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
+        { "ModuleRegistration.cs", new[] { "AddSingleton", "AddTaxAiModules", "AddTaxAiPersistence" } },
+        { "PortalContent.cs", Array.Empty<string>() },
+        { "PortalStartupGuards.cs", Array.Empty<string>() },
+    };
+
+    [Theory] // AC-22, spec 011 AC-31
+    [MemberData(nameof(ApprovedRegistrationTokens))]
+    public void EveryRegistrationTokenIsApprovedForItsFile(string file, string[] approved)
+    {
+        var path = Path.Combine(PortalRoot, file);
+        Assert.True(File.Exists(path), $"{path} must exist.");
+
+        var used = RegistrationVerb
+            .Matches(string.Join("\n", ExecutableLines(path)))
+            .Select(match => match.Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(token => token, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.True(
-            offending.Length == 0,
-            $"Registrations must live only in ModuleRegistration.cs, found in: {string.Join(", ", offending)}");
+        Assert.Equal(approved.OrderBy(token => token, StringComparer.Ordinal).ToArray(), used);
+    }
 
-        // And the composition root must actually contain some, so this test
-        // cannot pass by the registrations having quietly disappeared.
+    [Fact] // AC-22
+    public void TheAllowListCoversEveryProductionFile()
+    {
+        // Without this, adding a file would exempt it from the rule above
+        // instead of failing.
+        Assert.Equal(
+            ExpectedProductionFiles,
+            ApprovedRegistrationTokens()
+                .Select(row => (string)row[0]!)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact] // AC-22, FR-14
+    public void TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule()
+    {
+        // The container's own verbs are how this file registers the three
+        // in-process singletons; anything else it calls is another module's
+        // single entry point. One per module or the ORM package ends up in this
+        // project's file.
         var compositionRoot = string.Join(
             "\n",
             ExecutableLines(Path.Combine(PortalRoot, "ModuleRegistration.cs")));
 
-        Assert.Equal(3, registration.Matches(compositionRoot).Count);
+        var moduleExtensions = RegistrationVerb
+            .Matches(compositionRoot)
+            .Select(match => match.Value)
+            .Where(token => token is not ("AddSingleton" or "AddScoped" or "AddTransient" or "AddTaxAiModules"))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(token => token, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(new[] { "AddTaxAiPersistence" }, moduleExtensions);
+
+        // Each of those extensions is declared exactly once, by the module that
+        // owns it.
+        Assert.Equal(
+            1,
+            ModuleSourceFiles("Persistence")
+                .Sum(path => Regex.Matches(
+                    File.ReadAllText(path),
+                    @"IServiceCollection\s+AddTaxAiPersistence\s*\(",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)).Count));
+
+        // And the three spec 010 singletons are still exactly three.
+        Assert.Equal(
+            3,
+            new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
+                .Matches(compositionRoot)
+                .Count);
     }
 
     // ------------------------- AC-31 – AC-35: the line the portal may not cross
@@ -278,6 +377,8 @@ public sealed class PortalBoundaryTests
         Assert.Matches(new Regex(@"\bAddTaxAiModules\b"), allExecutable);
         Assert.Matches(new Regex(@"\bMapGet\b"), allExecutable);
         Assert.Matches(new Regex(@"\bIT4LineMapProvider\b"), allExecutable);
+        Assert.Matches(new Regex(@"\bAddTaxAiPersistence\b"), allExecutable);
+        Assert.Matches(new Regex(@"\bRequireSafeStartup\b"), allExecutable);
     }
 
     [Fact]
@@ -301,6 +402,22 @@ public sealed class PortalBoundaryTests
 
     private static string[] ProductionSourceFiles() =>
         HandwrittenSourceFiles(PortalRoot).OrderBy(path => path, StringComparer.Ordinal).ToArray();
+
+    private static string[] ModuleSourceFiles(string module) =>
+        HandwrittenSourceFiles(Path.Combine(RepositoryRoot, "src", module))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+    private static string[] CompiledNonFrameworkReferences() =>
+        typeof(Program).Assembly
+            .GetReferencedAssemblies()
+            .Select(reference => reference.Name!)
+            .Where(name =>
+                !name.Equals("netstandard", StringComparison.Ordinal) &&
+                !name.StartsWith("System", StringComparison.Ordinal) &&
+                !name.StartsWith("Microsoft.", StringComparison.Ordinal))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
 
     private static IEnumerable<string> HandwrittenSourceFiles(string root) =>
         Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
