@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
@@ -159,6 +160,99 @@ public sealed class UpgradeBaselineContractTests
                         package.Name == "xunit" &&
                         package.Version == "2.5.3");
             });
+    }
+
+    [Fact]
+    public void ToolchainManifestsPinOnlyExactStableApprovedVersions()
+    {
+        using var globalJson = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RepositoryRoot, "global.json")));
+        var globalRoot = globalJson.RootElement;
+
+        Assert.Equal(
+            new[] { "sdk" },
+            globalRoot.EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+
+        var sdk = globalRoot.GetProperty("sdk");
+        Assert.Equal(
+            new[] { "allowPrerelease", "rollForward", "version" },
+            sdk.EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+
+        var sdkVersion = sdk.GetProperty("version").GetString();
+        Assert.Equal("10.0.302", sdkVersion);
+        Assert.Matches(@"^\d+\.\d+\.\d+$", sdkVersion!);
+        Assert.Equal("disable", sdk.GetProperty("rollForward").GetString());
+        Assert.False(sdk.GetProperty("allowPrerelease").GetBoolean());
+
+        using var toolManifest = JsonDocument.Parse(
+            File.ReadAllText(
+                Path.Combine(
+                    RepositoryRoot,
+                    ".config",
+                    "dotnet-tools.json")));
+        var manifestRoot = toolManifest.RootElement;
+
+        Assert.Equal(
+            new[] { "isRoot", "tools", "version" },
+            manifestRoot.EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(1, manifestRoot.GetProperty("version").GetInt32());
+        Assert.True(manifestRoot.GetProperty("isRoot").GetBoolean());
+
+        var tools = manifestRoot.GetProperty("tools")
+            .EnumerateObject()
+            .ToArray();
+        var dotnetEf = Assert.Single(tools);
+        Assert.Equal("dotnet-ef", dotnetEf.Name);
+        Assert.Equal(
+            new[] { "commands", "rollForward", "version" },
+            dotnetEf.Value.EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+
+        var toolVersion = dotnetEf.Value.GetProperty("version").GetString();
+        Assert.Equal("10.0.10", toolVersion);
+        Assert.Matches(@"^\d+\.\d+\.\d+$", toolVersion!);
+        Assert.Equal(
+            new[] { "dotnet-ef" },
+            dotnetEf.Value.GetProperty("commands")
+                .EnumerateArray()
+                .Select(command => command.GetString()));
+        Assert.False(dotnetEf.Value.GetProperty("rollForward").GetBoolean());
+    }
+
+    [Fact]
+    public async Task PinnedSdkAndEfToolRestoreAndResolveAtExactVersions()
+    {
+        var sdkVersion = await RunDotnetAsync("--version");
+        AssertCommandSucceeded("dotnet --version", sdkVersion);
+        Assert.Equal("10.0.302", sdkVersion.StandardOutput.Trim());
+
+        var restore = await RunDotnetAsync("tool", "restore");
+        AssertCommandSucceeded("dotnet tool restore", restore);
+
+        var toolVersion = await RunDotnetAsync(
+            "tool",
+            "run",
+            "dotnet-ef",
+            "--version");
+        AssertCommandSucceeded(
+            "dotnet tool run dotnet-ef --version",
+            toolVersion);
+
+        var versionLines = toolVersion.StandardOutput
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split(
+                '\n',
+                StringSplitOptions.TrimEntries |
+                StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("10.0.10", versionLines[^1]);
     }
 
     private static RepositoryContract CaptureRepositoryContract()
@@ -777,6 +871,63 @@ public sealed class UpgradeBaselineContractTests
             JsonOptions) ?? throw new InvalidOperationException(
                 $"Could not deserialize {path}.");
 
+    private static async Task<CommandResult> RunDotnetAsync(
+        params string[] arguments)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                WorkingDirectory = RepositoryRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+
+        foreach (var argument in arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        if (!process.Start())
+        {
+            throw new InvalidOperationException(
+                $"Could not start dotnet {string.Join(' ', arguments)}.");
+        }
+
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException(
+                $"dotnet {string.Join(' ', arguments)} exceeded two minutes.");
+        }
+
+        return new CommandResult(
+            process.ExitCode,
+            await standardOutput,
+            await standardError);
+    }
+
+    private static void AssertCommandSucceeded(
+        string command,
+        CommandResult result) =>
+        Assert.True(
+            result.ExitCode == 0,
+            $"{command} exited {result.ExitCode}.{Environment.NewLine}" +
+            $"stdout:{Environment.NewLine}{result.StandardOutput}" +
+            $"stderr:{Environment.NewLine}{result.StandardError}");
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -826,4 +977,9 @@ public sealed class UpgradeBaselineContractTests
         string[] FriendAssemblies,
         string[] EmbeddedResources,
         string[] Signatures);
+
+    private sealed record CommandResult(
+        int ExitCode,
+        string StandardOutput,
+        string StandardError);
 }

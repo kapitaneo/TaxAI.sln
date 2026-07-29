@@ -1,0 +1,66 @@
+TaskID: T02
+Task: Pin SDK 10.0.302 and local dotnet-ef 10.0.10
+PR: #126
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/126
+Implementation commit: cbdceaa5217345a4c4856a1411e68e22f02eeff1
+Branch: codex/spec-013-t02-toolchain
+Base: 95554df8a5931486bc0a40f96b79e58fa65cf7fa (master)
+
+Prerequisite:
+- PASS: T01.done existed on merged master.
+- PASS: SDK 10.0.302 was installed before repository changes.
+
+Delivered:
+- Root global.json pins SDK 10.0.302, rollForward "disable", and
+  allowPrerelease false.
+- Root .config/dotnet-tools.json is isRoot true and contains only dotnet-ef
+  10.0.10 with the single dotnet-ef command and tool roll-forward disabled.
+- Repository tests parse exact manifest shape and values, rejecting extra
+  fields/tools, ranges, prereleases, command drift, and roll-forward.
+- Executable tests prove SDK resolution, local tool restore, and exact EF tool
+  resolution from the repository root.
+- TaxAI.Portal.Tests floor raised from 408 to the verified actual 410.
+- All production and test projects remain net8.0 in this transition task.
+
+Toolchain verification:
+- PASS: dotnet --version
+  - 10.0.302
+- PASS: dotnet tool restore
+  - dotnet-ef 10.0.10 restored successfully.
+- PASS: dotnet tool run dotnet-ef --version
+  - 10.0.10
+- PASS: focused UpgradeBaselineContractTests
+  - Passed: 5; Failed: 0; Skipped: 0; Total: 5.
+
+Solution verification:
+- PASS: dotnet build TaxAI.sln
+  - 0 errors.
+- PASS: dotnet build TaxAI.sln --no-incremental
+  - 0 errors.
+  - The approved warning multiset remained exactly 11 pre-existing warnings:
+    CS0649 x2, xUnit2008 x2, xUnit1031 x6, xUnit2013 x1.
+- PASS: dotnet test TaxAI.sln
+  - Passed: 3,183; Failed: 0; Skipped: 0; Total: 3,183.
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - TaxAI.Portal.Tests: 410
+  - Tenancy.Tests: 289
+  - Persistence.Tests: 137
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All eight registered projects ran with zero failures/skips and met their
+    recorded floors; aggregate 3,183.
+- PASS: git diff --check
+
+Scope:
+- The implementation commit changes exactly the four T02-allowlisted
+  toolchain, test, and manifest files.
+- This completion commit adds only this T02.done marker.
+- No production source, project file, migration, EF model snapshot, mapping
+  resource, task plan, database, or sibling-task file changed.
+
+Not done:
+- No task beyond T02 was started.
+- No merge or self-approval was performed; both remain human-only.
