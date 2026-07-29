@@ -41,6 +41,7 @@ public sealed class PortalBoundaryTests
         "PortalIdentity.cs",
         "PortalStartupGuards.cs",
         "Program.cs",
+        "ReviewEndpoints.cs",
         "SessionTicketStore.cs",
     };
 
@@ -130,8 +131,8 @@ public sealed class PortalBoundaryTests
         var projectText = File.ReadAllText(Path.Combine(PortalRoot, "TaxAI.Portal.csproj"));
 
         // CaseReview exists and is merged; the portal still may not depend on
-        // it. An AccountantReviewPackage is taxpayer data, and rendering it is
-        // exactly what the gate stops.
+        // it. The one approved review screen consumes Persistence's deliberately
+        // narrow Tenancy contract instead of reaching across the module boundary.
         foreach (var forbidden in new[] { "TaxCases", "CaseReview", "DocumentExtraction" })
         {
             Assert.DoesNotContain(forbidden, projectText, StringComparison.OrdinalIgnoreCase);
@@ -208,6 +209,7 @@ public sealed class PortalBoundaryTests
         { "PortalAuthorization.cs", new[] { "AddClaim" } },
         { "PortalContent.cs", Array.Empty<string>() },
         { "PortalStartupGuards.cs", Array.Empty<string>() },
+        { "ReviewEndpoints.cs", Array.Empty<string>() },
 
         // The host's own contributing module. AddClaim is the framework's
         // ClaimsIdentity method rather than a registration; it is enumerated
@@ -328,14 +330,15 @@ public sealed class PortalBoundaryTests
         { "engine parser or mapper", @"\bT4SlipParser\b|\bT5SlipParser\b|\bT4LineMapper\b|\bT5LineMapper\b|\bT4SlipBoxAmounts\b|\bT5SlipBoxAmounts\b" },
         { "rounding / money math", @"\bMoneyRounding\b|\bMath\s*\.\s*Round\b|\bMidpointRounding\b|\bdouble\b|\bfloat\b|\bdecimal\b" },
 
-        // AC-32 — no taxpayer data type is even named, let alone rendered.
+        // AC-32 — no tax-domain model enters the portal. The one approved
+        // persisted review projection is deliberately not one of these types.
         { "taxpayer data type", @"\bT4Slip\b|\bT5Slip\b|\bT4RawInput\b|\bT5RawInput\b|\bTaxLineEntry\b|\bT4MappingResult\b|\bT5MappingResult\b|\bRecipientIdentifier\b|\bValidatedExtraction\b|\bExtractionEnvelope\b|\bProcessedT4Extraction\b|\bTaxCase\b" },
 
         // AC-34 — no second mapping authority and no mapping-resource read.
         { "mapping table or resource read", @"TaxLogicEngine\.Mappings|\bGetManifestResourceStream\b|\bT4LineMap\b|\bT5LineMap\b|\bT4BoxCodes\b|\bT4OtherInformationCodes\b|\bDictionary\s*<" },
 
         // AC-35 — the portal declares no tax-year policy of its own.
-        { "tax-year policy", @"\bSupportedProcessingTaxYears\b|\bSupportedReviewTaxYears\b|\bSupportedTaxYears\b|\bTaxYear\b" },
+        { "tax-year policy", @"\bSupportedProcessingTaxYears\b|\bSupportedReviewTaxYears\b|\bSupportedTaxYears\b" },
     };
 
     [Theory] // AC-31, AC-32, AC-34, AC-35
@@ -392,21 +395,69 @@ public sealed class PortalBoundaryTests
     }
 
     [Fact]
-    public void ThePortalDeclaresNoBoxCodeOrCraLineConcept() // AC-33, AC-34
+    public void TaxYearIsOnlyCarriedFromThePersistedReviewProjection() // spec 012 T01
     {
-        // A box→line table would make the web layer a second mapping authority.
-        var boxOrLine = new Regex(
-            @"\bBoxCode\b|\bBoxToLine\b|\bLineNumber\b|\bCraLine\b|\bBox\s*\d+\b",
+        var matching = ProductionSourceFiles()
+            .Where(path => Regex.IsMatch(
+                string.Join("\n", ExecutableLines(path)),
+                @"\bTaxYear\b",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(new[] { "ReviewEndpoints.cs" }, matching);
+
+        var review = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ReviewEndpoints.cs")));
+        Assert.Contains("record.TaxYear", review, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BoxCodesAreOnlyCarriedFromThePersistedReviewProjection() // AC-33, AC-34
+    {
+        // Displaying persisted labels is allowed; declaring a box→line rule in
+        // the web layer would still make it a second mapping authority.
+        var mappingConcept = new Regex(
+            @"\bBoxToLine\b|\bLineNumber\b|\bCraLine\b|\bBox\s*\d+\b",
             RegexOptions.CultureInvariant,
             TimeSpan.FromSeconds(1));
 
         foreach (var file in ProductionSourceFiles())
         {
-            var offending = ExecutableLines(file).Where(line => boxOrLine.IsMatch(line)).ToArray();
+            var offending = ExecutableLines(file).Where(line => mappingConcept.IsMatch(line)).ToArray();
 
             Assert.True(
                 offending.Length == 0,
-                $"{Path.GetFileName(file)} names a box or CRA line concept: {string.Join(" | ", offending)}");
+                $"{Path.GetFileName(file)} declares a box or CRA line rule: {string.Join(" | ", offending)}");
+        }
+
+        var boxCodeReaders = ProductionSourceFiles()
+            .Where(path => Regex.IsMatch(
+                string.Join("\n", ExecutableLines(path)),
+                @"\bBoxCode\b",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(new[] { "ReviewEndpoints.cs" }, boxCodeReaders);
+
+        var review = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ReviewEndpoints.cs")));
+        foreach (var persistedField in new[]
+                 {
+                     ".BoxCode",
+                     ".LineCode",
+                     ".SourceBoxCodes",
+                     ".UnmappedBoxCodes",
+                 })
+        {
+            Assert.Contains(persistedField, review, StringComparison.Ordinal);
         }
     }
 

@@ -75,8 +75,9 @@ the same PR that introduces it, or the gate fails on it by design.
   executable project, and its single dependency-injection composition root. Its
   production project references are exactly `TaxLogicEngine`,
   `CaseProcessing`, `Tenancy`, and `Persistence`. Its local `CLAUDE.md` owns the
-  narrowed gate that still keeps every taxpayer-data surface out. **ASP.NET
-  Core lives here and in its test project, and nowhere else.**
+  one approved read-only review surface and the narrowed gate on every further
+  taxpayer-data surface. **ASP.NET Core lives here and in its test project, and
+  nowhere else.**
 - **`tests/TaxLogicEngine.Tests/`** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
 - **`tests/TaxCases.Tests/`** — xUnit contract, model, service, boundary, and
   end-to-end verification for Tax Case Core.
@@ -299,6 +300,27 @@ not be deployed anywhere that can receive real taxpayer data until a deployment
 specification supplies and verifies the Canadian Azure Storage and Key Vault key
 ring plus the hosting, TLS, exposure, residency, secrets, operations, and
 provisioning posture.
+
+Spec 012 (Accountant Review Screen) is complete. The portal now exposes exactly
+one read-only, firm-scoped route for one immutable persisted review-package
+version:
+
+- the active firm comes only from the validated server-side session after
+  active-user and active-membership checks;
+- missing and foreign-firm record selectors return the same empty `404`;
+- the server-rendered browser projection contains only tax year, package
+  version, slip type, taxpayer and employer display names, boxes and values, tax
+  lines, source-box references, and unmapped codes;
+- taxpayer and employer display names are approved display PII, while SIN in
+  every form, broader contact/account/provider identity data, tenant/session
+  identifiers, persistence identifiers, and non-display timestamps remain
+  excluded;
+- the route performs no mutation, parsing, mapping, tax calculation, arithmetic,
+  rounding, “latest” selection, or client-side data fetch.
+
+The gate remains in force for upload, editing, decisions, export, listing,
+provisioning, browser-allowlist expansion, and every second taxpayer-data
+surface. The existing deployment refusal is unchanged.
 
 Spec 013 (.NET 10 Platform Upgrade) is complete. Every production and test
 project in `TaxAI.sln` targets exactly `net10.0`; `global.json` pins SDK

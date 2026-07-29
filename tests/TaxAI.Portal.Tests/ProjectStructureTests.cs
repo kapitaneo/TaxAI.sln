@@ -385,6 +385,10 @@ public sealed class ProjectStructureTests
                      "revokes the session server-side",
                      "computes no tax and implements no CRA mapping",
                      "No tax-year policy",
+                     "single approved taxpayer-data surface",
+                     "taxpayer display name",
+                     "employer display name",
+                     "opaque `recordId` route key",
                      "further approved `tax-domain` specification",
                  })
         {
@@ -393,10 +397,10 @@ public sealed class ProjectStructureTests
 
         foreach (var gatedSurface in new[]
                  {
-                     "Rendering taxpayer data",
                      "uploading a document",
                      "mutating or deleting a stored package",
                      "provisioning a firm or membership",
+                     "expanding the browser allowlist",
                      "adding a second taxpayer-data surface",
                  })
         {

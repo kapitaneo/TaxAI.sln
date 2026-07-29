@@ -118,7 +118,53 @@ public sealed class UpgradeBaselineContractTests
 
             Assert.Equal(expected.FriendAssemblies, current.FriendAssemblies);
             Assert.Equal(expected.EmbeddedResources, current.EmbeddedResources);
-            Assert.Equal(expected.Signatures, current.Signatures);
+
+            if (!string.Equals(expected.Name, "TaxAI.Portal", StringComparison.Ordinal))
+            {
+                Assert.Equal(expected.Signatures, current.Signatures);
+                continue;
+            }
+
+            var historicalShell = Assert.Single(
+                expected.Signatures,
+                signature =>
+                    signature.StartsWith(
+                        "F|TaxAI.Portal.PortalContent|",
+                        StringComparison.Ordinal) &&
+                    signature.Contains("|ShellHtml|", StringComparison.Ordinal));
+            var currentShell = Assert.Single(
+                current.Signatures,
+                signature =>
+                    signature.StartsWith(
+                        "F|TaxAI.Portal.PortalContent|",
+                        StringComparison.Ordinal) &&
+                    signature.Contains("|ShellHtml|", StringComparison.Ordinal));
+
+            Assert.NotEqual(historicalShell, currentShell);
+
+            var unchangedHistoricalSignatures = expected.Signatures
+                .Except(new[] { historicalShell }, StringComparer.Ordinal)
+                .ToArray();
+            Assert.All(
+                unchangedHistoricalSignatures,
+                signature => Assert.Contains(signature, current.Signatures));
+
+            var additiveSignatures = current.Signatures
+                .Except(unchangedHistoricalSignatures, StringComparer.Ordinal)
+                .Except(new[] { currentShell }, StringComparer.Ordinal)
+                .ToArray();
+
+            Assert.Equal(3, additiveSignatures.Length);
+            Assert.All(
+                additiveSignatures,
+                signature =>
+                {
+                    Assert.Contains(
+                        "TaxAI.Portal.ReviewEndpoints",
+                        signature,
+                        StringComparison.Ordinal);
+                    Assert.DoesNotContain("|public|", signature, StringComparison.Ordinal);
+                });
         }
     }
 

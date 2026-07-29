@@ -12,8 +12,8 @@ namespace TaxAI.Portal.Tests;
 
 /// <summary>
 /// Proves <c>GET /</c> remains the fixed shell document byte-for-byte, then
-/// asserts spec 011's complete route, method, authorization, and antiforgery
-/// inventory with no route parameter anywhere.
+/// asserts the complete route, method, authorization, and antiforgery inventory
+/// with exactly one constrained opaque review selector.
 /// <para>
 /// The expected document is spelled out here, independently of
 /// <c>PortalContent</c>. Comparing the response to the constant that produced it
@@ -38,7 +38,8 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         "</head>\n" +
         "<body>\n" +
         "<h1>TaxAI</h1>\n" +
-        "<p>This application serves no taxpayer data.</p>\n" +
+        "<p>Authenticated accountants can review one stored package in read-only form.</p>\n" +
+        "<p><a href=\"/sign-in\">Sign in</a></p>\n" +
         "</body>\n" +
         "</html>\n";
 
@@ -147,6 +148,7 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         { "/sign-in", "GET" },
         { "/firms", "GET" },
         { "/firms/select", "POST" },
+        { "/reviews/{recordId:guid}", "GET" },
         { "/sign-out", "POST" },
     };
 
@@ -183,15 +185,18 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact] // spec 011 AC-128
-    public void NoMappedEndpointTakesARouteParameter()
+    public void OnlyTheReviewRouteTakesTheOpaqueRecordSelector()
     {
-        // A route parameter is an input surface. The firm-scoped surfaces this
-        // host will grow take their one selector in a form body, never in a
-        // path, so this stays absolute rather than becoming an allow-list.
-        foreach (var endpoint in MappedRouteEndpoints())
-        {
-            Assert.Empty(endpoint.RoutePattern.Parameters);
-        }
+        var parameterized = Assert.Single(
+            MappedRouteEndpoints(),
+            endpoint => endpoint.RoutePattern.Parameters.Count > 0);
+        var parameter = Assert.Single(parameterized.RoutePattern.Parameters);
+
+        Assert.Equal("/reviews/{recordId:guid}", parameterized.RoutePattern.RawText);
+        Assert.Equal("recordId", parameter.Name);
+        Assert.Equal(
+            new[] { "guid" },
+            parameter.ParameterPolicies.Select(policy => policy.Content));
     }
 
     [Theory] // spec 011 AC-128, AC-129
@@ -200,14 +205,13 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [InlineData("participant")]
     [InlineData("document")]
     [InlineData("session")]
-    [InlineData("record")]
     [InlineData("package")]
     [InlineData("taxpayer")]
-    public void NoRouteParameterNamesAnIdentifierOfAnyKind(string identifierWord)
+    public void NoRouteParameterNamesATenantOrTaxpayerIdentifier(string identifierWord)
     {
-        // /firms is the approved bootstrap resource name. What remains absolute
-        // is that no route parameter can carry any identifier, including on
-        // that route or its selection action.
+        // The one record selector is a TaxAI-generated opaque lookup key. It is
+        // never tenant identity; firm scope still comes only from the live
+        // server-side session.
         foreach (var endpoint in MappedRouteEndpoints())
         {
             Assert.DoesNotContain(

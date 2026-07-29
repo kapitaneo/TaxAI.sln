@@ -47,19 +47,21 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   retention boundary, and a privileged firm-scoped service purges eligible
   records. The seven-year default is an engineering product decision, not a CRA
   fact or statutory claim.
-- **Portal host** — the ASP.NET Core host serves the unchanged public shell and
-  health response plus sign-in, sign-out, and authenticated firm selection. It
-  renders no taxpayer data.
+- **Portal host** — the ASP.NET Core host serves a fixed public shell and
+  health response plus sign-in, sign-out, authenticated firm selection, and one
+  firm-scoped read-only accountant review screen. The screen renders one exact
+  immutable package version using a closed allowlist and carries no SIN in any
+  form.
 
 ## Deliberately not shipped
 
-- No taxpayer-data screen ships.
+- No second taxpayer-data screen or taxpayer listing ships.
 - No document upload ships.
 - No OCR or LLM adapter ships.
 - No production deployment configuration ships.
 - No production provisioning ships for a firm, user, membership, or
   administrator.
-- No taxpayer-value editing, approval screen, export, T1 calculation, or
+- No taxpayer-value editing, review decision/approval screen, export, T1 calculation, or
   NETFILE/EFILE capability ships.
 
 The persistence layer and migrations are implemented, but no database instance

@@ -3,18 +3,22 @@
 Read the root [CLAUDE.md](../../CLAUDE.md) first. It owns repository policy,
 the modular-monolith dependency rules, global PII policy, and the
 spec→plan→implement workflow. This file defines the narrowed portal boundary
-after spec 011. The gate is narrower than spec 010's gate; it is not deleted.
+after specs 011 and 012. The gate is narrower than spec 010's gate; it is not
+deleted.
 
 ## What this project is
 
 `TaxAI.Portal` is the repository's single ASP.NET Core host and composition
-root. It serves the unchanged public shell and health response, delegates
+root. It serves a fixed public shell and unchanged health response, delegates
 authentication to an external OIDC provider, uses a revocable server-side
 authentication session, verifies active firm membership on protected requests,
-and exposes the authenticated firm-selection surface.
+and exposes authenticated firm selection plus one read-only accountant review
+route.
 
-The portal composes the persistence adapter but renders no taxpayer data. It is
-still a foundation rather than a taxpayer-data product surface.
+`GET /reviews/{recordId:guid}` is the single approved taxpayer-data surface. It
+reads one immutable persisted review-package version and renders only the closed
+browser allowlist below. It is not an upload, edit, approval, export, listing, or
+JSON surface.
 
 ## Dependencies point inward, and are exactly four
 
@@ -54,12 +58,25 @@ reference `TaxAI.Portal`. All service registration remains rooted in
 
 No SIN or partial SIN may reach this project, a response, URL, cookie, log,
 metric, trace, error, or persisted portal-facing model. Not full, not masked,
-not last-three or last-four, and not a SIN-derived display identifier. The
-portal names no `RecipientIdentifier` and creates no masking, redaction, or
-scrubbing path.
+not hashed, tokenized, last-three, last-four, or a SIN-derived display
+identifier. The portal names no `RecipientIdentifier` and creates no masking,
+redaction, or scrubbing path.
 
 The engine's existing in-memory masking contract is unchanged. The web and
 persistence boundary is stricter: no SIN in any form.
+
+The review browser allowlist is exactly: tax year, immutable review-package
+version, slip type, taxpayer display name, employer display name, boxes and
+values, tax lines, source-box references, and unmapped codes. Taxpayer and
+employer display names are the two approved display-PII fields.
+
+The browser DTO, rendered HTML, page source, logs, diagnostics, and client-side
+state must contain no date of birth, address, email address, phone number,
+account number, provider identity value, `FirmId`, `UserId`, membership
+identifier, session identifier, persistence identifier, or non-display
+timestamp. The opaque `recordId` route key is permitted only to select the
+stored version. It is never rendered, copied into the DTO, logged, or trusted as
+tenant identity.
 
 ## Tax and tax-year boundary
 
@@ -86,17 +103,19 @@ operations, and provisioning posture.
 ## The narrowed gate — read before adding a surface
 
 The identity, trusted-firm, session, logging, and residency decisions made by
-spec 011 do not authorize a taxpayer-data surface.
+spec 011 authorize no surface by themselves. Spec 012 authorizes exactly the
+single read-only review route and closed browser allowlist above.
 
-**Rendering taxpayer data, uploading a document, mutating or deleting a stored
-package, provisioning a firm or membership, or adding a second taxpayer-data
-surface still requires a further approved `tax-domain` specification.**
+**Uploading a document, mutating or deleting a stored package, provisioning a
+firm or membership, expanding the browser allowlist, or adding a second
+taxpayer-data surface still requires a further approved `tax-domain`
+specification.**
 
 The same is true for editing or approving taxpayer values, listing taxpayers,
 exporting a record, implementing an extraction ingress, or exposing a JSON API.
 Do not reinterpret an available repository contract as authorization to map an
 endpoint. Normal portal users have no delete path, production provisioning does
-not ship, and `/` plus `/health` remain byte-identical to spec 010.
+not ship, and `/health` remains byte-identical to spec 010.
 
 Any further `tax-domain` specification must retain the no-SIN-in-any-form rule,
 trusted-firm isolation, per-request membership verification, server-side

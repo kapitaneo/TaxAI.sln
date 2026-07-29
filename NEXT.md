@@ -101,7 +101,7 @@
   - AC-1…AC-50 verification recorded in
     `specs/010-portal-foundation/verification.md`.
 
-## Completed — specs 011 and 013
+## Completed — specs 011, 012, and 013
 
 - Spec 011 — Tenant Identity and Persistence Foundation:
   - `Tenancy` now owns the deterministic trusted-firm boundary, persisted
@@ -141,23 +141,31 @@
     Release publish are recorded in
     `specs/013-dotnet-10-platform-upgrade/verification.md`.
 
+- Spec 012 — Accountant Review Screen:
+  - one authenticated, server-rendered route reads one exact immutable review
+    package through the existing trusted-firm repository;
+  - the active firm is always derived from the validated server-side session,
+    with active-user and active-membership revalidation before repository
+    access;
+  - missing and foreign-firm resources produce the same empty `404`;
+  - the exact browser allowlist is tax year, package version, slip type,
+    taxpayer and employer display names, boxes and values, tax lines, source-box
+    references, and unmapped codes;
+  - no SIN in any form, contact/account/provider identity, tenant/session or
+    persistence identifier, or non-display timestamp reaches the browser;
+  - the screen is read-only and introduces no tax logic, mutation, “latest”
+    selection, JSON API, or client-side state.
+
 ## Next
 
-The next product decision is the first taxpayer-data surface. Spec 011 resolves
-spec 010 question A
-(authentication and authorization), question B (tenant/firm isolation), the SIN
-part of question C (**render nothing in any form**), question D (logging,
-telemetry, and safe errors), and question E (required Canadian residency,
-encryption, and startup-refusal posture).
+The first taxpayer-data surface is complete under spec 012's exact browser
+allowlist. Any expansion of that allowlist, document upload, stored-package
+mutation or deletion, firm or membership provisioning, taxpayer listing,
+review decisions, export, or second taxpayer-data surface requires another
+human-approved `tax-domain` specification.
 
-Question C's wider taxpayer-data render inventory still needs a human-approved
-answer. Question F — whether the portal exposes the untrusted document-extraction
+Question F — whether the portal exposes the untrusted document-extraction
 ingress — remains reserved, and no ingress implementation ships.
-
-Rendering taxpayer data remains a separate `tax-domain` specification. The
-narrowed gate also requires a further `tax-domain` specification before document
-upload, stored-package mutation or deletion, firm or membership provisioning, or
-any second taxpayer-data surface.
 
 Deployment is separately blocked. As shipped, this build starts in Development
 only and may not be deployed anywhere that can receive real taxpayer data until
@@ -170,7 +178,7 @@ operations, and production provisioning.
 - new CRA forms;
 - T1 calculation;
 - NETFILE/EFILE;
-- taxpayer-data screens or editing;
+- any second taxpayer-data screen, taxpayer listing, or editing;
 - document upload, OCR, or LLM integration;
 - production deployment or provisioning;
 - microservices.

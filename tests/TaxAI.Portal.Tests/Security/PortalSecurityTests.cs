@@ -9,15 +9,16 @@ using TaxAI.Portal.Tests.Support;
 namespace TaxAI.Portal.Tests.Security;
 
 /// <summary>
-/// Proves the portal's closed security posture: the one approved membership
-/// selector plus antiforgery token, the exact authentication and authorization
-/// files, no PII, no unapproved infrastructure, no secret, and no client-side
-/// stack.
+/// Proves the portal's closed security posture: the approved membership
+/// selector, one opaque review selector, the exact authentication and
+/// authorization files, no prohibited PII, no unapproved infrastructure, no
+/// secret, and no client-side stack.
 /// <para>
 /// The PII protection here is <b>omission, not masking</b>. In v1 the safest
-/// possible posture is available and is therefore mandatory: taxpayer data never
-/// enters the process, so there is nothing to mask, and introducing a second
-/// masking helper is exactly what every module's instructions forbid.
+/// possible posture remains mandatory for SIN and every non-display identifier:
+/// they never enter the browser projection. Taxpayer and employer display names
+/// are the two explicitly approved display-PII fields; they are encoded, not
+/// transformed by a second masking helper.
 /// </para>
 /// <para>
 /// Source scans read <b>executable lines only</b>. The portal's documentation
@@ -46,6 +47,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "PortalIdentity.cs",
         "PortalStartupGuards.cs",
         "Program.cs",
+        "ReviewEndpoints.cs",
         "SessionTicketStore.cs",
     };
 
@@ -124,7 +126,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact] // spec 011 FR-49, AC-59
-    public void TheOnlyCallerSuppliedNamesAreTheAntiforgeryTokenAndMembershipSelector()
+    public void CallerSuppliedInputsAreTheTwoFormNamesAndOneOpaqueReviewSelector()
     {
         var endpoints = string.Join(
             "\n",
@@ -142,7 +144,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         foreach (var forbidden in new[]
                  {
                      "firmId", "userId", "issuer", "subject",
-                     "sessionId", "caseId", "participantId", "recordId",
+                     "sessionId", "caseId", "participantId",
                  })
         {
             Assert.DoesNotMatch(
@@ -151,6 +153,28 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
                     TimeSpan.FromSeconds(1)),
                 endpoints);
+        }
+
+        var review = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ReviewEndpoints.cs")));
+
+        Assert.Contains(
+            "RoutePattern = \"/reviews/{recordId:guid}\"",
+            review,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("[From", review, StringComparison.Ordinal);
+
+        foreach (var tenantIdentifier in new[]
+                 {
+                     "firmId", "userId", "membershipId", "sessionId",
+                     "caseId", "participantId", "packageId",
+                 })
+        {
+            Assert.DoesNotContain(
+                $"{{{tenantIdentifier}",
+                review,
+                StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -268,7 +292,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     {
         { "SIN identifier", @"(?<![A-Za-z])Sin(?![a-z])|\bSocialInsurance\w*\b|\bRecipientIdentifier\b" },
         { "masking or redaction helper", @"\bSafeDiagnosticText\b|\bMask(?:ed|ing)?\s*\(|\bRedact\w*\b|\bScrub\w*\b|\bSanitiz\w*\b" },
-        { "taxpayer name or address field", @"\bEmployeeName\b|\bEmployerName\b|\bEmployeeAddress\b|\bEmployerAddress\b|\bRecipientName\b" },
+        { "unapproved taxpayer identity field", @"\bEmployeeName\b|\bEmployerName\b|\bEmployeeAddress\b|\bEmployerAddress\b|\bRecipientName\b|\bDateOfBirth\b|\bEmailAddress\b|\bPhoneNumber\b|\bAccountNumber\b|\bProviderIdentity\b" },
     };
 
     [Theory] // AC-36
@@ -291,6 +315,22 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         }
     }
 
+    [Fact]
+    public void ApprovedDisplayPiiIsReadOnlyByTheClosedReviewProjection() // spec 012 T01
+    {
+        foreach (var field in new[] { "TaxpayerDisplayName", "EmployerDisplayName" })
+        {
+            var matching = ProductionSourceFiles()
+                .Where(path => string.Join("\n", ExecutableLines(path))
+                    .Contains(field, StringComparison.Ordinal))
+                .Select(Path.GetFileName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+
+            Assert.Equal(new[] { "ReviewEndpoints.cs" }, matching);
+        }
+    }
+
     // ------------------------------------------------- AC-38: no request logging
 
     public static TheoryData<string, string> LoggingPatterns() => new()
@@ -307,6 +347,20 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         // What may be logged once this process holds taxpayer data is Class A
         // and reserved for the human. v1 answers it by logging nothing.
         AssertNoProductionMatch(kind, pattern);
+    }
+
+    [Fact]
+    public void TheHttpBoundarySuppressesFrameworkRequestAndExceptionLogging()
+    {
+        var program = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "Program.cs")));
+
+        Assert.Contains(
+            "builder.Logging.SetMinimumLevel(LogLevel.Critical)",
+            program,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("UseExceptionHandler", program, StringComparison.Ordinal);
     }
 
     // ------------------------- spec 011 AC-130, AC-163: the authentication surface
@@ -333,7 +387,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         {
             "authorization wiring",
             @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b|\bAllowAnonymous\b",
-            new[] { "FirmEndpoints.cs", "PortalIdentity.cs", "Program.cs" }
+            new[] { "FirmEndpoints.cs", "PortalIdentity.cs", "Program.cs", "ReviewEndpoints.cs" }
         },
         {
             "identity",
@@ -441,6 +495,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
                 "PortalIdentity.cs",
                 "PortalStartupGuards.cs",
                 "Program.cs",
+                "ReviewEndpoints.cs",
                 "SessionTicketStore.cs",
             },
             AuthenticationPatterns()

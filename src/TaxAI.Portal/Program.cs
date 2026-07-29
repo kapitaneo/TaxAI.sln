@@ -4,6 +4,14 @@ using Tenancy.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The route to a review record carries one opaque persistence identifier.
+// Framework request-start/completion and exception logs include request paths
+// and exception messages by default, so anything below Critical could copy that
+// identifier or a storage exception's data into a diagnostic sink. The portal
+// deliberately emits no operational log; the one approved structural purge log
+// remains owned by Persistence and is not reachable from an HTTP endpoint.
+builder.Logging.SetMinimumLevel(LogLevel.Critical);
+
 // Probing the app should leak nothing about it. TestServer does not use Kestrel,
 // so this is verified by source assertion rather than over the wire.
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
@@ -49,20 +57,26 @@ PortalStartupGuards.RequireSafeStartup(
     app.Environment.EnvironmentName);
 
 // Every escaping exception becomes one fixed structural response in every
-// environment. No exception type, message, stack, path, identifier, or request
-// value is reflected to the caller.
-app.UseExceptionHandler(errorApplication =>
-    errorApplication.Run(async context =>
+// environment. The framework's stock exception-handler middleware logs the
+// original exception before it renders its branch; this application cannot use
+// that default because a storage exception may contain taxpayer content or the
+// opaque route selector. This boundary deliberately writes no diagnostic sink.
+app.Use(async (context, next) =>
+{
+    try
     {
-        var failure = context.Features
-            .Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()
-            ?.Error;
+        await next(context);
+    }
+    catch (Exception failure)
+    {
+        context.Response.Clear();
         context.Response.StatusCode = failure is BadHttpRequestException badRequest
             ? badRequest.StatusCode
             : StatusCodes.Status500InternalServerError;
         context.Response.ContentType = PortalContent.PlainTextContentType;
         await context.Response.WriteAsync(PortalAuthorization.ErrorBody);
-    }));
+    }
+});
 
 // Identity runs before routing decides anything, and authorization after. Both
 // are called explicitly rather than left to the implicit ordering, so the one
@@ -72,8 +86,8 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 // Server-rendered constant content: no view engine, no static-file middleware,
-// no wwwroot, and no external asset. The shell states what this application is
-// and that it serves no taxpayer data — it binds no data of any kind.
+// no wwwroot, and no external asset. The shell truthfully points authenticated
+// accountants at the one read-only capability and binds no data of any kind.
 //
 // Anonymous, and explicitly so. An endpoint that is anonymous because nobody
 // remembered to protect it looks exactly like one that is anonymous by
@@ -102,6 +116,11 @@ app.MapGet(
 // and active memberships on every request, and are the only protected routes
 // allowed to run while the durable session has no active firm.
 FirmEndpoints.Map(app);
+
+// The portal's one taxpayer-data surface. Authorization revalidates the local
+// user and active memberships before this endpoint can obtain the trusted firm;
+// the handler then uses only Tenancy's already-firm-scoped read contract.
+ReviewEndpoints.Map(app);
 
 // Sign-out revokes the server-side session and clears the cookie, in that
 // order of importance. A cleared cookie alone leaves a copied pre-logout cookie

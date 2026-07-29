@@ -201,7 +201,7 @@ public sealed class SessionRevocationTests
 
         Assert.Equal(HttpStatusCode.OK, shell.StatusCode);
         Assert.Contains(
-            "This application serves no taxpayer data.",
+            "Authenticated accountants can review one stored package in read-only form.",
             await shell.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
     }

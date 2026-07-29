@@ -1,14 +1,12 @@
 namespace TaxAI.Portal;
 
 /// <summary>
-/// The portal's complete response vocabulary: two fixed byte sequences and their
-/// content types.
+/// The portal's fixed anonymous response vocabulary and shared content types.
 /// <para>
-/// These constants are spec 010's Wave 0 contract. Later waves map them; they do
-/// not invent bodies. Keeping the responses as compile-time constants — rather
-/// than files on disk or rendered views — is what makes "the portal serves
-/// exactly two known byte sequences" mechanically true: a constant is
-/// inspectable at compile time and cannot be replaced at deploy time.
+/// The health body remains spec 010's exact byte sequence. The root shell is
+/// still a compile-time constant and contains no taxpayer data; spec 012 changes
+/// its one capability sentence because saying the application renders nothing
+/// would no longer be true after the authenticated review route ships.
 /// </para>
 /// <para>
 /// Line endings are written as explicit <c>\n</c> escapes, and the shell
@@ -35,8 +33,8 @@ internal static class PortalContent
 
     /// <summary>
     /// The entire body of <c>GET /</c>: a static, server-rendered shell that
-    /// states what this application is and that it serves no taxpayer data. It
-    /// contains no data binding and no dynamic value of any kind.
+    /// describes the one authenticated review capability without rendering any
+    /// taxpayer value. It contains no data binding and no dynamic value.
     /// </summary>
     internal const string ShellHtml =
         "<!DOCTYPE html>\n" +
@@ -48,7 +46,8 @@ internal static class PortalContent
         "</head>\n" +
         "<body>\n" +
         "<h1>TaxAI</h1>\n" +
-        "<p>This application serves no taxpayer data.</p>\n" +
+        "<p>Authenticated accountants can review one stored package in read-only form.</p>\n" +
+        "<p><a href=\"/sign-in\">Sign in</a></p>\n" +
         "</body>\n" +
         "</html>\n";
 }
