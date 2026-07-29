@@ -1,4 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Persistence.Repositories;
+using Persistence.Services;
+using Tenancy.Contracts;
 
 namespace Persistence;
 
@@ -10,7 +14,6 @@ namespace Persistence;
 /// the composition root single: the portal names no ORM type, declares no ORM
 /// package, and still gets a fully wired storage layer.
 /// </para>
-/// <para>Wave 0 contract stage: behaviour is implemented in a later task.</para>
 /// </summary>
 public static class PersistenceRegistration
 {
@@ -24,5 +27,23 @@ public static class PersistenceRegistration
     /// </summary>
     public static IServiceCollection AddTaxAiPersistence(
         this IServiceCollection services,
-        string connectionString) => throw new NotImplementedException();
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        var validatedConnectionString =
+            SqlConnectionStringGuard.RequireValid(connectionString);
+
+        services.AddDbContext<TaxAiDbContext>(
+            options => options.UseSqlServer(validatedConnectionString));
+
+        services.AddScoped<IReviewRecordRepository, SqlReviewRecordRepository>();
+        services.AddScoped<IAuthenticationSessionStore, SqlAuthenticationSessionStore>();
+        services.AddScoped<IIdentityDirectory, SqlIdentityDirectory>();
+        services.AddScoped<IReviewRecordPurgeService, SqlReviewRecordPurgeService>();
+        services.AddSingleton<IOpaqueIdentifierSource, GuidOpaqueIdentifierSource>();
+        services.AddScoped<IDevelopmentFixtureSeeder, DevelopmentFixtureSeeder>();
+
+        return services;
+    }
 }
