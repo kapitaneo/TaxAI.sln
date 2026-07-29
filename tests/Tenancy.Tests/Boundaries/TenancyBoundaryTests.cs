@@ -72,7 +72,7 @@ public sealed class TenancyBoundaryTests
         var project = XDocument.Load(TenancyProject);
 
         Assert.Equal("Microsoft.NET.Sdk", project.Root!.Attribute("Sdk")!.Value);
-        Assert.Equal("net8.0", Property(project, "TargetFramework"));
+        Assert.Equal("net10.0", Property(project, "TargetFramework"));
         Assert.Equal("enable", Property(project, "Nullable"));
     }
 
