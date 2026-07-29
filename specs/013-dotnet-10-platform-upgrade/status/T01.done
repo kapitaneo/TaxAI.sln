@@ -1,0 +1,58 @@
+TaskID: T01
+Task: Freeze the approved .NET 8 repository, contract, EF, route/auth, warning,
+      migration, and test baseline
+PR: #125
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/125
+Implementation commit: ce05635e085eefebddeaadbbb6ffa40cd1e6412e
+Branch: codex/spec-013-t01-baseline
+Base: 76f41f31ae2d45ed3839cd3915a80318ca893951 (master)
+Approved baseline: 13097dada6b1aae070fc0006d48a6862ce9904f8
+
+Delivered:
+- Canonical repository/project-reference/package/test-floor/warning and
+  immutable migration-hash evidence.
+- Canonical public/protected/internal assembly contracts, friend assemblies,
+  and embedded-resource logical names.
+- Exact SQL Server EF design model, relational schema, and zero-to-initial
+  migration DDL comparators; no database connection, update, or migration.
+- Exact route/method/authentication/authorization/antiforgery response matrix
+  for six approved routes plus an unmatched route.
+- Read-only executable comparisons that remain active through the staged
+  migration.
+- Test floors raised only for the affected projects:
+  TaxAI.Portal.Tests 403 -> 408; Persistence.Tests 133 -> 137.
+
+Verification:
+- PASS: dotnet build TaxAI.sln
+  - 0 errors; incremental run reported 0 warnings.
+  - The non-incremental baseline inventory remained exactly 11 pre-existing
+    warnings: CS0649 x2, xUnit2008 x2, xUnit1031 x6, xUnit2013 x1.
+- PASS: dotnet test TaxAI.sln
+  - Passed: 3,181; Failed: 0; Skipped: 0; Total: 3,181.
+  - TaxLogicEngine.Tests: 261
+  - TaxCases.Tests: 337
+  - DocumentExtraction.Tests: 673
+  - CaseProcessing.Tests: 594
+  - CaseReview.Tests: 482
+  - TaxAI.Portal.Tests: 408
+  - Tenancy.Tests: 289
+  - Persistence.Tests: 137
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All eight registered test projects ran with zero failures/skips and met
+    their exact recorded floors; aggregate 3,181.
+- PASS: git diff --check
+- PASS: focused upgrade comparators
+  - TaxAI.Portal.Tests.Upgrade: 5 passed
+  - Persistence.Tests.Upgrade: 4 passed
+
+Scope:
+- The implementation commit changes exactly the 11 T01-allowlisted baseline,
+  test, and manifest files.
+- This completion commit adds only this T01.done marker.
+- No production source, project file, migration, EF model snapshot, mapping
+  resource, task plan, or sibling-task file changed.
+- No database was connected, migrated, or updated.
+
+Not done:
+- No task beyond T01 was started.
+- No merge or self-approval was performed; both remain human-only.
