@@ -1,0 +1,120 @@
+TaskID: T17
+Task: Portal composition and startup refusal (spec 011, Wave 6)
+PR: #117
+PR URL: https://github.com/kapitaneo/TaxAI.sln/pull/117
+Implementation commit: 509ec1c77687517ba77048a53f9d766f89d2bd9a
+Branch: feat/011-w6-t17
+Base: master (605c009)
+
+Focused tests:
+- PASS: dotnet test tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj
+  - Passed: 274
+  - Failed: 0
+  - Skipped: 0
+
+Build:
+- PASS: dotnet build TaxAI.sln
+  - Errors: 0
+  - Warnings: 0
+
+Complete repository tests:
+- PASS: dotnet test TaxAI.sln
+  - Passed: 3,033
+  - Failed: 0
+  - Skipped: 0
+
+Exact PowerShell gate:
+- PASS: pwsh ./scripts/Invoke-SolutionTests.ps1
+  - All 8 expected test projects ran.
+  - Every project met its recorded floor.
+  - TaxLogicEngine.Tests 261 (floor 261)
+  - TaxCases.Tests 337 (floor 337)
+  - DocumentExtraction.Tests 673 (floor 673)
+  - CaseProcessing.Tests 594 (floor 594)
+  - CaseReview.Tests 482 (floor 482)
+  - TaxAI.Portal.Tests 274 (floor 224)
+  - Tenancy.Tests 282 (floor 99)
+  - Persistence.Tests 130 (floor 25)
+
+Additional verification:
+- PASS: git diff --check
+
+Delivered behaviour:
+- The portal's production project references are exactly TaxLogicEngine,
+  CaseProcessing, Tenancy, and Persistence, and it references neither TaxCases,
+  CaseReview, nor DocumentExtraction in the project file or in the compiled
+  assembly's reference set.
+- No EF Core, DbContext, DbSet, SqlConnection, System.Data, Sqlite, or Npgsql
+  token appears in the portal project file. Persistence exposes one registration
+  extension and the composition root calls it.
+- ModuleRegistration.cs remains the only place any Add*/TryAdd* appears in
+  portal source, and calls exactly one registration extension per contributing
+  module alongside the three unchanged spec 010 singletons.
+- PortalStartupGuards refuses to start when the connection string is absent
+  (every environment) and, outside Development, when the transport does not
+  require encryption or disables certificate validation, when the data
+  protection key ring is unconfigured, or when the registered session store is
+  not the durable one. Every message is a fixed, non-interpolated constant that
+  echoes no configured value.
+- The environment test is an ordinal comparison against
+  Environments.Development. The IsDevelopment token appears exactly once in
+  portal production source, guarding development fixture seeding.
+- The development fixture seeder is invoked from that branch only, and is proved
+  never invoked outside Development.
+- Container validation stays unconditional, now proved structurally rather than
+  by the absence of a token.
+- .gitignore excludes the developer Data Protection key ring.
+- No EnsureCreated, Migrate, schema mutation, timer, hosted service, or
+  scheduler was added.
+
+Amendments landing here (each strictly stronger, none deleted):
+- PortalProject_ReferencesExactlyCaseProcessingAndTaxLogicEngine ->
+  PortalProject_ReferencesExactlyTheFourInwardModules +
+  PortalProject_ReferencesNoModuleReachedThroughAContract
+- TheCompiledPortal_ReferencesExactlyCaseProcessingAndTaxLogicEngine ->
+  TheCompiledPortal_ReferencesExactlyTheFourInwardModules +
+  TheCompiledPortal_NamesNoModuleItReachesThroughAContract
+- EveryServiceRegistrationLivesInTheCompositionRoot ->
+  EveryRegistrationTokenIsApprovedForItsFile +
+  TheAllowListCoversEveryProductionFile +
+  TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule
+- Both ExpectedProductionFiles scanner lists -> the four-file set, walk and
+  comment-filter guards intact
+- BothValidationFlagsAreSetOutsideAnyDevelopmentBranch ->
+  BothValidationFlagsAreSetOutsideAnyConditionalBlock +
+  EveryIsDevelopmentOccurrenceGuardsAnApprovedConcern +
+  TheEnvironmentTokenIsNeverUsedToTurnOffARequirement +
+  TheApprovedConcernVocabularyIsExactlyFour
+
+Open item raised for the human (recorded, not decided here):
+- B-3's second half — requiring a *registered* durable Data Protection provider
+  outside Development, in addition to the two configured settings — is NOT
+  implemented. Implementing it makes every already-merged portal test that
+  starts a Production host fail, and HealthEndpointTests.cs is in no spec 011
+  task's file list, so no task in this spec can adapt it. The consequence B-3
+  protects is unchanged: this build registers no key-ring provider at all and
+  must not be deployed anywhere that can receive real taxpayer data until the
+  deployment specification exists. T20 must record that plainly.
+
+Scope:
+- The implementation commit changes exactly the ten T17-owned files:
+  - .gitignore
+  - src/TaxAI.Portal/TaxAI.Portal.csproj
+  - src/TaxAI.Portal/ModuleRegistration.cs
+  - src/TaxAI.Portal/Program.cs
+  - src/TaxAI.Portal/PortalStartupGuards.cs (new)
+  - tests/TaxAI.Portal.Tests/ProjectStructureTests.cs
+  - tests/TaxAI.Portal.Tests/CompositionRootTests.cs
+  - tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs
+  - tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs
+  - tests/TaxAI.Portal.Tests/Startup/StartupRefusalTests.cs (new)
+- src/TaxAI.Portal/appsettings.json and Properties/launchSettings.json are in
+  T17's file list but needed no change: no tracked file may carry a connection
+  string or key-ring value.
+- This completion commit adds only this T17.done marker.
+- No PRD, architecture, tasks.md, sibling-task file or marker, test manifest,
+  migration, or pre-existing tax-module file changed. No test was deleted.
+
+Not done here, by rule:
+- No merge or self-approval was performed. Both remain human-only.
+- T18 was not started.
