@@ -55,6 +55,31 @@ coverlet.collector `6.0.0`. `Persistence.Tests` additionally pins EF Core
 Sqlite `8.0.0`; `TaxAI.Portal.Tests` additionally pins ASP.NET Core MVC Testing
 `8.0.0`.
 
+### T02A planning correction evidence
+
+The first T03 implementation pass proved that the originally staged
+Portal-then-Persistence sequence has no green merge boundary under FR-21:
+
+- `TaxAI.Portal` directly references `Persistence`, so upgrading Persistence
+  first is invalid because a `net8.0` Portal cannot reference a `net10.0`
+  dependency;
+- upgrading Portal first makes the .NET 10 restore audit the still-pre-upgrade
+  Persistence graph, exposing `NU1902` and `NU1903`;
+- upgrading the Portal test packages exposes `xUnit2029` and `xUnit2031` in
+  existing Portal tests that the original T03 allowlist did not own.
+
+FR-21 is unchanged. No warning may be suppressed, demoted, ignored through
+`NoWarn`, hidden by disabling NuGet audit or test analyzers, or admitted through
+a temporary exception. Portal and Persistence therefore move in one atomic
+green implementation boundary, and the analyzer findings are remediated in
+explicitly owned test files.
+
+The valid Portal work is preserved, not restarted, on branch
+`codex/spec-013-t03-portal` at
+`95d2601f38725d51b390ec8456ecfd6b63a1a6aa`. After T02A is human-merged, that
+branch is rebased onto current `master` and extended with the absorbed
+Persistence work.
+
 ### Persistence and security baseline
 
 `Persistence` is the only production EF Core project. It owns one initial
@@ -182,9 +207,12 @@ Persistence. The upgrade does not add or remove any `ProjectReference`.
 
 ## Migration sequence
 
-The sequence expands the PRD's seven stages into independently green tasks.
-Every task branches from the latest human-merged `master`, runs the complete
-test gate, and writes only its own `.done` marker after success.
+The sequence expands the PRD's seven stages into independently green merge
+boundaries. Every implementation branches from the latest human-merged
+`master` and runs the complete test gate. T03/T05 are the sole marker exception:
+T03 is one invocation and one atomic PR that completes both responsibility sets
+and writes both `.done` markers with the same real PR number and final
+implementation SHA; T05 has no independent branch, invocation, or PR.
 
 1. **Freeze the .NET 8 baseline and verification contracts.** Capture the
    project/reference graph, assembly and source-visible public/internal
@@ -196,15 +224,20 @@ test gate, and writes only its own `.done` marker after success.
    SDK `10.0.302` must already be installed; failure to resolve that exact SDK
    blocks the task.
 3. **Migrate project pairs from outer consumers inward.** A `net10.0` project
-   may reference a `net8.0` dependency, but the reverse is invalid. Therefore
-   the safe order is Portal (parallel with independent TaxCases), Persistence,
-   Tenancy, CaseReview, CaseProcessing, DocumentExtraction, then
-   TaxLogicEngine. Each production project moves with its matching test project
-   and that test project's package pins.
-4. **Apply only proved compatibility remediation.** Portal and Persistence
-   tasks own the narrowly identified ASP.NET Core/EF seams and their targeted
-   tests. If the upgraded build and behavior need no source change, those source
-   files remain untouched. No speculative .NET 10 feature adoption is allowed.
+   may reference a `net8.0` dependency, but the reverse is invalid. Portal and
+   its directly referenced Persistence adapter move atomically because the
+   separate Portal-first boundary violates FR-21 and the Persistence-first
+   boundary violates TFM compatibility. Independent TaxCases may proceed in
+   parallel. The remaining safe order is Tenancy, CaseReview, CaseProcessing,
+   DocumentExtraction, then TaxLogicEngine. Each production project moves with
+   its matching test project and that test project's package pins.
+4. **Apply only proved compatibility remediation.** The atomic T03 task owns
+   the narrowly identified ASP.NET Core/EF seams, the targeted behavior and
+   equivalence tests, remediation of newly exposed `xUnit2029`/`xUnit2031`,
+   and removal of `NU1902`/`NU1903` through the approved Persistence package
+   upgrades. If the upgraded build and behavior need no production source
+   change, those source files remain untouched. No speculative .NET 10 feature
+   adoption is allowed.
 5. **Lock the repository-wide target contract.** Once every project is
    `net10.0`, make the PowerShell gate and data-driven repository tests enforce
    exact SDK, TFMs, packages, tool manifest, solution paths, and absence of a
@@ -219,9 +252,11 @@ test gate, and writes only its own `.done` marker after success.
    exact totals. Mark the spec complete only after every acceptance criterion
    passes.
 
-Portal and TaxCases are the only parallel project-migration tasks. All later
-project tasks are ordered by the reference graph. This preserves a buildable
-mixed-TFM solution at every merge boundary without multi-targeting.
+Atomic Portal/Persistence and independent TaxCases are the only parallel
+project-migration tasks. T04 is not a prerequisite of the atomic T03/T05
+boundary. All later project tasks are ordered by the reference graph. This
+preserves a buildable, FR-21-compliant mixed-TFM solution at every merge
+boundary without multi-targeting or warning exceptions.
 
 ## Path and project-reference changes
 
@@ -380,19 +415,22 @@ guidance and are not changed merely to create diff coverage.
 
 ## Trade-offs
 
-### 1. Outer-to-inner staged TFMs vs one atomic all-project change
+### 1. Atomic Portal/Persistence boundary vs separate staged merges
 
-**Chosen:** upgrade production/test pairs from outer consumers inward, with
-Portal and TaxCases parallel and the remaining graph sequential.
+**Chosen:** upgrade Portal and its directly referenced Persistence adapter,
+their test projects, packages, analyzer findings, and compatibility proofs in
+one atomic green boundary. Independent TaxCases remains parallel; the remaining
+project pairs continue inward sequentially.
 
-**Rejected:** update every project and every package in one task.
+**Rejected:** merge Portal before Persistence, merge Persistence before Portal,
+or update every project and package in one task.
 
-**Why:** one atomic task would be mechanically broad and would combine ASP.NET,
-EF, deterministic modules, test tooling, and every compatibility seam in a
-single review. Outer-to-inner staging keeps every intermediate `master`
-buildable because `net10.0` can consume `net8.0`, while avoiding the invalid
-reverse reference. It also gives each module owner a narrow diff and rollback
-point.
+**Why:** Portal-first exposes new `NU1902`/`NU1903` diagnostics from the
+still-pre-upgrade Persistence graph and cannot satisfy FR-21. Persistence-first
+is not TFM-compatible because the still-`net8.0` Portal directly references it.
+The narrow atomic pair is therefore the smallest green merge boundary. Expanding
+the atom to unrelated deterministic modules would still be mechanically broad
+and would combine unrelated owners and rollback points.
 
 ### 2. Exact per-project versions vs central package management
 
@@ -443,7 +481,7 @@ would invent an operational system that does not exist.
 | Risk | Mitigation |
 |---|---|
 | SDK `10.0.302` is not installed, and `rollForward: disable` makes every `dotnet` command fail | T02 has an explicit external prerequisite and verifies `dotnet --version` before any repository change is marked complete. The planning workstation currently has only `10.0.301`; implementation must install `10.0.302`. |
-| A lower-TFM consumer references an already-upgraded dependency | Use the outer-to-inner task order. No inner project upgrades until every production consumer is already `net10.0`. |
+| A lower-TFM Portal references already-upgraded Persistence | Upgrade Portal, Persistence, and their test projects in the same atomic T03 merge boundary; never run T05 independently. |
 | Test package upgrades alter discovery or TRX shape and silently drop a suite | Retain and re-run the PowerShell gate after every task; validate all manifest projects, zero skipped, and floors never lower. Update TRX parsing only if proved necessary. |
 | .NET 10 cookie behavior changes redirect vs 401/403 | Compare the unchanged route/auth matrix and existing OIDC/cookie/session tests; do not manipulate endpoint metadata to force a result. |
 | EF10 collection translation changes ordering or firm scoping | Inventory the three production collection queries, assert results and ordering on relational fixtures, inspect SQL, and allow an override only for a proved regression. |
@@ -451,16 +489,19 @@ would invent an operational system that does not exist.
 | EF/SQLite time handling shifts a UTC instant or exclusive boundary | Add explicit offset, zero/offsetless, affinity, session, and retention round trips; forbid the legacy compatibility switch. |
 | A package/tool upgrade changes the EF model, DDL, migration history, or stored schema | Immutable migration hashes, pending-model command, canonical model/schema comparison, and line-ending-only DDL comparison all block completion on a difference. |
 | Reflection comparison reports compiler-generated noise | Capture only user-declared public/protected/internal contracts and sort canonically; exclude compiler-generated/private implementation details in both baseline and target runs. |
-| Build warnings are hidden by a new SDK or runner | Parse a clean build and require zero errors plus a warning multiset that is a subset of the approved baseline; no suppression or demotion is allowed. |
+| Portal-first exposes Persistence `NU1902`/`NU1903`, while new test analyzers expose `xUnit2029`/`xUnit2031` | The atomic T03 scope upgrades the approved Persistence packages and remediates the analyzer findings in exact owned files before its one full-solution gate. FR-21 remains the original 11-warning ceiling; suppression, `NoWarn`, demotion, audit/analyzer disabling, ignoring, and temporary exceptions are forbidden. |
+| Build warnings are hidden by a new SDK or runner | Parse a clean build and require zero errors plus a warning multiset that is a subset of the approved baseline; no suppression, disabling, demotion, or ignored diagnostic is allowed. |
 | Active docs imply production deployment is now allowed | README and CLAUDE retain the Development-only refusal, Canadian residency requirements, and the need for a separate deployment specification. Publish is build proof only. |
 | CI/container/deployment files appear after planning | Stop and amend the plan with exact paths before editing; do not use wildcard authority. |
 | Historical evidence is rewritten to say .NET 10 | Final diff verification excludes Specs 001–011 and their status/baseline/verification artifacts from all edits. |
 
 ## Rollback / recovery approach
 
-Every task is independently green and human-merged, so a failed stage is
-reverted as source rather than pushed forward with suppressions or compatibility
-switches.
+Every merge boundary is independently green and human-merged, so a failed stage
+is reverted as source rather than pushed forward with suppressions or
+compatibility switches. Atomic T03/T05 is reverted as one PR because its two
+responsibility sets cannot form separate green boundaries; its two markers
+refer to that same PR and final implementation SHA.
 
 1. Stop on any SDK, restore, build, warning, test, publish, compatibility,
    security, migration-hash, pending-model, model, schema, or DDL failure.
