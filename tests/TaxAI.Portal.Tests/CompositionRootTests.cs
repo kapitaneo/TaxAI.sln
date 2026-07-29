@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CaseProcessing.Services;
 using DocumentExtraction.Ports;
 using Microsoft.AspNetCore.Hosting;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using TaxLogicEngine.Services;
+using Tenancy.Contracts;
 
 namespace TaxAI.Portal.Tests;
 
@@ -94,21 +96,170 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
     }
 
     [Fact]
-    public void BothValidationFlagsAreSetOutsideAnyDevelopmentBranch() // AC-18
+    public void BothValidationFlagsAreSetOutsideAnyConditionalBlock() // AC-18, spec 011 AC-31
     {
-        // Behaviour proves they are on here; this proves they are on
-        // everywhere, by showing the configuration is not conditional.
-        // Executable lines only, the convention every module's boundary suite
-        // uses: Program.cs documents why the flags are NOT behind an
-        // IsDevelopment() branch, and scanning raw text would make that comment
-        // unwritable.
-        var program = string.Join(
-            "\n",
-            ExecutableLines(Path.Combine(FindRepositoryRoot(), "src", "TaxAI.Portal", "Program.cs")));
+        // Replaces spec 010's "Program.cs contains no IsDevelopment at all",
+        // which stopped being expressible once fixture seeding became a real
+        // development-only behaviour. The replacement is stronger: the old test
+        // only proved the token was absent, so a flag placed inside `if (args
+        // .Length > 0)` would have passed it. This one proves the flags are set
+        // at the top level of the file, whatever the branch is keyed on.
+        var lines = ExecutableLines(PortalFile("Program.cs")).ToArray();
 
-        Assert.Contains("ValidateOnBuild = true", program, StringComparison.Ordinal);
-        Assert.Contains("ValidateScopes = true", program, StringComparison.Ordinal);
-        Assert.DoesNotContain("IsDevelopment", program, StringComparison.Ordinal);
+        foreach (var flag in new[] { "ValidateOnBuild = true", "ValidateScopes = true" })
+        {
+            var index = Array.FindIndex(
+                lines,
+                line => line.Contains(flag, StringComparison.Ordinal));
+
+            Assert.True(index >= 0, $"{flag} must be set.");
+
+            Assert.False(
+                IsInsideAConditionalBlock(lines, index),
+                $"{flag} must not be set inside a conditional block.");
+        }
+
+        // A preprocessor directive would move the decision to compile time,
+        // where no test in this suite can see it.
+        Assert.DoesNotContain(
+            lines,
+            line => line.StartsWith("#if", StringComparison.Ordinal) ||
+                    line.StartsWith("#else", StringComparison.Ordinal));
+    }
+
+    // --------------------------------------------------------- spec 011 AC-32
+
+    /// <summary>
+    /// The complete vocabulary of environment-sensitive concerns this host is
+    /// allowed to have. Four, enumerated, and no fifth: an environment branch is
+    /// how a security control quietly stops applying in the one environment that
+    /// matters.
+    /// </summary>
+    private static readonly (string Concern, string Pattern)[] ApprovedEnvironmentConcerns =
+    {
+        ("developer key ring", @"\bPersistKeysTo\w*\b|\bDeveloperKeyRing\b"),
+        ("development fixture seeding", @"\bIDevelopmentFixtureSeeder\b|\bSeedAsync\b"),
+        ("developer exception page", @"\bDeveloperExceptionPage\b"),
+        ("startup refusal", @"\bRequireDatabaseConnectionString\b|\bRequireSafeStartup\b|\bthrow new InvalidOperationException\b"),
+    };
+
+    /// <summary>
+    /// Controls an environment branch may never guard. Disabling any of these
+    /// outside a developer's machine is the failure this list exists to make
+    /// impossible to write by accident.
+    /// </summary>
+    private static readonly string[] ControlsNoEnvironmentBranchMayDisable =
+    {
+        @"\bAddAuthentication\b|\bUseAuthentication\b|\bSignInAsync\b",
+        @"\bAddAuthorization\b|\bUseAuthorization\b|\bRequireAuthorization\b",
+        @"\bAntiforgery\b",
+        @"\bValidateOnBuild\b|\bValidateScopes\b",
+    };
+
+    [Fact] // spec 011 AC-32
+    public void EveryIsDevelopmentOccurrenceGuardsAnApprovedConcern()
+    {
+        var occurrences = PortalProductionFiles()
+            .SelectMany(path => ExecutableLines(path)
+                .Select((line, index) => (Path: path, Line: line, Index: index)))
+            .Where(entry => entry.Line.Contains("IsDevelopment", StringComparison.Ordinal))
+            .ToArray();
+
+        // The token exists somewhere, so this cannot pass by the branch having
+        // been renamed out of the scan's reach.
+        Assert.NotEmpty(occurrences);
+
+        foreach (var occurrence in occurrences)
+        {
+            var guarded = GuardedBlock(ExecutableLines(occurrence.Path).ToArray(), occurrence.Index);
+
+            var concerns = ApprovedEnvironmentConcerns
+                .Where(concern => Regex.IsMatch(
+                    guarded, concern.Pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))
+                .Select(concern => concern.Concern)
+                .ToArray();
+
+            Assert.True(
+                concerns.Length == 1,
+                $"An IsDevelopment branch in {Path.GetFileName(occurrence.Path)} guards "
+                + $"{concerns.Length} approved concerns; it must guard exactly one.");
+
+            foreach (var forbidden in ControlsNoEnvironmentBranchMayDisable)
+            {
+                Assert.False(
+                    Regex.IsMatch(guarded, forbidden, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
+                    $"An IsDevelopment branch in {Path.GetFileName(occurrence.Path)} guards /{forbidden}/.");
+            }
+        }
+    }
+
+    [Fact] // spec 011 AC-32
+    public void TheEnvironmentTokenIsNeverUsedToTurnOffARequirement()
+    {
+        // The startup refusal is environment-sensitive in the other direction:
+        // it is only ever ENABLED outside Development. It is written as an
+        // ordinal comparison rather than an IsDevelopment() call precisely so
+        // that a negated environment check never sits around a security control,
+        // and this proves the file it lives in registers, maps, and uses
+        // nothing — it can only refuse.
+        var guards = string.Join("\n", ExecutableLines(PortalFile("PortalStartupGuards.cs")));
+
+        Assert.DoesNotContain("IsDevelopment", guards, StringComparison.Ordinal);
+        Assert.Contains("Environments.Development", guards, StringComparison.Ordinal);
+        Assert.Contains("throw new InvalidOperationException", guards, StringComparison.Ordinal);
+
+        foreach (var pattern in new[] { @"\bAdd[A-Z]\w*\s*[<(]", @"\bUse[A-Z]\w*\s*\(", @"\bMap[A-Z]\w*\s*\(" })
+        {
+            Assert.False(
+                Regex.IsMatch(guards, pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
+                $"The startup guards must not wire anything: /{pattern}/ matched.");
+        }
+    }
+
+    [Fact]
+    public void TheConditionalAnalysisActuallyDistinguishesTheTwoCases()
+    {
+        // Both assertions above are negative — they pass when nothing is found.
+        // A brace walker that had stopped working would approve anything, so
+        // prove it on a planted example that it must classify correctly.
+        var planted = new[]
+        {
+            "var builder = Build();",
+            "if (something)",
+            "{",
+            "options.ValidateOnBuild = true;",
+            "}",
+            "options.ValidateScopes = true;",
+        };
+
+        Assert.True(IsInsideAConditionalBlock(planted, 3));
+        Assert.False(IsInsideAConditionalBlock(planted, 5));
+        Assert.False(IsInsideAConditionalBlock(planted, 0));
+
+        // And the guarded-block reader must return the branch, not the file.
+        var guarded = GuardedBlock(planted, 1);
+
+        Assert.Contains("ValidateOnBuild", guarded, StringComparison.Ordinal);
+        Assert.DoesNotContain("ValidateScopes", guarded, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheApprovedConcernVocabularyIsExactlyFour()
+    {
+        // Without this, someone widening the list would widen the rule rather
+        // than fail against it.
+        Assert.Equal(
+            new[]
+            {
+                "developer exception page",
+                "developer key ring",
+                "development fixture seeding",
+                "startup refusal",
+            },
+            ApprovedEnvironmentConcerns
+                .Select(concern => concern.Concern)
+                .OrderBy(concern => concern, StringComparer.Ordinal)
+                .ToArray());
     }
 
     // --------------------------------------------------- AC-19, AC-20, AC-21
@@ -153,6 +304,48 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
             _factory.Services.GetRequiredService<T4CaseProcessor>());
     }
 
+    // ------------------------------------------- spec 011: the storage layer
+
+    [Theory] // spec 011 AC-31
+    [InlineData(typeof(IReviewRecordRepository))]
+    [InlineData(typeof(IAuthenticationSessionStore))]
+    [InlineData(typeof(IIdentityDirectory))]
+    [InlineData(typeof(IReviewRecordPurgeService))]
+    [InlineData(typeof(IOpaqueIdentifierSource))]
+    [InlineData(typeof(IDevelopmentFixtureSeeder))]
+    public void EveryTenancyPortResolvesFromTheContainer(Type port)
+    {
+        // The host calls one registration extension per contributing module, so
+        // this is also the proof that the extension registered the whole module
+        // and not a subset of it.
+        using var scope = _factory.Services.CreateScope();
+
+        var resolved = scope.ServiceProvider.GetRequiredService(port);
+
+        Assert.Equal(
+            typeof(Persistence.PersistenceRegistration).Assembly,
+            resolved.GetType().Assembly);
+    }
+
+    [Fact] // spec 011 AC-124
+    public void ResolvingTheStorageLayerOpensNoConnectionAndCreatesNoSchema()
+    {
+        // Registering SQL Server is not connecting to it. Schema comes only from
+        // migrations: a process that reshapes a taxpayer database on boot is a
+        // process that can reshape it wrongly, unattended.
+        using var client = _factory.CreateClient();
+        using var scope = _factory.Services.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IReviewRecordRepository>());
+
+        var program = string.Join("\n", ExecutableLines(PortalFile("Program.cs")));
+
+        foreach (var schemaMutation in new[] { "EnsureCreated", "Migrate", "MigrateAsync" })
+        {
+            Assert.DoesNotContain(schemaMutation, program, StringComparison.Ordinal);
+        }
+    }
+
     // ------------------------------------------------------------------ AC-24
 
     [Fact]
@@ -187,6 +380,104 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
     }
 
     // ---------------------------------------------------------------- helpers
+
+    private static string PortalFile(string name) =>
+        Path.Combine(FindRepositoryRoot(), "src", "TaxAI.Portal", name);
+
+    private static string[] PortalProductionFiles() =>
+        Directory
+            .EnumerateFiles(
+                Path.Combine(FindRepositoryRoot(), "src", "TaxAI.Portal"),
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Where(path =>
+                !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
+                !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>
+    /// True when the line at <paramref name="index"/> sits inside a block opened
+    /// by a conditional. Brace counting on executable lines is coarse, but it is
+    /// the property that matters: a setting inside a conditional block is a
+    /// setting that some environment does not get.
+    /// </summary>
+    private static bool IsInsideAConditionalBlock(string[] lines, int index)
+    {
+        var openBlocks = new Stack<bool>();
+        var pendingConditional = false;
+
+        for (var current = 0; current <= index; current++)
+        {
+            var line = lines[current];
+
+            if (current < index && StartsAConditional(line))
+            {
+                pendingConditional = true;
+            }
+
+            foreach (var character in line)
+            {
+                if (character == '{')
+                {
+                    openBlocks.Push(pendingConditional);
+                    pendingConditional = false;
+                }
+                else if (character == '}' && openBlocks.Count > 0)
+                {
+                    openBlocks.Pop();
+                }
+            }
+        }
+
+        return openBlocks.Contains(true);
+    }
+
+    private static bool StartsAConditional(string line) =>
+        Regex.IsMatch(
+            line,
+            @"^\s*(?:\}\s*)?(?:if|else|switch|while|for|foreach)\b",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+    /// <summary>
+    /// The executable lines an environment branch at <paramref name="index"/>
+    /// guards: the branch line itself plus its block, by brace depth.
+    /// </summary>
+    private static string GuardedBlock(string[] lines, int index)
+    {
+        var block = new List<string> { lines[index] };
+        var depth = 0;
+        var opened = false;
+
+        for (var current = index; current < lines.Length; current++)
+        {
+            foreach (var character in lines[current])
+            {
+                if (character == '{')
+                {
+                    depth++;
+                    opened = true;
+                }
+                else if (character == '}')
+                {
+                    depth--;
+                }
+            }
+
+            if (current > index)
+            {
+                block.Add(lines[current]);
+            }
+
+            if (opened && depth <= 0)
+            {
+                break;
+            }
+        }
+
+        return string.Join("\n", block);
+    }
 
     private static IEnumerable<string> ExecutableLines(string path) =>
         File.ReadAllLines(path)

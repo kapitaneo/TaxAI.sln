@@ -36,6 +36,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     {
         "ModuleRegistration.cs",
         "PortalContent.cs",
+        "PortalStartupGuards.cs",
         "Program.cs",
     };
 
@@ -373,10 +374,12 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         Assert.Matches(new Regex(@"\bAddServerHeader\b"), allExecutable);
 
         // And prove the filter really is removing comments, so "executable lines
-        // only" is not silently scanning the whole file.
+        // only" is not silently scanning the whole file. The probe token moved
+        // when the fixture-seeding branch made IsDevelopment executable source;
+        // "disclosure surface" is written only in Program.cs's commentary.
         var raw = File.ReadAllText(Path.Combine(PortalRoot, "Program.cs"));
-        Assert.Contains("IsDevelopment", raw, StringComparison.Ordinal);
-        Assert.DoesNotContain("IsDevelopment", allExecutable, StringComparison.Ordinal);
+        Assert.Contains("disclosure surface", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain("disclosure surface", allExecutable, StringComparison.Ordinal);
     }
 
     /// <summary>

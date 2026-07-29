@@ -364,3 +364,11 @@ FodyWeavers.xsd
 
 # Claude Code machine/user-specific permissions (must not be committed)
 .claude/settings.local.json
+
+# ASP.NET Core Data Protection developer key ring. These files are key material:
+# anything that can read them can forge a session cookie, so they must never be
+# committed, and the real key ring is a deployment concern rather than a
+# repository one.
+DataProtection-Keys/
+**/DataProtection-Keys/
+key-*.xml

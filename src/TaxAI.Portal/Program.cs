@@ -1,4 +1,5 @@
 using TaxAI.Portal;
+using Tenancy.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // so this is verified by source assertion rather than over the wire.
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
-// Set unconditionally, and deliberately not inside an IsDevelopment() branch:
+// Set unconditionally, and deliberately not inside an environment branch:
 // WebApplication.CreateBuilder enables these in Development only, so a
 // config-free host would ship to Production with an unvalidated container and a
 // mis-wiring would surface on first request rather than at startup.
@@ -16,11 +17,30 @@ builder.Host.UseDefaultServiceProvider(options =>
     options.ValidateScopes = true;
 });
 
+// Fail closed before anything is registered. The connection string is required
+// in every environment and never appears in a tracked file; outside Development
+// its transport requirements are checked here too. The guard compares the
+// environment name ordinally rather than calling IsDevelopment(), so a security
+// control is never written as a negated environment branch.
+var databaseConnectionString = PortalStartupGuards.RequireDatabaseConnectionString(
+    builder.Configuration,
+    builder.Environment.EnvironmentName);
+
 // The one and only place modules are wired in. Every Add* registration lives
 // behind this call, in ModuleRegistration.cs.
-builder.Services.AddTaxAiModules();
+builder.Services.AddTaxAiModules(databaseConnectionString);
 
 var app = builder.Build();
+
+// The second half of the refusal, against the built application: the connection
+// string is re-verified, and outside Development a configured key ring and the
+// durable session store are both required. Registering SQL Server opens no
+// connection, so this resolves the store to inspect it without touching the
+// database.
+PortalStartupGuards.RequireSafeStartup(
+    app.Services,
+    app.Configuration,
+    app.Environment.EnvironmentName);
 
 // Server-rendered constant content: no view engine, no static-file middleware,
 // no wwwroot, and no external asset. The shell states what this application is
@@ -31,6 +51,21 @@ app.MapGet("/", () => Results.Content(PortalContent.ShellHtml, PortalContent.Htm
 // fixed literal and nothing else: no version, environment, dependency status,
 // or timestamp.
 app.MapGet("/health", () => Results.Text(PortalContent.HealthBody, PortalContent.PlainTextContentType));
+
+// The one environment-gated behaviour this host has. Fixtures are obviously
+// synthetic and are written by the module that owns the schema; the host only
+// decides whether to ask. Awaited synchronously rather than through an async
+// entry point, so seeding completes before the first request is accepted.
+if (app.Environment.IsDevelopment())
+{
+    using var developmentScope = app.Services.CreateScope();
+
+    developmentScope.ServiceProvider
+        .GetRequiredService<IDevelopmentFixtureSeeder>()
+        .SeedAsync(CancellationToken.None)
+        .GetAwaiter()
+        .GetResult();
+}
 
 app.Run();
 
