@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using Persistence.Repositories;
 using Persistence.Services;
@@ -17,6 +18,9 @@ namespace Persistence;
 /// </summary>
 public static class PersistenceRegistration
 {
+    private const string DesignTimeConnectionStringEnvironmentVariable =
+        "ConnectionStrings__TaxAiDatabase";
+
     /// <summary>
     /// Registers the context and the implementations of Tenancy's ports.
     /// <para>
@@ -45,5 +49,26 @@ public static class PersistenceRegistration
         services.AddScoped<IDevelopmentFixtureSeeder, DevelopmentFixtureSeeder>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Gives the EF tool a connection-free construction path without starting
+    /// the Portal host, whose fail-closed startup and Development seeding are
+    /// intentionally unsuitable for design-time model inspection.
+    /// </summary>
+    private sealed class DesignTimeContextFactory :
+        IDesignTimeDbContextFactory<TaxAiDbContext>
+    {
+        public TaxAiDbContext CreateDbContext(string[] args)
+        {
+            var connectionString = SqlConnectionStringGuard.RequireValid(
+                Environment.GetEnvironmentVariable(
+                    DesignTimeConnectionStringEnvironmentVariable));
+            var options = new DbContextOptionsBuilder<TaxAiDbContext>()
+                .UseSqlServer(connectionString)
+                .Options;
+
+            return new TaxAiDbContext(options);
+        }
     }
 }

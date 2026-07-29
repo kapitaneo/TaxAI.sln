@@ -582,11 +582,12 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         var identity = ExecutableLines(Path.Combine(PortalRoot, "PortalIdentity.cs")).ToArray();
 
         var fileSystemLine = Assert.Single(
-            identity.Where(line => Regex.IsMatch(
+            identity,
+            line => Regex.IsMatch(
                 line,
                 @"\bDirectoryInfo\b|\bPath\s*\.\s*[A-Z]",
                 RegexOptions.CultureInvariant,
-                TimeSpan.FromSeconds(1))));
+                TimeSpan.FromSeconds(1)));
 
         // One expression, naming the content root and the ignored key-ring
         // folder, and nothing else. No configured path, no environment

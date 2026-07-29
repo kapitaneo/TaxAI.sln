@@ -254,9 +254,12 @@ public sealed class CookieAndTokenTests
 
         // Unscoped record, therefore no claim — whatever anyone else asserts.
         Assert.Null(ticket!.Principal.FindFirst(PortalIdentityHarness.FirmClaimType));
-        Assert.Empty(
-            ticket.Principal.Claims.Where(claim =>
-                claim.Type.Equals(PortalIdentityHarness.FirmClaimType, StringComparison.Ordinal)));
+        Assert.DoesNotContain(
+            ticket.Principal.Claims,
+            claim =>
+                claim.Type.Equals(
+                    PortalIdentityHarness.FirmClaimType,
+                    StringComparison.Ordinal));
     }
 
     // ---------------------------------------------------------------- helpers

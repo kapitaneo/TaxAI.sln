@@ -169,8 +169,12 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     public void EachApprovedRouteAnswersExactlyItsOneMethod(string pattern, string method)
     {
         var endpoint = Assert.Single(
-            MappedRouteEndpoints().Where(candidate =>
-                string.Equals(candidate.RoutePattern.RawText, pattern, StringComparison.Ordinal)));
+            MappedRouteEndpoints(),
+            candidate =>
+                string.Equals(
+                    candidate.RoutePattern.RawText,
+                    pattern,
+                    StringComparison.Ordinal));
 
         var methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods;
 
@@ -247,11 +251,12 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     public void EveryStateChangingRouteRequiresAntiforgery(string pattern)
     {
         var endpoint = Assert.Single(
-            MappedRouteEndpoints().Where(candidate =>
+            MappedRouteEndpoints(),
+            candidate =>
                 string.Equals(
                     candidate.RoutePattern.RawText,
                     pattern,
-                    StringComparison.Ordinal)));
+                    StringComparison.Ordinal));
 
         var metadata = endpoint.Metadata.FirstOrDefault(item =>
             item.GetType().GetInterfaces().Any(contract =>
