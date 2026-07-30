@@ -1,0 +1,107 @@
+# Spec 014 — T01 complete
+
+Task:   T01 — Freeze intake contracts and migrate the portal/review UI foundation
+Wave:   0 (contract wave; not contract-only — ships the Blazor foundation and
+        the review-screen migration as its independently valuable product result)
+PR:     #133  https://github.com/kapitaneo/TaxAI.sln/pull/133
+Branch: feat/014-w0-t01
+Commit: 6ce01bb
+
+## Gate — all three commands, in order
+
+    dotnet build TaxAI.sln                  Build succeeded. 0 Warning(s) 0 Error(s)
+    dotnet test TaxAI.sln                   all 9 projects passed
+    pwsh ./scripts/Invoke-SolutionTests.ps1  gate passed (authoritative)
+
+Result: 3348 tests, 0 failed, 0 skipped, every floor met.
+
+    TaxLogicEngine.Tests         261 passed (floor 261)
+    TaxCases.Tests               337 passed (floor 337)
+    DocumentExtraction.Tests     673 passed (floor 673)
+    CaseProcessing.Tests         594 passed (floor 594)
+    CaseReview.Tests             482 passed (floor 482)
+    TaxAI.Portal.Tests           451 passed (floor 451, raised from 431)
+    Tenancy.Tests                289 passed (floor 289)
+    Persistence.Tests            146 passed (floor 137)
+    ClientIntake.Tests           115 passed (floor 115, new)
+
+No floor was lowered. Persistence.Tests' floor of 137 is pre-existing and was
+left alone: this task added no Persistence test.
+
+## Delivered
+
+Frozen contract: src/ClientIntake/ with 51 exported types across Models,
+Contracts, and Services. Every workflow constructor and method throws
+NotImplementedException; the module implements none of its own ports; nothing in
+the portal references, registers, resolves, or invokes it. IIntakeStore has
+exactly two firm-omitting members, both keyed-digest lookups returning trusted
+scope. IIntakeContentStore exposes no read member.
+
+Blazor foundation: App, Routes, PortalLayout, ReviewPage. No component declares
+@rendermode or @page; no global render mode is applied; static SSR is the
+default. ReviewEndpoints.cs returns RazorComponentResult<ReviewPage> with one
+closed ReviewPageModel, and retains its route, policy, headers, trusted-firm
+extraction, browser-safety guard, closed projection, invariant amounts,
+collection order, single FindAsync call with the request cancellation token, and
+identical empty 404.
+
+## Two defects found and avoided
+
+1. MapStaticAssets() registers a {**path:file} catch-all over the whole URL
+   space. It turned GET /sign-out from 405 into 404 and added an endpoint in the
+   "neither anonymous nor authorization-required" third state spec 011 forbids.
+   Replaced with UseStaticFiles() middleware, which adds no endpoint.
+2. A [property: JsonIgnore] target on a positional parameter whose property is
+   declared by hand is discarded by the compiler (CS0657) while looking exactly
+   like a working omission. It had left two Fingerprint properties serializable.
+
+## AC-99 storage neutrality — verified against master
+
+git diff --name-only master shows no file under src/Persistence, src/Tenancy,
+src/TaxCases, src/CaseReview, src/CaseProcessing, src/DocumentExtraction, or
+src/TaxLogicEngine; no EF migration; no model snapshot; no schema artifact; no
+persisted or review public contract.
+
+## Scope exceptions — two files outside T01's owned list
+
+1. tests/TaxAI.Portal.Tests/Upgrade/DotNet10RepositoryTests.cs
+   Spec 013 shipped a closed-set assertion over every project in TaxAI.sln,
+   which the root CLAUDE.md forbids. It blocked this task's required solution
+   additions outright. Replaced with per-project presence-and-uniqueness; the two
+   ClientIntake paths added to ApprovedProjects; every other assertion in the
+   file untouched. EXPLICITLY AUTHORIZED BY THE HUMAN before implementation
+   began, after the blocker was reported with options.
+
+2. scripts/Assert-DotNet10Toolchain.ps1
+   The same defect in the executable preflight. Fixed additively: the two
+   ClientIntake paths were added to the $approvedProjects registry. No assertion
+   weakened; the set stays closed and still rejects any unregistered project.
+   Discovered only when the gate ran, after the authorization above.
+
+Both are recorded in PR #133 for the reviewer.
+
+## Amended assertions (T01 requirement 13)
+
+Replaced with tighter exact allowlists, never deleted or broadly weakened:
+portal public-type set, host route inventory, two production-file lists,
+per-file registration tokens, additive baseline signatures, the route/auth
+additive endpoint set, and the static-file surface. New component scans added for
+AC-90/91/96/98, which the .cs-only scanners could not see. Both superseded rows
+are registered in AmendmentAuditTests against the immutable spec 012 PRD ledger.
+
+## Deliberately not shipped
+
+No intake route, workflow body, relational intake table, or encrypted content
+adapter. No interactive component. Interactive Server is registered per T01
+requirement 5 and the approved architecture, adding the framework's five
+/_blazor and /_framework/opaque-redirect endpoints; no component opts in, so the
+circuit has no component to run and no taxpayer model to carry. Flagged in the
+PR as something a reviewer may reasonably want deferred to T03.
+
+Deployment refusal unchanged: Development-only startup, and no deployment
+anywhere that can receive real taxpayer data.
+
+## Human review required
+
+Not merged. Not self-approved. T02 must not begin until this marker is on
+master.
