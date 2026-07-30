@@ -1,0 +1,28 @@
+@* The root component of the Blazor Web App foundation.
+
+   No @rendermode directive, here or on Routes or the layout. That is what makes
+   static server rendering the default for every component in this project: an
+   interactive mode has to be asked for per component, so a read-only taxpayer
+   page cannot silently become a circuit surface.
+
+   Every asset is local. blazor.web.js ships with the framework and portal.css is
+   tracked in this repository; there is no CDN script, remote stylesheet, remote
+   font, or third-party image to fetch. *@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
+    <link rel="stylesheet" href="portal.css" />
+    @* Component-scoped CSS bundle: PortalLayout.razor.css and
+       ReviewPage.razor.css are compiled into this one local file. *@
+    <link rel="stylesheet" href="TaxAI.Portal.styles.css" />
+    <HeadOutlet />
+</head>
+<body>
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

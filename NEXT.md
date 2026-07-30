@@ -156,7 +156,55 @@
   - the screen is read-only and introduces no tax logic, mutation, “latest”
     selection, JSON API, or client-side state.
 
+## In progress — spec 014, Client Intake and Document Upload Flow
+
+- Spec 014 T01 — Blazor foundation, review migration, and frozen intake contract:
+  - `src/ClientIntake/` and `tests/ClientIntake.Tests/` added, referencing exactly
+    `TaxCases`, `Tenancy`, and `TaxLogicEngine`, with no package reference;
+  - the closed intake vocabularies, accountant/client commands and safe
+    projections, storage records, and the
+    `IIntakeStore`/`IIntakeContentStore`/`IIntakeSecretSource` ports are declared
+    exactly as approved;
+  - **every workflow constructor and method throws
+    `NotImplementedException`** — T01 froze signatures and shipped no behaviour;
+    nothing in the portal resolves or invokes them, and the module implements
+    none of its own ports;
+  - `IIntakeStore` has exactly two firm-omitting members, both keyed-digest
+    lookups that *return* trusted scope; `IIntakeContentStore` exposes no read
+    member at all;
+  - identifier, secret, digest, taxpayer-text, content-key, and fingerprint
+    properties are `[JsonIgnore]`-marked, every public model declares a
+    structural `ToString()`, and every collection constructor copies into a
+    read-only snapshot;
+  - one Blazor Web App foundation added to `TaxAI.Portal` — `App`, `Routes`,
+    `PortalLayout`, `ReviewPage` — with static server rendering as the default:
+    no component declares a render mode, no global mode is applied, and there is
+    no WebAssembly, npm tree, remote script, remote font, or third-party asset;
+  - `ReviewEndpoints.cs` lost only its `Render` method, `StringBuilder`,
+    appended markup, and inline style assembly, and now returns
+    `RazorComponentResult<ReviewPage>` with one closed `ReviewPageModel`; its
+    route, policy, headers, trusted-firm extraction, browser-safety guard, closed
+    projection, invariant amounts, collection order, single `FindAsync` call, and
+    identical empty `404` are unchanged;
+  - reusable styling moved to tracked `wwwroot/portal.css` plus component-scoped
+    CSS, served by `UseStaticFiles()` middleware — deliberately **not**
+    `MapStaticAssets()`, whose `{**path:file}` catch-all would turn every
+    POST-only route's `405` into a `404`;
+  - no production file under `Persistence` or `Tenancy`, no review or persistence
+    public contract, no EF migration or model snapshot, and no database schema
+    changed.
+
+**No intake capability ships yet.** There is no intake route, workflow body,
+relational intake table, encrypted content adapter, or interactive component.
+Interactive Server is registered for a later task; because no component opts in,
+the circuit has no component to run and no taxpayer model to carry.
+
 ## Next
+
+Spec 014 T02, T03, and T04 remain. They implement the intake backend and
+additive migration, then the client and accountant UI and routes, then the
+cross-module security proof. Each is a separate human-named task; none may be
+started without T01's `.done` marker on `master`.
 
 The first taxpayer-data surface is complete under spec 012's exact browser
 allowlist. Any expansion of that allowlist, document upload, stored-package

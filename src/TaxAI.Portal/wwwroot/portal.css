@@ -1,0 +1,45 @@
+/* The portal's tracked global stylesheet.
+
+   This replaces the inline <style> block that ReviewEndpoints.cs used to assemble
+   with a StringBuilder. It is a tracked local file served from wwwroot: no CDN,
+   no remote font, no remote image, no third-party request of any kind.
+
+   It carries the design tokens and the element-level resets that are genuinely
+   shared. Anything specific to one screen lives in that component's scoped CSS
+   instead. */
+
+:root {
+    color-scheme: light;
+    --ink: #17202a;
+    --muted: #5b6573;
+    --line: #d9dee6;
+    --paper: #fff;
+    --wash: #f4f6f8;
+    --accent: #155e75;
+    --warn: #fff6dd;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--wash);
+    color: var(--ink);
+    font: 16px/1.5 system-ui, sans-serif;
+}
+
+h1 {
+    font-size: clamp(2rem, 5vw, 3.6rem);
+    line-height: 1.05;
+    margin: 0.2rem 0 1.5rem;
+}
+
+h2 {
+    margin: 0 0 1rem;
+}
+
+h3 {
+    margin: 1.5rem 0 0.5rem;
+}

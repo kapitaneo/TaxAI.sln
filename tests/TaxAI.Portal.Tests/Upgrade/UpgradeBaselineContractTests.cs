@@ -96,15 +96,38 @@ public sealed class UpgradeBaselineContractTests
     [Fact]
     public void UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline()
     {
-        var actual = CapturePublicContracts();
         var path = Path.Combine(BaselineRoot, "public-contracts.json");
 
         var baseline = Read<PublicContractBaseline>(path);
 
         Assert.Equal(BaselineCommit, baseline.BaselineCommit);
+
+        // The spec 013 baseline records the assemblies that existed when it was
+        // taken, and it is an immutable historical artifact. A module added by a
+        // later spec is captured and named here instead of being written into it.
+        //
+        // Replaces spec 013's "the assembly name sets are equal", superseded by
+        // spec 014 T01. The exact additive set is strictly stronger than merely
+        // dropping that assertion: every baseline assembly's signatures, friend
+        // assemblies, and embedded resources are still compared byte-for-byte, and
+        // a second unapproved new module now fails here rather than passing
+        // silently.
+        var baselineNames = baseline.Assemblies
+            .Select(assembly => assembly.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var actual = CapturePublicContracts(baselineNames);
+
         Assert.Equal(
             baseline.Assemblies.Select(assembly => assembly.Name),
             actual.Assemblies.Select(assembly => assembly.Name));
+
+        Assert.Equal(
+            new[] { "ClientIntake" },
+            ProductionProjectNames()
+                .Where(name => !baselineNames.Contains(name))
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
 
         foreach (var expected in baseline.Assemblies)
         {
@@ -154,17 +177,57 @@ public sealed class UpgradeBaselineContractTests
                 .Except(new[] { currentShell }, StringComparer.Ordinal)
                 .ToArray();
 
-            Assert.Equal(3, additiveSignatures.Length);
+            // Replaces spec 013's "exactly three additive signatures, all internal
+            // and all on ReviewEndpoints", superseded by spec 014 T01: the Blazor
+            // foundation's components and page models are necessarily public,
+            // because the Razor compiler emits components as public types and a
+            // component parameter must be public to be settable.
+            //
+            // The replacement is a namespace allow-list rather than a count, and it
+            // is strictly stronger than dropping the rule: every additive signature
+            // must belong to one of the named review/component namespaces, so an
+            // additive public type anywhere else in the host — a new endpoint, a new
+            // guard, a leaked identity or persistence type — still fails here.
+            Assert.NotEmpty(additiveSignatures);
+
+            var approvedAdditivePrefixes = new[]
+            {
+                "TaxAI.Portal.ReviewEndpoints",
+                "TaxAI.Portal.Components.App",
+                "TaxAI.Portal.Components.Routes",
+                "TaxAI.Portal.Components._Imports",
+                "TaxAI.Portal.Components.Layout.PortalLayout",
+                "TaxAI.Portal.Components.Pages.ReviewPage",
+                "TaxAI.Portal.Components.Pages.ReviewPageModel",
+                "TaxAI.Portal.Components.Pages.ReviewSlipModel",
+                "TaxAI.Portal.Components.Pages.ReviewBoxModel",
+                "TaxAI.Portal.Components.Pages.ReviewLineModel",
+
+                // SDK-generated, not user-declared. Referencing the Razor component
+                // model makes the toolchain embed these marker attributes into the
+                // assembly; no source file in this repository declares either, and
+                // neither carries behaviour.
+                "Microsoft.CodeAnalysis.EmbeddedAttribute",
+                "Microsoft.Extensions.Validation.Embedded.ValidatableTypeAttribute",
+            };
+
             Assert.All(
                 additiveSignatures,
-                signature =>
-                {
-                    Assert.Contains(
-                        "TaxAI.Portal.ReviewEndpoints",
-                        signature,
-                        StringComparison.Ordinal);
-                    Assert.DoesNotContain("|public|", signature, StringComparison.Ordinal);
-                });
+                signature => Assert.True(
+                    approvedAdditivePrefixes.Any(prefix =>
+                        signature.Contains(prefix, StringComparison.Ordinal)),
+                    $"Unapproved additive signature: {signature}"));
+
+            // The endpoint's own additions stay internal; only the component tree
+            // is public.
+            Assert.All(
+                additiveSignatures.Where(signature => signature.Contains(
+                    "TaxAI.Portal.ReviewEndpoints",
+                    StringComparison.Ordinal)),
+                signature => Assert.DoesNotContain(
+                    "|public|",
+                    signature,
+                    StringComparison.Ordinal));
         }
     }
 
@@ -434,12 +497,35 @@ public sealed class UpgradeBaselineContractTests
             packages);
     }
 
-    private static PublicContractBaseline CapturePublicContracts()
+    /// <summary>
+    /// Every production project the solution declares, by name.
+    /// </summary>
+    private static string[] ProductionProjectNames() =>
+        SolutionProjects(Path.Combine(RepositoryRoot, "TaxAI.sln"))
+            .Where(project =>
+                project.Path.StartsWith("src", StringComparison.Ordinal) &&
+                project.Path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .Select(project => project.Name)
+            .ToArray();
+
+    /// <summary>
+    /// Captures the public and internal contract of exactly the assemblies the
+    /// baseline records.
+    /// </summary>
+    /// <remarks>
+    /// Scoped rather than exhaustive on purpose. A later spec's module is not in
+    /// the spec 013 baseline, and loading it here would also fail outright: this
+    /// test assembly does not reference that module's own dependencies, so
+    /// resolving its types against the default load context throws.
+    /// </remarks>
+    private static PublicContractBaseline CapturePublicContracts(
+        IReadOnlySet<string> baselineAssemblyNames)
     {
         var projects = SolutionProjects(Path.Combine(RepositoryRoot, "TaxAI.sln"))
             .Where(project =>
                 project.Path.StartsWith("src", StringComparison.Ordinal) &&
-                project.Path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                project.Path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) &&
+                baselineAssemblyNames.Contains(project.Name))
             .OrderBy(project => project.Name, StringComparer.Ordinal)
             .ToArray();
 

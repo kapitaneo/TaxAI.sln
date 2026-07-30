@@ -52,11 +52,26 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   firm-scoped read-only accountant review screen. The screen renders one exact
   immutable package version using a closed allowlist and carries no SIN in any
   form.
+- **Blazor Web App foundation** — the review screen is a statically
+  server-rendered Razor component returned by its own authorization-gated
+  endpoint, styled from tracked local and component-scoped CSS. Static server
+  rendering is the default: no component declares a render mode, nothing is
+  interactive, and there is no WebAssembly, npm tree, or third-party asset.
+- **Client intake contract** — the frozen `ClientIntake` public surface: closed
+  intake vocabularies, accountant and client commands and safe projections, and
+  the declared persistence, content-store, and credential-source ports. **Every
+  workflow constructor and method throws `NotImplementedException`**; no intake
+  route, backend, or content adapter ships.
 
 ## Deliberately not shipped
 
 - No second taxpayer-data screen or taxpayer listing ships.
-- No document upload ships.
+- No document upload ships. The `ClientIntake` contract is declared and
+  deliberately unimplemented: no intake route, workflow body, relational intake
+  table, or encrypted content adapter ships.
+- No interactive Blazor component ships. Interactive Server support is registered
+  for a later approved task, but no component opts in, so nothing renders over a
+  circuit.
 - No OCR or LLM adapter ships.
 - No production deployment configuration ships.
 - No production provisioning ships for a firm, user, membership, or
@@ -85,15 +100,19 @@ src/
   DocumentExtraction/             Untrusted-extraction contract
   CaseProcessing/                 Deterministic T4 processing coordinator
   CaseReview/                     Accountant review package and sign-off
+  ClientIntake/                   Client intake contract (frozen; no implementation)
   Tenancy/                        Trusted-firm, session, projection, retention ports
   Persistence/                    EF Core model, migrations, and SQL adapters
   TaxAI.Portal/                   ASP.NET Core host and composition root
+    Components/                   Blazor Web App foundation and the review screen
+    wwwroot/                      Tracked local stylesheet
 tests/
   TaxLogicEngine.Tests/           xUnit suite
   TaxCases.Tests/                 xUnit suite
   DocumentExtraction.Tests/       xUnit suite
   CaseProcessing.Tests/           xUnit suite
   CaseReview.Tests/               xUnit suite
+  ClientIntake.Tests/             xUnit contract, omission, and boundary suite
   Tenancy.Tests/                  xUnit suite
   Persistence.Tests/              xUnit suite
   TaxAI.Portal.Tests/             xUnit in-process host and boundary suite

@@ -152,18 +152,69 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         { "/sign-out", "POST" },
     };
 
-    [Fact] // spec 011 AC-127
+    /// <summary>
+    /// The framework's own endpoints, contributed by
+    /// <c>MapRazorComponents&lt;App&gt;().AddInteractiveServerRenderMode(...)</c>
+    /// in spec 014 T01. This project declares none of them and no component uses
+    /// them: nothing in the portal is interactive, so the circuit has no component
+    /// to run and no taxpayer model to carry.
+    /// <para>
+    /// They are enumerated exactly rather than filtered out by prefix. A pattern
+    /// match on <c>/_</c> would have let any future framework endpoint in
+    /// silently, and the point of this inventory is that every reachable path on a
+    /// taxpayer-data host is named in one place.
+    /// </para>
+    /// <para>
+    /// There is deliberately <b>no catch-all</b> here. <c>MapStaticAssets()</c>
+    /// would have added <c>{**path:file}</c> over the whole URL space, which turns
+    /// every POST-only route's <c>405</c> into a <c>404</c>; the host uses
+    /// static-file middleware instead, which adds no endpoint at all.
+    /// </para>
+    /// </summary>
+    private static readonly string[] FrameworkComponentEndpoints =
+    {
+        "/_blazor",
+        "/_blazor/disconnect/",
+        "/_blazor/initializers/",
+        "/_blazor/negotiate",
+        "/_framework/opaque-redirect",
+    };
+
+    [Fact] // spec 011 AC-127, spec 014 AC-89
     public void TheHostMapsExactlyTheApprovedRoutes()
     {
         Assert.Equal(
             RouteInventory()
                 .Select(row => (string)row[0]!)
+                .Concat(FrameworkComponentEndpoints)
                 .OrderBy(pattern => pattern, StringComparer.Ordinal)
                 .ToArray(),
             MappedRouteEndpoints()
                 .Select(endpoint => endpoint.RoutePattern.RawText!)
                 .OrderBy(pattern => pattern, StringComparer.Ordinal)
                 .ToArray());
+    }
+
+    [Fact] // spec 014 AC-89
+    public void TheHostMapsNoCatchAllAndNoRoutableComponentPage()
+    {
+        // A catch-all is how a static-asset or component-router mapping quietly
+        // takes over the URL space and changes refusal behaviour everywhere else.
+        // No component in this project declares @page, so the component router
+        // contributes no page route either.
+        foreach (var endpoint in MappedRouteEndpoints())
+        {
+            Assert.DoesNotContain(
+                "**",
+                endpoint.RoutePattern.RawText!,
+                StringComparison.Ordinal);
+        }
+
+        // And every static asset is served by middleware, so no asset is an
+        // endpoint.
+        Assert.DoesNotContain(
+            MappedRouteEndpoints(),
+            endpoint => endpoint.RoutePattern.RawText!.EndsWith(".css", StringComparison.Ordinal));
     }
 
     [Theory] // spec 011 AC-127
@@ -187,8 +238,11 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [Fact] // spec 011 AC-128
     public void OnlyTheReviewRouteTakesTheOpaqueRecordSelector()
     {
+        // Scoped to this application's own routes. The framework's component
+        // endpoints are enumerated separately and are asserted parameterless below,
+        // which is stronger than letting them widen this search.
         var parameterized = Assert.Single(
-            MappedRouteEndpoints(),
+            ApplicationRouteEndpoints(),
             endpoint => endpoint.RoutePattern.Parameters.Count > 0);
         var parameter = Assert.Single(parameterized.RoutePattern.Parameters);
 
@@ -197,6 +251,28 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(
             new[] { "guid" },
             parameter.ParameterPolicies.Select(policy => policy.Content));
+    }
+
+    [Fact] // spec 014 AC-89
+    public void TheFrameworkComponentEndpointsAreParameterlessAndCarryNoTaxpayerPath()
+    {
+        // They exist because Interactive Server is registered for a later task.
+        // None takes a route parameter, so none can carry a firm, case, record, or
+        // taxpayer selector, and none is a taxpayer-data surface today: no
+        // component in this project is interactive, so the circuit has nothing to
+        // render.
+        var framework = MappedRouteEndpoints()
+            .Where(endpoint => FrameworkComponentEndpoints.Contains(
+                endpoint.RoutePattern.RawText!,
+                StringComparer.Ordinal))
+            .ToArray();
+
+        Assert.Equal(FrameworkComponentEndpoints.Length, framework.Length);
+
+        foreach (var endpoint in framework)
+        {
+            Assert.Empty(endpoint.RoutePattern.Parameters);
+        }
     }
 
     [Theory] // spec 011 AC-128, AC-129
@@ -231,7 +307,7 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         // is public by decision.
         var anonymous = new[] { "/", "/health", "/sign-in" };
 
-        foreach (var endpoint in MappedRouteEndpoints())
+        foreach (var endpoint in ApplicationRouteEndpoints())
         {
             var pattern = endpoint.RoutePattern.RawText!;
             var allowsAnonymous = endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null;
@@ -287,4 +363,16 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
             .OfType<RouteEndpoint>()
             .ToArray();
     }
+
+    /// <summary>
+    /// This application's own routes: the complete inventory minus the exactly
+    /// enumerated framework component endpoints. Subtracting a named set rather
+    /// than filtering a prefix keeps the framework surface pinned too.
+    /// </summary>
+    private RouteEndpoint[] ApplicationRouteEndpoints() =>
+        MappedRouteEndpoints()
+            .Where(endpoint => !FrameworkComponentEndpoints.Contains(
+                endpoint.RoutePattern.RawText!,
+                StringComparer.Ordinal))
+            .ToArray();
 }

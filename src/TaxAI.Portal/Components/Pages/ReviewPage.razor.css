@@ -1,0 +1,134 @@
+/* Component-scoped styles for the review screen.
+
+   This is the rest of the stylesheet ReviewEndpoints.cs used to assemble inline
+   with a StringBuilder. The framework compiles it into the local
+   TaxAI.Portal.styles.css bundle; no endpoint emits a style block at runtime and
+   nothing here issues a third-party request. */
+
+.topline {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.summary,
+.slip {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    box-shadow: 0 0.4rem 1.4rem rgba(23, 32, 42, 0.06);
+}
+
+.summary {
+    display: flex;
+    gap: 2rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.summary div {
+    min-width: 8rem;
+}
+
+.summary dt {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.summary dd {
+    font-size: 1.35rem;
+    font-weight: 750;
+    margin: 0;
+}
+
+.slip {
+    padding: 1.4rem;
+    margin: 1rem 0 1.5rem;
+}
+
+.identity {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.identity div {
+    border-left: 0.25rem solid var(--accent);
+    padding-left: 0.75rem;
+}
+
+.label {
+    display: block;
+    color: var(--muted);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.4rem 0 1rem;
+}
+
+th,
+td {
+    border-bottom: 1px solid var(--line);
+    padding: 0.65rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+th {
+    background: #edf4f6;
+    font-size: 0.88rem;
+}
+
+.amount {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.codes li {
+    background: #edf4f6;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+}
+
+.empty {
+    background: var(--warn);
+    border-radius: 0.6rem;
+    padding: 0.75rem 1rem;
+    color: #5f4b12;
+}
+
+@media (max-width: 40rem) {
+    .summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .slip {
+        padding: 1rem;
+    }
+
+    th,
+    td {
+        padding: 0.5rem;
+    }
+}

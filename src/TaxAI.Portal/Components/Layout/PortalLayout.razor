@@ -1,0 +1,16 @@
+@* The shared document chrome, as a reusable component rather than appended
+   markup.
+
+   This is the part of the page every screen has in common: the brand line and the
+   main landmark. It carries no @rendermode, so it stays statically server
+   rendered, and it injects nothing — a layout with a repository is an
+   authorization boundary nobody reads as one.
+
+   It binds no data of any kind. The only text here is the fixed TaxAI brand. *@
+
+@inherits LayoutComponentBase
+
+<main>
+    <p class="brand">TaxAI</p>
+    @Body
+</main>

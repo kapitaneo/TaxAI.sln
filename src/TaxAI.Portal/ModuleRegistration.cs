@@ -75,6 +75,21 @@ internal static class ModuleRegistration
         services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
         services.AddSingleton<T4CaseProcessor>();
 
+        // The Blazor Web App foundation, framework-provided and nothing more.
+        //
+        // Static server rendering is the default because no component declares a
+        // render mode and no global mode is applied here. Interactive Server
+        // support is registered so a later task's one adaptive questionnaire
+        // island can opt in per component; registering the capability is not the
+        // same as turning it on, and today nothing uses it.
+        //
+        // DetailedErrors stays false in every environment. A circuit error that
+        // describes itself is a disclosure surface, and this host's whole
+        // diagnostic posture is one fixed response.
+        services
+            .AddRazorComponents()
+            .AddInteractiveServerComponents(options => options.DetailedErrors = false);
+
         services.AddTaxAiPersistence(databaseConnectionString);
         services.AddPortalIdentity(configuration, environment);
 

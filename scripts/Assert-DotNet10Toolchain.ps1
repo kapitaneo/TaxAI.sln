@@ -27,9 +27,16 @@ function Normalize-Path {
     $Path.Replace('\', '/')
 }
 
+# The registry every project must be listed in to exist. A new module is
+# registered here in the same PR that introduces it — spec 014 T01 added the two
+# ClientIntake entries below. This list stays closed on purpose: an unregistered
+# project file is a project nobody validated. Registering is additive and weakens
+# nothing; the per-project net10.0, TargetFrameworks, xunit.v3, and test-package
+# checks below apply to every entry.
 $approvedProjects = @(
     'src/CaseProcessing/CaseProcessing.csproj'
     'src/CaseReview/CaseReview.csproj'
+    'src/ClientIntake/ClientIntake.csproj'
     'src/DocumentExtraction/DocumentExtraction.csproj'
     'src/Persistence/Persistence.csproj'
     'src/TaxAI.Portal/TaxAI.Portal.csproj'
@@ -38,6 +45,7 @@ $approvedProjects = @(
     'src/Tenancy/Tenancy.csproj'
     'tests/CaseProcessing.Tests/CaseProcessing.Tests.csproj'
     'tests/CaseReview.Tests/CaseReview.Tests.csproj'
+    'tests/ClientIntake.Tests/ClientIntake.Tests.csproj'
     'tests/DocumentExtraction.Tests/DocumentExtraction.Tests.csproj'
     'tests/Persistence.Tests/Persistence.Tests.csproj'
     'tests/TaxAI.Portal.Tests/TaxAI.Portal.Tests.csproj'

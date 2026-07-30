@@ -42,7 +42,26 @@ public sealed class PortalBoundaryTests
         "PortalStartupGuards.cs",
         "Program.cs",
         "ReviewEndpoints.cs",
+        "ReviewPageModel.cs",
         "SessionTicketStore.cs",
+    };
+
+    /// <summary>
+    /// The portal's complete Razor component set, spec 014 T01.
+    /// <para>
+    /// Named rather than counted, and asserted exactly: a component that is not on
+    /// this list is a screen nobody approved. The <c>.cs</c> scans above cannot see
+    /// <c>.razor</c> files, so without this list every component would be exempt
+    /// from every boundary rule in this class.
+    /// </para>
+    /// </summary>
+    private static readonly string[] ExpectedComponentFiles =
+    {
+        "App.razor",
+        "PortalLayout.razor",
+        "ReviewPage.razor",
+        "Routes.razor",
+        "_Imports.razor",
     };
 
     /// <summary>
@@ -191,15 +210,23 @@ public sealed class PortalBoundaryTests
         // registration; it is enumerated rather than special-cased so nothing is
         // silently exempt. AddTaxAiModules is the single call into the
         // composition root.
-        { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
+        // AddInteractiveServerRenderMode is the endpoint-side half of the spec 014
+        // Blazor foundation. It is enumerated here rather than exempted, so the
+        // one place interactivity could be switched on is a place this test names.
+        {
+            "Program.cs",
+            new[] { "AddInteractiveServerRenderMode", "AddServerHeader", "AddTaxAiModules" }
+        },
         { "FirmEndpoints.cs", new[] { "AddClaim" } },
         {
             "ModuleRegistration.cs",
             new[]
             {
                 "AddAntiforgery",
+                "AddInteractiveServerComponents",
                 "AddPolicy",
                 "AddPortalIdentity",
+                "AddRazorComponents",
                 "AddScoped",
                 "AddSingleton",
                 "AddTaxAiModules",
@@ -210,6 +237,10 @@ public sealed class PortalBoundaryTests
         { "PortalContent.cs", Array.Empty<string>() },
         { "PortalStartupGuards.cs", Array.Empty<string>() },
         { "ReviewEndpoints.cs", Array.Empty<string>() },
+
+        // The review page model is data only: it registers nothing and reaches
+        // nothing.
+        { "ReviewPageModel.cs", Array.Empty<string>() },
 
         // The host's own contributing module. AddClaim is the framework's
         // ClaimsIdentity method rather than a registration; it is enumerated
@@ -239,8 +270,13 @@ public sealed class PortalBoundaryTests
     [MemberData(nameof(ApprovedRegistrationTokens))]
     public void EveryRegistrationTokenIsApprovedForItsFile(string file, string[] approved)
     {
-        var path = Path.Combine(PortalRoot, file);
-        Assert.True(File.Exists(path), $"{path} must exist.");
+        // Looked up by name across the tree rather than assumed to sit at the
+        // project root: spec 014 put ReviewPageModel.cs under Components/Pages, and
+        // the allow-list is keyed by file name so it stays comparable to
+        // ExpectedProductionFiles.
+        var path = Assert.Single(
+            ProductionSourceFiles(),
+            candidate => Path.GetFileName(candidate) == file);
 
         var used = RegistrationVerb
             .Matches(string.Join("\n", ExecutableLines(path)))
@@ -282,6 +318,8 @@ public sealed class PortalBoundaryTests
             .Where(token => token is not (
                 "AddAntiforgery" or
                 "AddPolicy" or
+                "AddRazorComponents" or
+                "AddInteractiveServerComponents" or
                 "AddSingleton" or
                 "AddScoped" or
                 "AddTransient" or
@@ -290,8 +328,14 @@ public sealed class PortalBoundaryTests
             .OrderBy(token => token, StringComparer.Ordinal)
             .ToArray();
 
-        // Two contributors, two extensions: the storage module, and this host's
-        // own identity wiring. Replaces spec 011 T17's single-entry assertion.
+        // Two contributing modules, two extensions: the storage module, and this
+        // host's own identity wiring. Replaces spec 011 T17's single-entry
+        // assertion.
+        //
+        // AddRazorComponents and AddInteractiveServerComponents are excluded above
+        // because they are framework builder calls, not a contributing module's
+        // entry point — the same reason AddAntiforgery and AddPolicy are excluded.
+        // They are still pinned exactly, by the per-file allow-list.
         Assert.Equal(new[] { "AddPortalIdentity", "AddTaxAiPersistence" }, moduleExtensions);
 
         // Each of those extensions is declared exactly once, by the module that
@@ -461,6 +505,210 @@ public sealed class PortalBoundaryTests
         }
     }
 
+    // --------------------- spec 014 AC-90, AC-91, AC-96, AC-98: the components
+
+    [Fact]
+    public void TheComponentSetIsExactlyTheApprovedFive() // AC-90
+    {
+        Assert.Equal(
+            ExpectedComponentFiles,
+            ComponentFiles()
+                .Select(Path.GetFileName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact]
+    public void NoComponentDeclaresARenderModeAndNoGlobalModeIsApplied() // AC-90
+    {
+        // Static server rendering is the default precisely because nothing opts
+        // out. A @rendermode on App, Routes, or the layout would make the whole
+        // tree interactive at once, and a read-only taxpayer page would silently
+        // become a circuit surface.
+        foreach (var component in ComponentFiles())
+        {
+            Assert.DoesNotContain(
+                "@rendermode",
+                ComponentMarkup(component),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The endpoint-side registration exists, but it is not applied globally:
+        // AddInteractiveServerRenderMode configures the mode that a component may
+        // later request, and `.razor` files requesting it are none.
+        var program = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "Program.cs")));
+
+        Assert.Contains("AddInteractiveServerRenderMode", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("RenderMode.InteractiveServer", program, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddInteractiveWebAssembly", program, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OnlyTheReviewPageIsATaxpayerScreenAndItIsNotRoutable() // AC-90, AC-91
+    {
+        // The review screen is reached only through its authorization-gated minimal
+        // endpoint. A @page directive would put it in the component router, where
+        // the safe-404 and R-1 decisions no longer precede rendering.
+        foreach (var component in ComponentFiles())
+        {
+            Assert.DoesNotContain(
+                "@page",
+                ComponentMarkup(component),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        var review = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ReviewEndpoints.cs")));
+
+        Assert.Contains("RazorComponentResult<ReviewPage>", review, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoEndpointAssemblesScreenMarkupOrAnInlineStylesheet() // AC-91, AC-98
+    {
+        // The migration's whole point. The renderer, its StringBuilder, its
+        // appended markup, and its inline <style> block are gone; the fixed empty
+        // 404, fixed error, and constant shell/health writers are untouched.
+        var review = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ReviewEndpoints.cs")));
+
+        foreach (var removed in new[]
+                 {
+                     "StringBuilder",
+                     "<style",
+                     "<!DOCTYPE",
+                     "AppendEncoded",
+                     "HtmlEncoder",
+                     "<table",
+                     "<article",
+                 })
+        {
+            Assert.DoesNotContain(removed, review, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // And exactly one production file still assembles markup: FirmEndpoints,
+        // whose firm-selection page predates spec 014 and is not one of the screens
+        // AC-91 enumerates. It is named here rather than exempted by silence, so a
+        // second markup assembler cannot appear without failing this test.
+        Assert.Equal(
+            new[] { "FirmEndpoints.cs" },
+            ProductionSourceFiles()
+                .Where(path => string.Join("\n", ExecutableLines(path))
+                    .Contains("StringBuilder", StringComparison.Ordinal))
+                .Select(Path.GetFileName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact]
+    public void EveryComponentIsPresentationOnly() // AC-96
+    {
+        // A component may accept typed parameters and encode them. It may not be a
+        // repository, a route handler, or an authorization boundary. @inject is the
+        // token that would make it one.
+        foreach (var component in ComponentFiles())
+        {
+            var executable = ComponentMarkup(component);
+
+            foreach (var forbidden in new[]
+                     {
+                         "@inject",
+                         "IReviewRecordRepository",
+                         "IIntakeStore",
+                         "IIntakeContentStore",
+                         "IIntakeSecretSource",
+                         "IAccountantIntakeWorkflow",
+                         "IClientIntakeWorkflow",
+                         "PortalAuthorization",
+                         "TrustedFirmId",
+                         "PersistedReviewRecord",
+                         "DbContext",
+                         "HttpContext",
+                         "T4CaseProcessor",
+                         "T4SlipParser",
+                         "T4LineMapper",
+                         "AccountantReviewPackage",
+                         "OnInitializedAsync",
+                         "decimal",
+                     })
+            {
+                Assert.DoesNotContain(forbidden, executable, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void NoComponentOrStylesheetIssuesAThirdPartyRequest() // AC-98
+    {
+        // Every asset is local and tracked in this repository. A remote script,
+        // stylesheet, font, or image would be a third party inside a taxpayer-data
+        // response.
+        var assets = ComponentFiles()
+            .Concat(StylesheetFiles())
+            .ToArray();
+
+        Assert.NotEmpty(assets);
+
+        foreach (var asset in assets)
+        {
+            var text = File.ReadAllText(asset);
+
+            foreach (var forbidden in new[]
+                     {
+                         "http://",
+                         "https://",
+                         "//cdn",
+                         "@import url(",
+                         "integrity=",
+                         "crossorigin",
+                     })
+            {
+                Assert.DoesNotContain(forbidden, text, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    [Fact]
+    public void TheReusableStylesLiveInTrackedLocalOrScopedCssOnly() // AC-98
+    {
+        Assert.Equal(
+            new[] { "PortalLayout.razor.css", "ReviewPage.razor.css", "portal.css" },
+            StylesheetFiles()
+                .Select(Path.GetFileName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact]
+    public void TheHostAddsNoWebAssemblySpaOrNpmDependency() // AC-89
+    {
+        var projectText = File.ReadAllText(Path.Combine(PortalRoot, "TaxAI.Portal.csproj"));
+
+        foreach (var forbidden in new[]
+                 {
+                     "WebAssembly",
+                     "Microsoft.AspNetCore.Components.WebAssembly",
+                     "SpaProxy",
+                     "Microsoft.TypeScript",
+                     "NodeServices",
+                 })
+        {
+            Assert.DoesNotContain(forbidden, projectText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // No npm tree, and no second client build.
+        foreach (var forbidden in new[] { "package.json", "package-lock.json", "node_modules" })
+        {
+            Assert.False(
+                Directory.EnumerateFileSystemEntries(PortalRoot, forbidden, SearchOption.AllDirectories).Any(),
+                $"{forbidden} must not exist in the portal.");
+        }
+    }
+
     // -------------------------------------------------------------- guards
 
     [Fact]
@@ -512,6 +760,44 @@ public sealed class PortalBoundaryTests
     private static string[] ProductionSourceFiles() =>
         HandwrittenSourceFiles(PortalRoot).OrderBy(path => path, StringComparer.Ordinal).ToArray();
 
+    private static string[] ComponentFiles() =>
+        HandwrittenFiles(PortalRoot, "*.razor").OrderBy(path => path, StringComparer.Ordinal).ToArray();
+
+    /// <summary>
+    /// A component's executable markup, with Razor <c>@* … *@</c> comments removed
+    /// as well as C# ones.
+    /// <para>
+    /// The components legitimately document why they carry no <c>@page</c> and no
+    /// <c>@rendermode</c>. Scanning raw text would make those comments unwritable —
+    /// exactly the problem the C# comment filter already solves for <c>.cs</c>
+    /// files.
+    /// </para>
+    /// </summary>
+    private static string ComponentMarkup(string path) =>
+        string.Join(
+            "\n",
+            ExecutableLines(
+                RazorComment.Replace(File.ReadAllText(path), string.Empty)
+                    .Split('\n')));
+
+    private static readonly Regex RazorComment = new(
+        @"@\*.*?\*@",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(2));
+
+    private static IEnumerable<string> ExecutableLines(IEnumerable<string> lines) =>
+        lines
+            .Select(line => line.Trim())
+            .Where(line =>
+                line.Length > 0 &&
+                !line.StartsWith("///", StringComparison.Ordinal) &&
+                !line.StartsWith("//", StringComparison.Ordinal) &&
+                !line.StartsWith("*", StringComparison.Ordinal) &&
+                !line.StartsWith("/*", StringComparison.Ordinal));
+
+    private static string[] StylesheetFiles() =>
+        HandwrittenFiles(PortalRoot, "*.css").OrderBy(path => path, StringComparer.Ordinal).ToArray();
+
     private static string[] ModuleSourceFiles(string module) =>
         HandwrittenSourceFiles(Path.Combine(RepositoryRoot, "src", module))
             .OrderBy(path => path, StringComparer.Ordinal)
@@ -529,7 +815,10 @@ public sealed class PortalBoundaryTests
             .ToArray();
 
     private static IEnumerable<string> HandwrittenSourceFiles(string root) =>
-        Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
+        HandwrittenFiles(root, "*.cs");
+
+    private static IEnumerable<string> HandwrittenFiles(string root, string pattern) =>
+        Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
             .Where(path =>
                 !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
                 !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));

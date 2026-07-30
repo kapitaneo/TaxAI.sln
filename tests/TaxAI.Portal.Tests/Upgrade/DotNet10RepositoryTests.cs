@@ -26,6 +26,8 @@ public sealed class DotNet10RepositoryTests
         "tests/TaxCases.Tests/TaxCases.Tests.csproj",
         "tests/TaxLogicEngine.Tests/TaxLogicEngine.Tests.csproj",
         "tests/Tenancy.Tests/Tenancy.Tests.csproj",
+        "src/ClientIntake/ClientIntake.csproj",
+        "tests/ClientIntake.Tests/ClientIntake.Tests.csproj",
     ];
 
     private static readonly Dictionary<string, string> TestPackageVersions =
@@ -52,10 +54,22 @@ public sealed class DotNet10RepositoryTests
                     StringComparison.Ordinal));
         }
 
-        Assert.DoesNotContain(
-            solutionProjects,
-            actual => !ApprovedProjects.Contains(actual, StringComparer.Ordinal));
-
+        // Deliberately NOT a closed set over the solution.
+        //
+        // The assertion that used to stand here — "no solution project is outside
+        // ApprovedProjects" — is a total project-count assertion in another shape,
+        // and the root CLAUDE.md forbids it: "never that they are the only projects
+        // in the solution. A total count freezes the solution against every future
+        // module." It did exactly that, blocking spec 014's Wave 0 the moment the
+        // ClientIntake projects were declared, which is the same failure mode that
+        // blocked spec 007's Wave 0 and required PR #66 to unpick.
+        //
+        // Presence and uniqueness is what this test needs and all it needs: every
+        // approved project is declared exactly once, at its approved path, with the
+        // approved framework and package matrix. Nothing below is weakened — each
+        // project is still checked individually, and a new project that fails to
+        // meet the net10 contract still has to be added to ApprovedProjects, in a
+        // diff, to be checked at all.
         foreach (var projectPath in ApprovedProjects)
         {
             var project = XDocument.Load(

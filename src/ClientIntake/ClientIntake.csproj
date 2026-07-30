@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Exactly three, and all inward. TaxCases is the sole case/readiness
+       authority, Tenancy owns the trusted-firm and immutable-review boundary,
+       and TaxLogicEngine is named only for the existing ParseResult/
+       ValidationError result vocabulary used while replaying a TaxCase.
+       Deliberately absent: Persistence, TaxAI.Portal, CaseReview,
+       CaseProcessing, DocumentExtraction, and every EF/ASP.NET/cloud package. -->
+  <ItemGroup>
+    <ProjectReference Include="..\TaxCases\TaxCases.csproj" />
+    <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
+    <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
+  </ItemGroup>
+
+</Project>

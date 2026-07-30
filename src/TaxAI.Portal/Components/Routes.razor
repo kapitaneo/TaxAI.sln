@@ -1,0 +1,20 @@
+@* The component router.
+
+   It deliberately declares no @rendermode, so anything it reaches is statically
+   server-rendered.
+
+   The review screen is NOT reached through this router. `ReviewEndpoints` returns
+   `RazorComponentResult<ReviewPage>` from a minimal endpoint that has already
+   authenticated the caller, revalidated the membership, and resolved the trusted
+   firm. Routing a taxpayer page here instead would move the safe-404 and
+   authorization decisions into component discovery, and a refused request could
+   render a partial page before the refusal was reached. `ReviewPage` therefore
+   carries no @page directive at all.
+
+   `AppAssembly` is this assembly, so no other assembly can contribute a route. *@
+
+<Router AppAssembly="@typeof(Routes).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(PortalLayout)" />
+    </Found>
+</Router>

@@ -1,0 +1,13 @@
+@* The component tree's shared using set.
+
+   Deliberately narrow. It brings in the framework's component primitives and
+   this project's own page models, and nothing else. In particular it does NOT
+   import Tenancy, Persistence, or any repository, authorization, or tax-domain
+   namespace: components are presentation-only, and a namespace a component
+   cannot see is a dependency it cannot acquire by autocomplete. *@
+
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using TaxAI.Portal.Components.Layout
+@using TaxAI.Portal.Components.Pages

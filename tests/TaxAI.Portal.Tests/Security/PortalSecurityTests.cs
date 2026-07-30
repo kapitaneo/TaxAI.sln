@@ -48,6 +48,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "PortalStartupGuards.cs",
         "Program.cs",
         "ReviewEndpoints.cs",
+        "ReviewPageModel.cs",
         "SessionTicketStore.cs",
     };
 
@@ -538,9 +539,12 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         { "OCR / LLM / cloud / email", @"\bOcr\b|\bTesseract\b|\bOpenAi\b|\bAnthropic\b|\bLlm\b|\bSmtp\b|\bMailMessage\b|\bAmazon\b|\bAzure\b|\bS3\b" },
         { "background work", @"\bAddHostedService\b|\bBackgroundService\b|\bIHostedService\b|\bTimer\b" },
 
-        // Still absolute. A host that serves files is a host that can serve the
-        // wrong one, and this project serves compile-time constants only.
-        { "static files", @"\bUseStaticFiles\b|\bwwwroot\b|\bStaticFileOptions\b|\bPhysicalFileProvider\b" },
+        // The file-serving surface is no longer nil, so it is pinned instead of
+        // forbidden — see TheStaticFileSurfaceIsExactlyTheTrackedStylesheets below.
+        // What stays absolute is the ability to point the file server somewhere
+        // else or to compose a path: a host that can build a file path is a host
+        // that can serve the wrong file.
+        { "file provider or serving option", @"\bStaticFileOptions\b|\bPhysicalFileProvider\b|\bFileExtensionContentTypeProvider\b|\bDirectoryBrowser\b|\bSendFileAsync\b|\bUseFileServer\b|\bUseDirectoryBrowser\b" },
     };
 
     [Theory] // supports AC-40's posture at source level
@@ -712,6 +716,61 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         }
     }
 
+    /// <summary>
+    /// Spec 014 T01 — replaces spec 010's absolute "no static files at all".
+    /// <para>
+    /// The review screen's stylesheet is no longer assembled inline, so two tracked
+    /// CSS files have to be reachable. This is a tighter rule than deleting the old
+    /// one: the file server is named to exactly one call in exactly one file, with
+    /// no options object, no alternate provider, and no composed path — and the web
+    /// root's contents are pinned separately.
+    /// </para>
+    /// <para>
+    /// <c>MapStaticAssets()</c> is specifically refused. It registers a
+    /// <c>{**path:file}</c> catch-all endpoint over the whole URL space, which turns
+    /// every POST-only route's <c>405</c> into a <c>404</c> and adds an endpoint in
+    /// the "neither anonymous nor authorization-required" third state spec 011
+    /// forbids.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheStaticFileSurfaceIsExactlyTheTrackedStylesheets()
+    {
+        var callers = ProductionSourceFiles()
+            .Where(path => Regex.IsMatch(
+                string.Join("\n", ExecutableLines(path)),
+                @"\bUseStaticFiles\b",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            .Select(Path.GetFileName)
+            .ToArray();
+
+        Assert.Equal(new[] { "Program.cs" }, callers);
+
+        var program = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "Program.cs")));
+
+        // Parameterless: no options, no provider, no alternate request path.
+        Assert.Contains("app.UseStaticFiles();", program, StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            Regex.Matches(
+                program,
+                @"\bUseStaticFiles\b",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)).Count);
+
+        // And the endpoint-routing variant is refused outright.
+        foreach (var file in ProductionSourceFiles())
+        {
+            Assert.DoesNotContain(
+                "MapStaticAssets",
+                string.Join("\n", ExecutableLines(file)),
+                StringComparison.Ordinal);
+        }
+    }
+
     // ------------------------------------------- AC-42: no client-side stack
 
     [Fact]
@@ -741,9 +800,39 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             Directory.Exists(Path.Combine(RepositoryRoot, "node_modules")),
             "node_modules must not exist.");
 
-        Assert.False(
-            Directory.Exists(Path.Combine(PortalRoot, "wwwroot")),
-            "wwwroot must not exist: the portal serves constants, not files.");
+        // Spec 014 T01 replaced the review screen's inline assembled stylesheet
+        // with tracked CSS, so wwwroot now exists. The spec 010 rule that it must
+        // not exist is superseded by an exact-contents rule, which is strictly
+        // stronger than the blanket absence it replaces would be if merely
+        // relaxed: it still forbids every client-side stack the old rule forbade —
+        // no script of any kind, no bundle, no map, no npm artifact — and
+        // additionally names the only two files that may be there.
+        var webRoot = Path.Combine(PortalRoot, "wwwroot");
+
+        Assert.True(Directory.Exists(webRoot), "wwwroot must exist and hold only the tracked stylesheet.");
+
+        Assert.Equal(
+            new[] { "portal.css" },
+            Directory.EnumerateFiles(webRoot, "*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(webRoot, path))
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact]
+    public void ThePortalShipsNoHandwrittenJavaScript() // AC-42, spec 014 AC-89
+    {
+        // The web root and the component tree carry no script this repository
+        // wrote. blazor.web.js comes from the shared framework and is referenced by
+        // App.razor, which the review endpoint does not use; there is no bundle,
+        // no module, and no inline handler.
+        var offending = Directory
+            .EnumerateFiles(PortalRoot, "*.js", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .Select(path => Path.GetRelativePath(RepositoryRoot, path))
+            .ToArray();
+
+        Assert.True(offending.Length == 0, $"Handwritten JavaScript found: {string.Join(", ", offending)}");
     }
 
     // -------------------------------------------------------------- guard
