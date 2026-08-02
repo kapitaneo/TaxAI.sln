@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using TaxAI.Portal;
+using TaxAI.Portal.Components;
 using Tenancy.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -85,9 +86,25 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
-// Server-rendered constant content: no view engine, no static-file middleware,
-// no wwwroot, and no external asset. The shell truthfully points authenticated
-// accountants at the one read-only capability and binds no data of any kind.
+// The tracked local stylesheets, and nothing else. Spec 014 replaced the review
+// screen's inline assembled <style> block with component-scoped and global CSS,
+// so those two files have to be reachable. Every asset is local and tracked in
+// this repository: there is no CDN, remote font, remote image, or third-party
+// request anywhere in this application.
+//
+// Middleware, deliberately NOT MapStaticAssets(). The endpoint-routing version
+// registers a `{**path:file}` catch-all over the entire URL space, and that
+// silently changes this host's refusal behaviour: every POST-only route starts
+// answering GET with 404 instead of 405, because the catch-all matches the path
+// before method selection can reject it. It also adds an endpoint that is neither
+// explicitly anonymous nor authorization-required, which is the third state spec
+// 011 forbids. Middleware serves the same two files and adds no route at all, so
+// the host's endpoint inventory stays exact and closed.
+app.UseStaticFiles();
+
+// Server-rendered constant content: no view engine and no data binding. The shell
+// truthfully points authenticated accountants at the one read-only capability and
+// binds no data of any kind. Its body is byte-identical to spec 010's.
 //
 // Anonymous, and explicitly so. An endpoint that is anonymous because nobody
 // remembered to protect it looks exactly like one that is anonymous by
@@ -117,9 +134,25 @@ app.MapGet(
 // allowed to run while the durable session has no active firm.
 FirmEndpoints.Map(app);
 
+// The Blazor Web App endpoint. Static server rendering only.
+//
+// No component in this project declares a @page directive, so this contributes no
+// routable page — and with no interactive render mode configured, no circuit
+// endpoint either. It adds no route at all today. It is the framework handle the
+// component model is mounted on; the review screen reaches its component through
+// RazorComponentResult from its own authorization-gated endpoint.
+//
+// Deliberately NOT .AddInteractiveServerRenderMode(). That call is what
+// materializes the /_blazor SignalR endpoints, and nothing in this project is
+// interactive, so they would expand this taxpayer-data host's endpoint surface
+// while providing no current functionality. Spec 014 T03 adds it together with
+// the first interactive island that needs it.
+app.MapRazorComponents<App>();
+
 // The portal's one taxpayer-data surface. Authorization revalidates the local
 // user and active memberships before this endpoint can obtain the trusted firm;
-// the handler then uses only Tenancy's already-firm-scoped read contract.
+// the handler then uses only Tenancy's already-firm-scoped read contract, and
+// returns a statically server-rendered component rather than assembled markup.
 ReviewEndpoints.Map(app);
 
 // Sign-out revokes the server-side session and clears the cookie, in that

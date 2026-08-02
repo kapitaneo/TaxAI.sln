@@ -61,6 +61,15 @@ the same PR that introduces it, or the gate fails on it by design.
   ingestion contract between future OCR/LLM adapters and the tax domain.
 - **`src/CaseProcessing/`** — the deterministic T4 case processor.
 - **`src/CaseReview/`** — the deterministic accountant review package.
+- **`src/ClientIntake/`** — the **frozen contract** for the spec 014 client
+  intake and document-upload workflow: closed intake vocabularies, accountant and
+  client commands and safe projections, and the declared persistence,
+  content-store, and credential-source ports. Its production references are
+  exactly `TaxCases`, `Tenancy`, and `TaxLogicEngine`, and it declares no
+  package. **Every workflow constructor and method throws
+  `NotImplementedException`** — spec 014 T01 shipped the contract and no
+  behaviour. Its local `CLAUDE.md` owns the boundary, the token/scope rules, and
+  the no-SIN-by-omission rule.
 - **`src/Tenancy/`** — deterministic, provider-independent trusted-firm,
   persisted read-model, identity/session, projection, retention, purge-port, and
   validation contracts. Its production references are exactly `CaseReview` and
@@ -83,6 +92,8 @@ the same PR that introduces it, or the gate fails on it by design.
   end-to-end verification for Tax Case Core.
 - **`tests/DocumentExtraction.Tests/`**, **`tests/CaseProcessing.Tests/`**,
   **`tests/CaseReview.Tests/`** — the matching suites for those modules.
+- **`tests/ClientIntake.Tests/`** — contract, JSON-omission, and boundary
+  verification for the frozen intake surface.
 - **`tests/Tenancy.Tests/`**, **`tests/Persistence.Tests/`** — contract,
   boundary, model, service, relational, schema, and composition coverage for
   the two spec 011 modules.
@@ -334,6 +345,54 @@ security equivalence, pending-model check, and Release publish are recorded in
 This platform upgrade does not authorize production deployment. The same
 Canadian residency, Data Protection, secrets, TLS/exposure, operations,
 provisioning, and non-Development startup-refusal requirements remain in force.
+
+Spec 014 (Client Intake and Document Upload Flow) is **in progress**. T01 is
+complete and delivered two things:
+
+- **The frozen `ClientIntake` contract.** `src/ClientIntake/` declares the closed
+  intake vocabularies, the accountant/client commands and safe projections, the
+  `IIntakeStore`/`IIntakeContentStore`/`IIntakeCredentialSource` ports, and the two
+  workflow classes. **Every workflow constructor and method throws
+  `NotImplementedException`**, nothing in the portal resolves or invokes them, and
+  the module implements none of its own ports. `IIntakeStore` has exactly two
+  firm-omitting members — `FindLinkScopeAsync` and `FindClientScopeAsync` — and
+  each takes a keyed digest and *returns* trusted scope rather than accepting it.
+  `IIntakeContentStore` exposes **no read member**, which is what keeps the one
+  SIN-bearing raw-byte surface unreachable from any query, diagnostic, or URL.
+- **The Blazor Web App foundation and the review-screen migration.** The
+  portal's `Components/` tree holds `App`, `Routes`, `PortalLayout`, and
+  `ReviewPage`. `ReviewEndpoints.cs` keeps its route, policy, headers,
+  trusted-firm extraction, browser-safety guard, closed projection, invariant
+  amounts, collection order, single `FindAsync` call, and identical empty `404`;
+  only its `Render` method, `StringBuilder`, appended markup, and inline style
+  assembly are gone, replaced by `RazorComponentResult<ReviewPage>` with one
+  closed `ReviewPageModel`.
+
+**The foundation is static server rendering only.** No component declares
+`@rendermode`, no global mode is applied, and **Interactive Server is not
+registered at all** — neither `AddInteractiveServerComponents` nor
+`AddInteractiveServerRenderMode` appears in the host. No component is
+interactive, so a circuit would have provided no functionality while expanding a
+taxpayer-data host's endpoint surface; the four `/_blazor` SignalR endpoints
+therefore do not exist. `MapRazorComponents<App>()` contributes exactly one
+framework endpoint, `/_framework/opaque-redirect`. There is also no
+`blazor.web.js` reference: nothing needs bootstrapping.
+
+**Interactive Server registration belongs to spec 014 T03**, which introduces the
+first genuinely interactive island — the adaptive questionnaire and upload panel
+— and brings the registration and the client script with the component that
+needs them.
+
+**Static assets are served by `UseStaticFiles()` middleware, deliberately not
+`MapStaticAssets()`.** The endpoint-routing variant registers a
+`{**path:file}` catch-all over the whole URL space, which turns every POST-only
+route's `405` into a `404` and adds an endpoint in the "neither explicitly
+anonymous nor authorization-required" third state spec 011 forbids.
+
+T01 changed no production file under `Persistence` or `Tenancy`, no review or
+persistence public contract, no EF migration or model snapshot, and no database
+schema. **No intake route, workflow body, relational intake table, or content
+adapter ships**, and the deployment refusal and out-of-scope gates are unchanged.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

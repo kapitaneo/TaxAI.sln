@@ -212,27 +212,45 @@ later Persistence changes are attributable only to the new intake backend.
 
 ### Registration and render modes
 
-T01 adds the framework-provided Blazor Web App services and endpoints:
+T01 adds the framework-provided Blazor Web App services and endpoint, **for
+static server rendering only**:
 
 ```csharp
-services
-    .AddRazorComponents()
-    .AddInteractiveServerComponents(options => options.DetailedErrors = false);
+services.AddRazorComponents();
 
-app.MapRazorComponents<App>()
-   .AddInteractiveServerRenderMode(/* WebSocket compression disabled */);
+app.MapRazorComponents<App>();
 ```
 
-`App`, `Routes`, `HeadOutlet`, the shared document/layout component, local
-static assets, and `blazor.web.js` form one foundation. `App`, `Routes`, and
-the root layout have no render-mode directive. Static server rendering is
-therefore the default. There is no WebAssembly project/package, global
-interactive render mode, npm tree, remote script, remote font, or third-party
-asset.
+`App`, `Routes`, `HeadOutlet`, the shared document/layout component, and local
+static assets form one foundation. `App`, `Routes`, and the root layout have no
+render-mode directive. Static server rendering is therefore the default. There
+is no WebAssembly project/package, global interactive render mode, npm tree,
+remote script, remote font, or third-party asset.
+
+**[AMENDED — human decision, before T01 merge]** Interactive Server registration
+moved from T01 to **T03**. T01 originally called
+`AddInteractiveServerComponents` and `AddInteractiveServerRenderMode` so that
+T03's island could later opt in. That was reversed: no T01 component declares an
+interactive render mode, so the registration provided no current functionality
+while materializing four `/_blazor` SignalR endpoints on the host that serves
+taxpayer data. Registering a capability nothing uses is still surface.
+
+T03 therefore adds, in one diff: the first interactive island, the
+`AddInteractiveServerComponents(options => options.DetailedErrors = false)` and
+`AddInteractiveServerRenderMode(/* WebSocket compression disabled */)`
+registrations, and the `blazor.web.js` reference in `App`. Every constraint
+below on that island — presentation-only, closed local answer codes, no workflow
+or store call, authority only in antiforgery-protected POSTs, disabled
+compression, `DetailedErrors` false — is unchanged and now lands with the code it
+governs.
+
+After T01, `MapRazorComponents<App>()` contributes exactly one framework
+endpoint, `/_framework/opaque-redirect`; no `/_blazor` endpoint exists.
 
 The only `@rendermode InteractiveServer` island is the client questionnaire
 panel that reveals the applicable upload controls from closed local answer
-codes. It receives only the client browser allowlist. Its event handlers alter
+codes — **added in T03, along with the Interactive Server registration itself**.
+It receives only the client browser allowlist. Its event handlers alter
 component-local presentation state; they do not call a workflow or store.
 Every save, upload, and submit remains an explicit antiforgery-protected HTTP
 POST. Interactive Server WebSocket compression is disabled because the circuit
@@ -723,7 +741,7 @@ public interface IClientIntakeWorkflow
         CancellationToken cancellationToken);
 }
 
-public interface IIntakeSecretSource
+public interface IIntakeCredentialSource
 {
     Guid CreateIdentifier();
     IntakeSecret CreateCredential();
@@ -740,7 +758,7 @@ public sealed class AccountantIntakeWorkflow : IAccountantIntakeWorkflow
 {
     public AccountantIntakeWorkflow(
         IIntakeStore store,
-        IIntakeSecretSource secretSource,
+        IIntakeCredentialSource secretSource,
         IReviewRecordRepository reviewRecords,
         IntakeWorkflowOptions options);
 
@@ -752,7 +770,7 @@ public sealed class ClientIntakeWorkflow : IClientIntakeWorkflow
     public ClientIntakeWorkflow(
         IIntakeStore store,
         IIntakeContentStore contentStore,
-        IIntakeSecretSource secretSource,
+        IIntakeCredentialSource secretSource,
         IntakeWorkflowOptions options);
 
     // Implements every IClientIntakeWorkflow method exactly.
@@ -1234,13 +1252,14 @@ manifest floors; floors are never lowered.
 
 ## Migration sequence and compatibility
 
-1. T01 introduces the contract project/test project and Blazor infrastructure,
-   migrates review rendering, and proves zero Persistence/Tenancy/schema drift.
+1. T01 introduces the contract project/test project and the static-SSR-only
+   Blazor infrastructure, migrates review rendering, and proves zero
+   Persistence/Tenancy/schema drift.
 2. T02 implements the contract, adds the ClientIntake reference to Persistence,
    adds the one intake-only migration, and wires backend services without
    exposing routes.
-3. T03 adds the portal reference/routes/components/assets and exercises the
-   complete UI.
+3. T03 adds the portal reference/routes/components/assets, the Interactive
+   Server registration and client script, and exercises the complete UI.
 4. T04 runs the cross-module proof and updates active repository guidance.
 
 Existing namespaces, assemblies, `IReviewRecordRepository`,

@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+// ReSharper disable once RedundantUsingDirective
+using Microsoft.AspNetCore.Components;
 
 namespace TaxAI.Portal.Tests;
 
@@ -277,17 +279,109 @@ public sealed class ProjectStructureTests
     // --------------------------------------------------- the public surface
 
     [Fact]
-    public void ThePortalsOnlyPublicTypeIsProgram()
+    public void ThePortalsPublicSurfaceIsExactlyProgramAndTheApprovedComponents()
     {
-        // Program is public solely so the in-process test host can find the
-        // entry point. Everything else the portal declares stays internal.
+        // Replaces spec 010's "the portal's only public type is Program",
+        // superseded by spec 014 T01: the Razor compiler emits every component as a
+        // public type, and a component's parameter has to be public to be settable.
+        //
+        // An exact set is strictly stronger than the single entry it replaces would
+        // be if merely relaxed. It still forbids every public type the old rule
+        // forbade — no public endpoint, guard, identity, authorization, content, or
+        // ticket-store type — and additionally names which five components and four
+        // page-model records were approved. Anything else is a failure.
         Assert.Equal(
-            new[] { "Program" },
+            new[]
+            {
+                "Program",
+                "TaxAI.Portal.Components.App",
+                "TaxAI.Portal.Components.Layout.PortalLayout",
+                "TaxAI.Portal.Components.Pages.ReviewBoxModel",
+                "TaxAI.Portal.Components.Pages.ReviewLineModel",
+                "TaxAI.Portal.Components.Pages.ReviewPage",
+                "TaxAI.Portal.Components.Pages.ReviewPageModel",
+                "TaxAI.Portal.Components.Pages.ReviewSlipModel",
+                "TaxAI.Portal.Components.Routes",
+
+                // The Razor compiler emits a type for _Imports.razor too. It is a
+                // using list, declares no member, and renders nothing.
+                "TaxAI.Portal.Components._Imports",
+            },
             typeof(Program).Assembly
                 .GetExportedTypes()
                 .Select(type => type.FullName!)
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray());
+    }
+
+    [Fact]
+    public void NoPublicPortalTypeIsAnEndpointGuardOrIdentitySurface()
+    {
+        // The point of the exact set above, named so the failure is legible: the
+        // host's security-relevant types stay internal.
+        var publicNames = typeof(Program).Assembly
+            .GetExportedTypes()
+            .Select(type => type.Name)
+            .ToArray();
+
+        foreach (var forbidden in new[]
+                 {
+                     "ReviewEndpoints",
+                     "FirmEndpoints",
+                     "PortalAuthorization",
+                     "PortalIdentity",
+                     "PortalContent",
+                     "PortalStartupGuards",
+                     "SessionTicketStore",
+                     "ModuleRegistration",
+                 })
+        {
+            Assert.DoesNotContain(forbidden, publicNames);
+        }
+    }
+
+    [Fact]
+    public void TheReviewPageExposesExactlyOneRequiredModelParameter()
+    {
+        // One closed parameter, required, and no catch-all attribute dictionary —
+        // an attribute splat would be an unbounded way for values to reach markup.
+        var component = typeof(Program).Assembly
+            .GetType("TaxAI.Portal.Components.Pages.ReviewPage", throwOnError: true)!;
+
+        var parameters = component
+            .GetProperties()
+            .Where(property => property
+                .GetCustomAttributes()
+                .Any(attribute => attribute.GetType().Name == "ParameterAttribute"))
+            .ToArray();
+
+        var parameter = Assert.Single(parameters);
+
+        Assert.Equal("Model", parameter.Name);
+        Assert.Equal(
+            "TaxAI.Portal.Components.Pages.ReviewPageModel",
+            parameter.PropertyType.FullName);
+
+        Assert.Contains(
+            parameter.GetCustomAttributes(),
+            attribute => attribute.GetType().Name == "EditorRequiredAttribute");
+
+        Assert.DoesNotContain(
+            component.GetProperties().SelectMany(property => property.GetCustomAttributes()),
+            attribute => attribute.GetType().Name == "CascadingParameterAttribute");
+
+        foreach (var property in parameters)
+        {
+            var parameterAttribute = property
+                .GetCustomAttributes()
+                .Single(attribute => attribute.GetType().Name == "ParameterAttribute");
+
+            Assert.False(
+                (bool)parameterAttribute.GetType()
+                    .GetProperty("CaptureUnmatchedValues")!
+                    .GetValue(parameterAttribute)!,
+                "No component parameter may capture unmatched values.");
+        }
     }
 
     [Fact]

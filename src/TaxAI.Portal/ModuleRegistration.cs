@@ -75,6 +75,22 @@ internal static class ModuleRegistration
         services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
         services.AddSingleton<T4CaseProcessor>();
 
+        // The Blazor Web App foundation: static server rendering, and nothing
+        // more.
+        //
+        // Deliberately NOT AddInteractiveServerComponents(). No component in this
+        // project declares an interactive render mode, so Interactive Server would
+        // provide no current functionality while opening a SignalR circuit
+        // endpoint surface on the host that serves taxpayer data. Registering a
+        // capability nothing uses is still surface, and this host's surface is
+        // enumerated exactly.
+        //
+        // Interactive Server registration belongs to spec 014 T03, which
+        // introduces the first genuinely interactive island — the adaptive
+        // questionnaire and upload panel. It arrives with the component that
+        // needs it.
+        services.AddRazorComponents();
+
         services.AddTaxAiPersistence(databaseConnectionString);
         services.AddPortalIdentity(configuration, environment);
 

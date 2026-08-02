@@ -1,0 +1,160 @@
+@* The accountant review screen.
+
+   Deliberately NOT routable: there is no @page directive. The endpoint in
+   ReviewEndpoints.cs authenticates the caller, revalidates the local user and
+   membership, resolves the trusted firm, performs the one firm-scoped repository
+   read, and only then returns RazorComponentResult<ReviewPage>. Routing this
+   through the component router instead would move the safe-404 and authorization
+   decisions into component discovery, and a refused request could render a
+   partial taxpayer page before the refusal was reached.
+
+   Deliberately NOT interactive: no @rendermode, so this is statically server
+   rendered. A read-only taxpayer page has no reason to become a circuit surface,
+   and a circuit is state that is easy to mistake for request authority.
+
+   Presentation only. It injects nothing: no repository, content store, EF type,
+   trusted-firm resolver, authorization policy, readiness calculator, fingerprint
+   service, audit writer, parser, mapper, processor, or review assembler. It loads
+   no data from a lifecycle method — everything it renders arrived as one closed
+   parameter.
+
+   It computes no tax. Amounts are strings the endpoint already formatted
+   invariantly from the stored value; there is no arithmetic, rounding, totalling,
+   sorting, or CRA mapping anywhere in this file. Every value is written through
+   Razor's contextual encoding.
+
+   The document is rendered here rather than through App.razor because this
+   component is returned directly by a minimal endpoint. That keeps the response a
+   self-contained, script-free document: the shared chrome still comes from the
+   PortalLayout component, and both stylesheets are tracked local files. *@
+
+@using TaxAI.Portal.Components.Layout
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Accountant review | TaxAI</title>
+    <link rel="stylesheet" href="portal.css" />
+    <link rel="stylesheet" href="TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">Accountant review</p>
+    <h1>Review package</h1>
+    <dl class="summary">
+        <div><dt>Tax year</dt><dd>@Model.Year</dd></div>
+        <div><dt>Package version</dt><dd>@Model.Version</dd></div>
+    </dl>
+
+    @if (Model.Slips.Count == 0)
+    {
+        <p class="empty">This review package contains no slips.</p>
+    }
+
+    @foreach (var slip in Model.Slips)
+    {
+        <article class="slip">
+            <h2>Slip</h2>
+            <div class="identity">
+                <div><span class="label">Slip type</span><strong>@Fact(slip.Type)</strong></div>
+                <div><span class="label">Taxpayer</span><strong>@Fact(slip.Taxpayer)</strong></div>
+                <div><span class="label">Employer</span><strong>@Fact(slip.Employer)</strong></div>
+            </div>
+
+            <h3>Boxes and values</h3>
+            @if (slip.Boxes.Count == 0)
+            {
+                <p class="empty">No populated boxes.</p>
+            }
+            else
+            {
+                <div class="table-wrap"><table>
+                    <thead><tr><th scope="col">Box</th><th scope="col">Value</th></tr></thead>
+                    <tbody>
+                    @foreach (var box in slip.Boxes)
+                    {
+                        <tr><td>@box.Code</td><td class="amount">@box.Amount</td></tr>
+                    }
+                    </tbody>
+                </table></div>
+            }
+
+            <h3>Tax lines</h3>
+            @if (slip.Lines.Count == 0)
+            {
+                <p class="empty">No tax lines.</p>
+            }
+            else
+            {
+                <div class="table-wrap"><table>
+                    <thead><tr><th scope="col">Tax line</th><th scope="col">Value</th><th scope="col">Source boxes</th></tr></thead>
+                    <tbody>
+                    @foreach (var line in slip.Lines)
+                    {
+                        <tr>
+                            <td>@line.Code</td>
+                            <td class="amount">@line.Amount</td>
+                            <td>
+                                @if (line.SourceBoxes.Count == 0)
+                                {
+                                    <p class="empty">No source-box references.</p>
+                                }
+                                else
+                                {
+                                    <ul class="codes">
+                                        @foreach (var source in line.SourceBoxes)
+                                        {
+                                            <li>@source</li>
+                                        }
+                                    </ul>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table></div>
+            }
+
+            <h3>Unmapped codes</h3>
+            @if (slip.UnmappedCodes.Count == 0)
+            {
+                <p class="empty">No unmapped codes.</p>
+            }
+            else
+            {
+                @* Named `unmappedCode` rather than `code`: a bare `@code` in
+                   markup is parsed as the Razor @code directive, not as the loop
+                   variable. *@
+                <ul class="codes">
+                    @foreach (var unmappedCode in slip.UnmappedCodes)
+                    {
+                        <li>@unmappedCode</li>
+                    }
+                </ul>
+            }
+        </article>
+    }
+</LayoutView>
+</body>
+</html>
+
+@code {
+    /// <summary>
+    /// The one and only parameter. Required, so a page cannot render with a
+    /// default-constructed model, and there is deliberately no
+    /// <c>CaptureUnmatchedValues</c> dictionary: an attribute splat would be an
+    /// unbounded way for values to reach the markup.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public ReviewPageModel Model { get; set; } = default!;
+
+    /// <summary>
+    /// The pre-migration empty-value text for the three identity facts. A
+    /// presentation default, not a tax decision.
+    /// </summary>
+    private static string Fact(string value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not provided" : value;
+}

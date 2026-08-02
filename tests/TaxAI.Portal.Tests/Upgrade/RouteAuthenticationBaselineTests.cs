@@ -72,13 +72,46 @@ public sealed class RouteAuthenticationBaselineTests
             JsonSerializer.Serialize(baseline.Endpoints, JsonOptions),
             JsonSerializer.Serialize(actualLegacyEndpoints, JsonOptions));
 
-        var additive = Assert.Single(
-            actual.Endpoints,
-            endpoint => !legacyPaths.Contains(endpoint.Path));
-        Assert.Equal("/reviews/{recordId:guid}", additive.Path);
-        Assert.Equal(new[] { "GET" }, additive.Methods);
-        Assert.Equal("required", additive.Authorization);
-        Assert.False(additive.Antiforgery);
+        // Everything added since the spec 013 baseline, named exactly.
+        //
+        // Replaces spec 013's single additive endpoint, superseded by spec 014 T01's
+        // Blazor foundation. An exact set is strictly stronger than the single entry
+        // it replaces: it still pins the one taxpayer route's method, authorization,
+        // and antiforgery state, and additionally names the one framework endpoint
+        // the component mapping contributed, so a third cannot appear unnoticed.
+        //
+        // The four /_blazor SignalR endpoints are absent because T01 registers no
+        // interactive render mode. If they reappear, this assertion is where it
+        // shows up.
+        var additive = actual.Endpoints
+            .Where(endpoint => !legacyPaths.Contains(endpoint.Path))
+            .OrderBy(endpoint => endpoint.Path, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "/_framework/opaque-redirect",
+                "/reviews/{recordId:guid}",
+            },
+            additive.Select(endpoint => endpoint.Path).ToArray());
+
+        var review = Assert.Single(
+            additive,
+            endpoint => endpoint.Path == "/reviews/{recordId:guid}");
+        Assert.Equal(new[] { "GET" }, review.Methods);
+        Assert.Equal("required", review.Authorization);
+        Assert.False(review.Antiforgery);
+
+        // The one framework endpoint is contributed by MapRazorComponents itself.
+        // It is not a route this application wrote, takes no parameter, and
+        // requires no antiforgery because it accepts no application form post.
+        foreach (var endpoint in additive.Where(candidate =>
+                     candidate.Path != "/reviews/{recordId:guid}"))
+        {
+            Assert.False(endpoint.Antiforgery);
+            Assert.DoesNotContain("{", endpoint.Path, StringComparison.Ordinal);
+        }
 
         Assert.Equal(
             baseline.Responses.Select(ResponseKey),
@@ -209,9 +242,12 @@ public sealed class RouteAuthenticationBaselineTests
             .OfType<RouteEndpoint>()
             .Select(endpoint => new EndpointContract(
                 endpoint.RoutePattern.RawText!,
-                endpoint.Metadata
-                    .GetMetadata<HttpMethodMetadata>()!
-                    .HttpMethods
+                // The framework's Blazor circuit endpoints declare no method
+                // metadata at all, so this cannot be dereferenced unconditionally.
+                // An empty method set is recorded rather than thrown on, and the
+                // exact additive inventory below is what pins those endpoints.
+                (endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods
+                        ?? [])
                     .OrderBy(method => method, StringComparer.Ordinal)
                     .ToArray(),
                 endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace TaxAI.Portal.Tests.EndToEnd;
 
@@ -60,6 +61,7 @@ public sealed class RepositoryVerificationTests
     [InlineData("src/DocumentExtraction/")]
     [InlineData("src/CaseProcessing/")]
     [InlineData("src/CaseReview/")]
+    [InlineData("src/ClientIntake/")]
     [InlineData("src/Tenancy/")]
     [InlineData("src/Persistence/")]
     [InlineData("src/TaxAI.Portal/")]
@@ -68,6 +70,7 @@ public sealed class RepositoryVerificationTests
     [InlineData("tests/DocumentExtraction.Tests/")]
     [InlineData("tests/CaseProcessing.Tests/")]
     [InlineData("tests/CaseReview.Tests/")]
+    [InlineData("tests/ClientIntake.Tests/")]
     [InlineData("tests/Tenancy.Tests/")]
     [InlineData("tests/Persistence.Tests/")]
     [InlineData("tests/TaxAI.Portal.Tests/")]
@@ -317,6 +320,102 @@ public sealed class RepositoryVerificationTests
         }
     }
 
+    // ------------------------ spec 014 AC-99: the migration is storage-neutral
+
+    /// <summary>
+    /// Proves T01 changed nothing that owns stored data.
+    /// <para>
+    /// The task's claim is that a UI migration touched no storage. That is
+    /// checkable rather than assertable in prose: the files that define the
+    /// relational model and the persisted contracts either differ from
+    /// <c>master</c> or they do not.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheReviewUiMigrationChangedNoPersistenceOrTenancyProductionFile()
+    {
+        // Every migration and model snapshot still exists exactly once, and the
+        // review contract still declares the same two firm-scoped members.
+        var migrations = Directory
+            .EnumerateFiles(
+                Path.Combine(RepositoryRoot, "src", "Persistence"),
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Where(path => !IsUnderBuildOutput(path))
+            .Where(path =>
+                path.Contains("Migrations", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.NotEmpty(migrations);
+
+        // No intake table, column, or entity may exist yet: T02 owns the additive
+        // migration, and T01 must not have anticipated it.
+        foreach (var path in Directory
+                     .EnumerateFiles(
+                         Path.Combine(RepositoryRoot, "src", "Persistence"),
+                         "*.cs",
+                         SearchOption.AllDirectories)
+                     .Where(path => !IsUnderBuildOutput(path)))
+        {
+            var text = File.ReadAllText(path);
+
+
+            foreach (var forbidden in new[]
+                     {
+                         "IntakeCases",
+                         "IntakeLinks",
+                         "IntakeDocuments",
+                         "IntakeClientSessions",
+                         "IntakeAuditEvents",
+                         "ClientIntake",
+                     })
+            {
+                Assert.DoesNotContain(forbidden, text, StringComparison.Ordinal);
+            }
+        }
+
+        // Persistence's project reference set is untouched: still exactly Tenancy.
+        Assert.Equal(
+            new[] { "../Tenancy/Tenancy.csproj" },
+            XDocument
+                .Load(Path.Combine(RepositoryRoot, "src", "Persistence", "Persistence.csproj"))
+                .Descendants()
+                .Where(element => element.Name.LocalName == "ProjectReference")
+                .Select(element => element.Attribute("Include")!.Value.Replace('\\', '/'))
+                .OrderBy(reference => reference, StringComparer.Ordinal)
+                .ToArray());
+
+        // And Tenancy's, still exactly CaseReview and TaxLogicEngine.
+        Assert.Equal(
+            new[] { "../CaseReview/CaseReview.csproj", "../TaxLogicEngine/TaxLogicEngine.csproj" },
+            XDocument
+                .Load(Path.Combine(RepositoryRoot, "src", "Tenancy", "Tenancy.csproj"))
+                .Descendants()
+                .Where(element => element.Name.LocalName == "ProjectReference")
+                .Select(element => element.Attribute("Include")!.Value.Replace('\\', '/'))
+                .OrderBy(reference => reference, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    [Fact]
+    public void TheHostStillDoesNotReferenceTheFrozenIntakeContract()
+    {
+        // A frozen contract is not a wired one. T01 declared ClientIntake and
+        // deliberately left the portal unable to name it; T03 owns that reference.
+        var portalProject = File.ReadAllText(
+            Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "TaxAI.Portal.csproj"));
+
+        Assert.DoesNotContain("ClientIntake", portalProject, StringComparison.OrdinalIgnoreCase);
+
+        Assert.DoesNotContain(
+            typeof(Program).Assembly.GetReferencedAssemblies(),
+            reference => reference.Name!.Equals("ClientIntake", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsUnderBuildOutput(string path) =>
+        path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
+
     // ------------------------------------------------------------------ guard
 
     [Fact]
@@ -335,6 +434,8 @@ public sealed class RepositoryVerificationTests
                      (Path.Combine(RepositoryRoot, "src", "Persistence", "AGENTS.md"), 100),
                      (Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "CLAUDE.md"), 1500),
                      (Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "AGENTS.md"), 100),
+                     (Path.Combine(RepositoryRoot, "src", "ClientIntake", "CLAUDE.md"), 2000),
+                     (Path.Combine(RepositoryRoot, "src", "ClientIntake", "AGENTS.md"), 100),
                  })
         {
             Assert.True(File.Exists(path), $"{path} must exist.");

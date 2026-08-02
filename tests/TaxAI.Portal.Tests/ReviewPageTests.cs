@@ -455,14 +455,19 @@ public sealed class ReviewPageTests
         }
     }
 
+    /// <summary>
+    /// Spec 014 T01 — the same closed allowlist, now on the component's parameter
+    /// model instead of the endpoint's private nested DTOs. The field set is
+    /// unchanged; only where it is declared moved.
+    /// </summary>
     [Fact]
-    public void BrowserDtoHasExactlyTheApprovedPropertyVocabulary()
+    public void BrowserModelHasExactlyTheApprovedPropertyVocabulary()
     {
         var assembly = typeof(Program).Assembly;
 
         Assert.Equal(
             new[] { "Slips", "Version", "Year" },
-            PropertyNames(assembly, "TaxAI.Portal.ReviewEndpoints+ReviewPageDto"));
+            PropertyNames(assembly, "TaxAI.Portal.Components.Pages.ReviewPageModel"));
         Assert.Equal(
             new[]
             {
@@ -473,29 +478,37 @@ public sealed class ReviewPageTests
                 "Type",
                 "UnmappedCodes",
             },
-            PropertyNames(assembly, "TaxAI.Portal.ReviewEndpoints+ReviewSlipDto"));
+            PropertyNames(assembly, "TaxAI.Portal.Components.Pages.ReviewSlipModel"));
         Assert.Equal(
             new[] { "Amount", "Code" },
-            PropertyNames(assembly, "TaxAI.Portal.ReviewEndpoints+ReviewBoxDto"));
+            PropertyNames(assembly, "TaxAI.Portal.Components.Pages.ReviewBoxModel"));
         Assert.Equal(
             new[] { "Amount", "Code", "SourceBoxes" },
-            PropertyNames(assembly, "TaxAI.Portal.ReviewEndpoints+ReviewLineDto"));
+            PropertyNames(assembly, "TaxAI.Portal.Components.Pages.ReviewLineModel"));
 
-        var dtoProperties = assembly
+        // The old nested DTOs are gone, not merely bypassed.
+        Assert.Null(assembly.GetType("TaxAI.Portal.ReviewEndpoints+ReviewPageDto"));
+
+        var modelProperties = assembly
             .GetTypes()
             .Where(type =>
                 type.FullName?.StartsWith(
-                    "TaxAI.Portal.ReviewEndpoints+Review",
+                    "TaxAI.Portal.Components.Pages.Review",
                     StringComparison.Ordinal) == true &&
-                type.Name.EndsWith("Dto", StringComparison.Ordinal))
+                type.Name.EndsWith("Model", StringComparison.Ordinal) &&
+                type.Name != "ReviewPageModel")
+            .Concat([assembly.GetType("TaxAI.Portal.Components.Pages.ReviewPageModel")!])
             .SelectMany(type => type.GetProperties())
             .ToArray();
 
+        Assert.NotEmpty(modelProperties);
+
         Assert.DoesNotContain(
-            dtoProperties,
+            modelProperties,
             property =>
                 property.PropertyType == typeof(Guid) ||
                 property.PropertyType == typeof(DateTimeOffset) ||
+                property.PropertyType == typeof(decimal) ||
                 property.Name.Contains("Id", StringComparison.OrdinalIgnoreCase) ||
                 property.Name.Contains("Time", StringComparison.OrdinalIgnoreCase) ||
                 property.Name.Contains("Address", StringComparison.OrdinalIgnoreCase) ||
@@ -504,6 +517,51 @@ public sealed class ReviewPageTests
                 property.Name.Contains("Account", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Spec 014 AC-94 — the migrated model omits taxpayer values from serialization
+    /// and from its own rendering, so a future diagnostic sink cannot make one
+    /// visible by serializing or logging whatever it is handed.
+    /// </summary>
+    [Fact]
+    public void TheBrowserModelSerializesAndRendersNoTaxpayerValue()
+    {
+        var assembly = typeof(Program).Assembly;
+        var pageModelType = assembly.GetType(
+            "TaxAI.Portal.Components.Pages.ReviewPageModel",
+            throwOnError: true)!;
+
+        foreach (var type in new[]
+                 {
+                     pageModelType,
+                     assembly.GetType("TaxAI.Portal.Components.Pages.ReviewSlipModel", true)!,
+                     assembly.GetType("TaxAI.Portal.Components.Pages.ReviewBoxModel", true)!,
+                     assembly.GetType("TaxAI.Portal.Components.Pages.ReviewLineModel", true)!,
+                 })
+        {
+            Assert.All(
+                type.GetProperties(),
+                property => Assert.Contains(
+                    property.GetCustomAttributes(),
+                    attribute => attribute.GetType().Name == "JsonIgnoreAttribute"));
+
+            // Structural ToString, declared by hand: the compiler-generated record
+            // ToString prints every property, including the omitted ones.
+            Assert.NotNull(type.GetMethod(
+                "ToString",
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly,
+                Type.EmptyTypes));
+        }
+
+        var box = Activator.CreateInstance(
+            assembly.GetType("TaxAI.Portal.Components.Pages.ReviewBoxModel", true)!,
+            "box-marker",
+            "12.34")!;
+
+        Assert.DoesNotContain("box-marker", box.ToString()!, StringComparison.Ordinal);
+        Assert.DoesNotContain("12.34", box.ToString()!, StringComparison.Ordinal);
+    }
+
+#pragma warning disable CA1859
     private static string[] PropertyNames(Assembly assembly, string typeName) =>
         assembly
             .GetType(typeName, throwOnError: true)!
@@ -511,6 +569,7 @@ public sealed class ReviewPageTests
             .Select(property => property.Name)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
+#pragma warning restore CA1859
 
     private static async Task<string> SnapshotAsync(HttpResponseMessage response)
     {

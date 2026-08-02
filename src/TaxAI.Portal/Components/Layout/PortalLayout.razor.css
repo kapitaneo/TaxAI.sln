@@ -1,0 +1,25 @@
+/* Component-scoped styles for the shared layout.
+
+   Compiled by the framework into the local TaxAI.Portal.styles.css bundle. No
+   endpoint assembles a stylesheet at runtime any more, and nothing here fetches a
+   remote font, image, or stylesheet. */
+
+main {
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+}
+
+.brand {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+@media (max-width: 40rem) {
+    main {
+        padding-top: 1.25rem;
+    }
+}

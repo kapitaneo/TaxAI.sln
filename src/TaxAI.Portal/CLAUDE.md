@@ -20,6 +20,73 @@ reads one immutable persisted review-package version and renders only the closed
 browser allowlist below. It is not an upload, edit, approval, export, listing, or
 JSON surface.
 
+## The Blazor Web App foundation (spec 014 T01)
+
+`Components/` holds the whole component tree: `App`, `Routes`,
+`Layout/PortalLayout`, and `Pages/ReviewPage`, plus `_Imports`. There are
+exactly five components, and the set is asserted exactly.
+
+- **Static server rendering only — interactivity is not registered.** No
+  component declares `@rendermode`, no global render mode is applied, and neither
+  `AddInteractiveServerComponents` nor `AddInteractiveServerRenderMode` appears
+  anywhere in this project. That is stronger than "no component opts in": with
+  nothing registered there is no mode for a component to request and **no
+  `/_blazor` SignalR endpoint for the framework to materialize**. A circuit on the
+  host that serves taxpayer data has to earn its place, and today nothing uses
+  one. There is no `blazor.web.js` reference either; static SSR bootstraps
+  nothing.
+  **Spec 014 T03 owns Interactive Server**, arriving with the first interactive
+  island (the adaptive questionnaire and upload panel), its registration, and its
+  script — together, in one reviewable diff.
+- **No component is routable.** None declares `@page`. `ReviewPage` is returned
+  as `RazorComponentResult<ReviewPage>` by a minimal endpoint that has already
+  authenticated the caller, revalidated the local user and membership, resolved
+  the trusted firm, and performed the one firm-scoped read. Routing a taxpayer
+  page through the component router would move the safe-`404` and R-1 decisions
+  into component discovery, where a refused request could render a partial page.
+- **Components are presentation-only.** A component may accept typed parameters
+  and rely on Razor's contextual encoding. It may **not** `@inject` anything, and
+  may not name a repository, content store, EF type, trusted-firm resolver,
+  authorization policy implementation, readiness or status calculator, fingerprint
+  service, audit writer, parser, mapper, processor, review assembler, or
+  `decimal`. It loads no data from a lifecycle method.
+- **Parameters are closed.** `ReviewPage` has exactly one required
+  `[Parameter, EditorRequired] ReviewPageModel Model`. No component may declare a
+  `CaptureUnmatchedValues` dictionary — an attribute splat is an unbounded way for
+  values to reach markup.
+- **No endpoint assembles screen markup or an inline stylesheet.**
+  `ReviewEndpoints.cs` contains no `StringBuilder`, appended markup, `<style>`
+  block, or `HtmlEncoder`. `FirmEndpoints.cs` still assembles its pre-spec-014
+  firm-selection page; it is the one named exception, and a second markup
+  assembler fails the boundary suite.
+- **Every asset is local and tracked.** `wwwroot/portal.css` plus
+  component-scoped `.razor.css`. No CDN, remote font, remote image, remote
+  script, npm tree, WebAssembly project, or handwritten JavaScript.
+
+### Static assets are middleware, not endpoints
+
+The host calls `UseStaticFiles()` once, parameterless, in `Program.cs`, and
+**deliberately does not call `MapStaticAssets()`**. The endpoint-routing variant
+registers a `{**path:file}` catch-all over the entire URL space, which:
+
+- turns every POST-only route's `405 Method Not Allowed` into a `404`, because
+  the catch-all matches the path before method selection can reject it; and
+- adds an endpoint that is neither explicitly anonymous nor
+  authorization-required — the third state spec 011 forbids.
+
+The route inventory therefore stays exact and closed: this application's seven
+routes plus exactly one framework component endpoint,
+`/_framework/opaque-redirect`, which `MapRazorComponents<App>()` contributes and
+which takes no route parameter. No `/_blazor` circuit endpoint exists, because no
+interactive render mode is configured.
+
+## The frozen ClientIntake contract is not wired here
+
+`ClientIntake` exists as an approved contract with
+`NotImplementedException` bodies. **The portal does not reference it, register
+it, resolve it, or expose any intake route.** Doing any of those belongs to the
+later approved tasks of spec 014.
+
 ## Dependencies point inward, and are exactly four
 
 The production project references are exactly:
@@ -70,7 +137,8 @@ version, slip type, taxpayer display name, employer display name, boxes and
 values, tax lines, source-box references, and unmapped codes. Taxpayer and
 employer display names are the two approved display-PII fields.
 
-The browser DTO, rendered HTML, page source, logs, diagnostics, and client-side
+The browser model (`ReviewPageModel` and its slip, box, and line records),
+rendered HTML, page source, logs, diagnostics, and client-side
 state must contain no date of birth, address, email address, phone number,
 account number, provider identity value, `FirmId`, `UserId`, membership
 identifier, session identifier, persistence identifier, or non-display
@@ -110,6 +178,14 @@ single read-only review route and closed browser allowlist above.
 firm or membership, expanding the browser allowlist, or adding a second
 taxpayer-data surface still requires a further approved `tax-domain`
 specification.**
+
+Spec 014 T01 added a rendering foundation, not a capability. **A Blazor
+foundation is not authorization to add a screen.** Mapping an intake route,
+registering an intake workflow, registering Interactive Server, making a
+component interactive, applying a global render mode, adding a client script,
+adding a WebAssembly or npm dependency, or serving a file other than the tracked
+stylesheets each requires the later approved tasks of spec 014 or a further
+specification.
 
 The same is true for editing or approving taxpayer values, listing taxpayers,
 exporting a record, implementing an extraction ingress, or exposing a JSON API.
