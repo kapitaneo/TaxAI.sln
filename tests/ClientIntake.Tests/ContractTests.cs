@@ -449,37 +449,13 @@ public sealed class ContractTests
     }
 
     [Fact]
-    public void EveryWorkflowConstructorThrowsNotImplemented()
+    public void WorkflowConstructorsRefuseMissingDependencies()
     {
-        // T01 freezes signatures and ships no behavior. These are the assertions
-        // that make "contract wave" mean something rather than being a promise.
-        AssertThrowsNotImplemented(() => new AccountantIntakeWorkflow(
+        Assert.Throws<ArgumentNullException>(() => new AccountantIntakeWorkflow(
             store: null!, credentialSource: null!, reviewRecords: null!, options: null!));
 
-        AssertThrowsNotImplemented(() => new ClientIntakeWorkflow(
+        Assert.Throws<ArgumentNullException>(() => new ClientIntakeWorkflow(
             store: null!, contentStore: null!, credentialSource: null!, options: null!));
-    }
-
-    [Fact]
-    public void EveryWorkflowMethodThrowsNotImplemented()
-    {
-        // Invoked through the uninitialized instance rather than a constructed
-        // one, because the constructor throws by design. This proves each body is
-        // a stub rather than a partially wired implementation.
-        var accountant = (AccountantIntakeWorkflow)System.Runtime.CompilerServices
-            .RuntimeHelpers.GetUninitializedObject(typeof(AccountantIntakeWorkflow));
-        var client = (ClientIntakeWorkflow)System.Runtime.CompilerServices
-            .RuntimeHelpers.GetUninitializedObject(typeof(ClientIntakeWorkflow));
-
-        foreach (var method in typeof(AccountantIntakeWorkflow).GetMethods(Declared))
-        {
-            AssertMethodThrowsNotImplemented(method, accountant);
-        }
-
-        foreach (var method in typeof(ClientIntakeWorkflow).GetMethods(Declared))
-        {
-            AssertMethodThrowsNotImplemented(method, client);
-        }
     }
 
     // ------------------------------------------------------- token primitives
@@ -662,25 +638,4 @@ public sealed class ContractTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray());
 
-    private static void AssertThrowsNotImplemented(Action action)
-    {
-        var failure = Record.Exception(action);
-
-        Assert.NotNull(failure);
-        Assert.IsType<NotImplementedException>(failure);
-    }
-
-    private static void AssertMethodThrowsNotImplemented(MethodInfo method, object instance)
-    {
-        var arguments = method.GetParameters()
-            .Select(parameter => parameter.ParameterType.IsValueType
-                ? Activator.CreateInstance(parameter.ParameterType)
-                : null)
-            .ToArray();
-
-        var failure = Assert.Throws<TargetInvocationException>(
-            () => method.Invoke(instance, arguments));
-
-        Assert.IsType<NotImplementedException>(failure.InnerException);
-    }
 }

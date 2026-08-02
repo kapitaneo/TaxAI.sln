@@ -1,4 +1,7 @@
 using CaseProcessing.Services;
+using ClientIntake.Contracts;
+using ClientIntake.Models;
+using ClientIntake.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -75,6 +78,24 @@ internal static class ModuleRegistration
         services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
         services.AddSingleton<T4CaseProcessor>();
 
+        var intake = IntakeConfiguration.Require(configuration, environment);
+        services.AddSingleton(intake);
+        services.AddSingleton(intake.Workflow);
+        services.AddSingleton<IIntakeCredentialSource>(
+            _ => new CryptographicIntakeCredentialSource(intake.DigestKey));
+
+        if (string.Equals(
+                environment.EnvironmentName,
+                Environments.Development,
+                StringComparison.Ordinal))
+        {
+            services.AddSingleton<IIntakeContentStore>(
+                _ => new DevelopmentEncryptedIntakeContentStore(
+                    intake.DevelopmentContentRoot!,
+                    intake.ContentEncryptionKey,
+                    intake.FingerprintKey));
+        }
+
         // The Blazor Web App foundation: static server rendering, and nothing
         // more.
         //
@@ -92,6 +113,13 @@ internal static class ModuleRegistration
         services.AddRazorComponents();
 
         services.AddTaxAiPersistence(databaseConnectionString);
+        services.AddScoped<IAccountantIntakeWorkflow, AccountantIntakeWorkflow>();
+        services.AddScoped<IClientIntakeWorkflow>(provider =>
+            new ClientIntakeWorkflow(
+                provider.GetRequiredService<IIntakeStore>(),
+                provider.GetRequiredService<IIntakeContentStore>(),
+                provider.GetRequiredService<IIntakeCredentialSource>(),
+                provider.GetRequiredService<IntakeWorkflowOptions>()));
         services.AddPortalIdentity(configuration, environment);
 
         services.AddAntiforgery(options =>

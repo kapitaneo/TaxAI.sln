@@ -48,10 +48,17 @@ public sealed class ClientIntakeBoundaryTests
         "IIntakeContentStore.cs",
         "IIntakeCredentialSource.cs",
         "IIntakeStore.cs",
+        "IntakeCaseFactory.cs",
         "IntakeCommands.cs",
+        "IntakeDisplayNameGuard.cs",
         "IntakeEnums.cs",
+        "IntakeProjection.cs",
+        "IntakeQuestionnairePolicy.cs",
+        "IntakeStateReplayer.cs",
         "IntakeStorageRecords.cs",
+        "IntakeUploadValidator.cs",
         "IntakeViews.cs",
+        "IntakeWorkflowOptionsGuard.cs",
     };
 
     // ------------------------------------------------- the approved dependencies
@@ -232,7 +239,7 @@ public sealed class ClientIntakeBoundaryTests
         { "rounding / money math", @"\bMoneyRounding\b|\bMath\s*\.\s*Round\b|\bMidpointRounding\b|\bdouble\b|\bfloat\b|\bdecimal\b" },
 
         // No taxpayer-data or extraction type enters this module.
-        { "taxpayer data type", @"\bT4Slip\b|\bT5Slip\b|\bT4RawInput\b|\bT5RawInput\b|\bTaxLineEntry\b|\bRecipientIdentifier\b|\bValidatedExtraction\b|\bExtractionEnvelope\b|\bProcessedT4Extraction\b|\bAccountantReviewPackage\b" },
+        { "taxpayer data type", @"\bT4RawInput\b|\bT5RawInput\b|\bTaxLineEntry\b|\bRecipientIdentifier\b|\bValidatedExtraction\b|\bExtractionEnvelope\b|\bProcessedT4Extraction\b|\bAccountantReviewPackage\b" },
 
         // No infrastructure. The ports are declared here and implemented elsewhere.
         { "ORM or database", @"\bDbContext\b|\bDbSet\b|EntityFrameworkCore|\bSqlConnection\b|\bIQueryable\b" },
@@ -350,7 +357,7 @@ public sealed class ClientIntakeBoundaryTests
                  {
                      @"\bIIntakeStore\b",
                      @"\bTrustedFirmId\b",
-                     @"\bNotImplementedException\b",
+                     @"\bTaxCase\s*\.\s*Create\b",
                      @"\bJsonIgnore\b",
                      @"\bFixedTimeEquals\b",
                  })

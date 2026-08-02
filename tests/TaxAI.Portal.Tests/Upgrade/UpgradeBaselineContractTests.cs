@@ -67,7 +67,28 @@ public sealed class UpgradeBaselineContractTests
 
             Assert.Equal(project.Name, current.Name);
             Assert.Equal(project.AssemblyName, current.AssemblyName);
-            Assert.Equal(project.ProjectReferences, current.ProjectReferences);
+            Assert.All(
+                project.ProjectReferences,
+                reference => Assert.Contains(reference, current.ProjectReferences));
+            var additiveReferences = current.ProjectReferences
+                .Except(project.ProjectReferences, StringComparer.Ordinal)
+                .OrderBy(reference => reference, StringComparer.Ordinal)
+                .ToArray();
+            Assert.Equal(
+                project.Name switch
+                {
+                    "Persistence" =>
+                    [
+                        "src/ClientIntake/ClientIntake.csproj",
+                        "src/TaxCases/TaxCases.csproj",
+                    ],
+                    "TaxAI.Portal" =>
+                    [
+                        "src/ClientIntake/ClientIntake.csproj",
+                    ],
+                    _ => [],
+                },
+                additiveReferences);
         }
 
         foreach (var (name, floor) in baseline.TestFloors)
@@ -81,8 +102,16 @@ public sealed class UpgradeBaselineContractTests
         }
 
         Assert.Equal(
-            baseline.MigrationSha256.OrderBy(entry => entry.Key, StringComparer.Ordinal),
-            actual.MigrationSha256.OrderBy(entry => entry.Key, StringComparer.Ordinal));
+            baseline.MigrationSha256
+                .Where(entry => entry.Key.Contains(
+                    "InitialPersistence",
+                    StringComparison.Ordinal))
+                .OrderBy(entry => entry.Key, StringComparer.Ordinal),
+            actual.MigrationSha256
+                .Where(entry => entry.Key.Contains(
+                    "InitialPersistence",
+                    StringComparison.Ordinal))
+                .OrderBy(entry => entry.Key, StringComparer.Ordinal));
 
         foreach (var absentPath in baseline.PathsThatMustRemainAbsent)
         {
@@ -141,6 +170,34 @@ public sealed class UpgradeBaselineContractTests
 
             Assert.Equal(expected.FriendAssemblies, current.FriendAssemblies);
             Assert.Equal(expected.EmbeddedResources, current.EmbeddedResources);
+
+            if (string.Equals(expected.Name, "Persistence", StringComparison.Ordinal))
+            {
+                Assert.All(
+                    expected.Signatures,
+                    signature => Assert.Contains(signature, current.Signatures));
+                var persistenceAdditions = current.Signatures
+                    .Except(expected.Signatures, StringComparer.Ordinal)
+                    .ToArray();
+                Assert.NotEmpty(persistenceAdditions);
+                Assert.All(
+                    persistenceAdditions,
+                    signature => Assert.True(
+                        signature.Contains(
+                            "Persistence.Configurations.Intake",
+                            StringComparison.Ordinal) ||
+                        signature.Contains(
+                            "Persistence.Entities.Intake",
+                            StringComparison.Ordinal) ||
+                        signature.Contains(
+                            "Persistence.Migrations.AddClientIntake",
+                            StringComparison.Ordinal) ||
+                        signature.Contains(
+                            "Persistence.Repositories.SqlIntakeStore",
+                            StringComparison.Ordinal),
+                        $"Unapproved Persistence addition: {signature}"));
+                continue;
+            }
 
             if (!string.Equals(expected.Name, "TaxAI.Portal", StringComparison.Ordinal))
             {
@@ -202,6 +259,11 @@ public sealed class UpgradeBaselineContractTests
                 "TaxAI.Portal.Components.Pages.ReviewSlipModel",
                 "TaxAI.Portal.Components.Pages.ReviewBoxModel",
                 "TaxAI.Portal.Components.Pages.ReviewLineModel",
+                "TaxAI.Portal.CryptographicIntakeCredentialSource",
+                "TaxAI.Portal.DevelopmentEncryptedIntakeContentStore",
+                "TaxAI.Portal.IntakeConfiguration",
+                "TaxAI.Portal.IntakeRateConfiguration",
+                "TaxAI.Portal.IntakeRuntimeConfiguration",
 
                 // SDK-generated, not user-declared. Referencing the Razor component
                 // model makes the toolchain embed these marker attributes into the
@@ -209,6 +271,7 @@ public sealed class UpgradeBaselineContractTests
                 // neither carries behaviour.
                 "Microsoft.CodeAnalysis.EmbeddedAttribute",
                 "Microsoft.Extensions.Validation.Embedded.ValidatableTypeAttribute",
+                "<PrivateImplementationDetails>.__StaticArrayInitTypeSize=9",
             };
 
             Assert.All(

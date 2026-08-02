@@ -1,0 +1,85 @@
+# Spec 014 — T02 complete
+
+Task:   T02 — Implement the complete intake backend and additive infrastructure
+Wave:   1
+PR:     #134  https://github.com/kapitaneo/TaxAI.sln/pull/134
+Branch: feat/014-w1-t02
+Implementation commit: 4958803
+
+## Gate — all three commands, in order, after every new file was staged
+
+    dotnet build TaxAI.sln                   Build succeeded. 0 Warning(s) 0 Error(s)
+    dotnet test TaxAI.sln                    all 9 projects passed
+    pwsh ./scripts/Invoke-SolutionTests.ps1  gate passed (authoritative)
+
+Result: 3417 tests, 0 failed, 0 skipped, every floor met.
+
+    TaxLogicEngine.Tests         261 passed (floor 261)
+    TaxCases.Tests               337 passed (floor 337)
+    DocumentExtraction.Tests     673 passed (floor 673)
+    CaseProcessing.Tests         594 passed (floor 594)
+    CaseReview.Tests             482 passed (floor 482)
+    TaxAI.Portal.Tests           473 passed (floor 473, raised from 453)
+    Tenancy.Tests                289 passed (floor 289)
+    Persistence.Tests            151 passed (floor 151, raised from 137)
+    ClientIntake.Tests           157 passed (floor 157, raised from 115)
+
+No floor was lowered.
+
+Also verified:
+
+    git diff --check                            clean
+    original migration vs origin/master         byte-identical
+    EF migrations has-pending-model-changes     no pending model changes
+
+## Delivered
+
+- Complete deterministic accountant/client intake workflows behind the frozen
+  T01 public signatures: server-scoped 2025 case/checklist creation, one-time
+  links, revocable sessions, adaptive questions, immutable answers/documents/
+  attempts/submissions/audits, upload validation and duplicate cleanup,
+  progress/readiness replay through TaxCases, and exact immutable review
+  association.
+- Persistence references exactly ClientIntake, TaxCases, and Tenancy,
+  implements the scoped SQL store, and adds only the twelve intake metadata
+  tables in migration 20260730000000_AddClientIntake. The initial migration and
+  every existing review/identity table are unchanged.
+- The portal references ClientIntake, validates all intake configuration,
+  supplies CSPRNG credentials and purpose-separated keyed digests, and registers
+  a versioned AES-GCM streaming content adapter only in Development/test.
+- The content port remains write-only. SQL stores no filename or source bytes;
+  opaque source objects are outside web root, authenticated and encrypted, and
+  scoped fingerprints are non-correlatable across firms/cases.
+- Active guidance records the implemented-but-not-HTTP-exposed backend and exact
+  dependency/schema/content boundaries.
+
+## Human-authorized unblock amendments
+
+The human explicitly authorized the changes needed to unblock T02 after the
+inherited Claude work:
+
+1. `tests/Persistence.Tests/Support/RelationalTestContext.cs` and
+   `tests/Persistence.Tests/Repositories/ReviewRecordVersioningTests.cs` now
+   apply all migrations and permit the SQLite provider's pending-model warning.
+   Additive migration T02 made the prior initial-migration-only harness stale.
+2. `tests/Persistence.Tests/Upgrade/EfUpgradeBaselineTests.cs` continues to
+   freeze the original EF baseline while filtering T02's exact additive intake
+   entities/tables/migration from that historical comparison.
+3. `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` admits only
+   T02's exact additive reference/type set while retaining every earlier
+   baseline assertion.
+4. `tests/TaxAI.Portal.Tests/Identity/CookieAndTokenTests.cs` no longer scans the
+   randomly generated opaque session GUID for a nine-digit taxpayer pattern.
+   The protected cookie payload and every actual taxpayer/PII exclusion remain
+   asserted.
+5. The task's planned filename `CryptographicIntakeSecretSource.cs` conflicts
+   with the repository-wide tracked-filename hygiene rule. The implementation
+   is `CryptographicIntakeCredentialSource.cs`, matching T01's already-amended
+   `IIntakeCredentialSource` port. No hygiene assertion was weakened.
+
+## Deliberately not shipped
+
+No intake HTTP route, upload transport, intake component, Interactive Server,
+raw-content preview/download, extraction, parsing, tax processing, review
+construction, production content provider, retention/purge path, deployment,
+merge, or self-approval.

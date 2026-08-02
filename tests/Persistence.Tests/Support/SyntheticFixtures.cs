@@ -1,4 +1,7 @@
 using System.Reflection;
+using ClientIntake.Models;
+using TaxCases.Models;
+using Tenancy.Contracts;
 using Tenancy.Models;
 
 namespace Persistence.Tests.Support;
@@ -128,6 +131,65 @@ internal static class SyntheticFixtures
                 new DateTime(2033, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
             Array.AsReadOnly([slip]));
     }
+
+    public static NewIntakeCase IntakeCase(
+        Guid? firmId = null,
+        Guid? caseId = null,
+        byte digestByte = 0x21)
+    {
+        var selectedFirm = TrustedFirmId.FromGuid(firmId ?? FirmId);
+        var selectedCaseId = caseId ??
+            Guid.Parse("12121212-1212-4212-8212-121212121212");
+        var expectedItemId =
+            Guid.Parse("13131313-1313-4313-8313-131313131313");
+        var actor = Guid.Parse("14141414-1414-4414-8414-141414141414");
+        var link = new IntakeLinkRecord(
+            Guid.Parse("15151515-1515-4515-8515-151515151515"),
+            Digest(digestByte),
+            CreatedAtUtc,
+            CreatedAtUtc.AddDays(2),
+            null,
+            null);
+        var stored = new StoredIntakeCase(
+            selectedFirm,
+            selectedCaseId,
+            Guid.Parse("16161616-1616-4616-8616-161616161616"),
+            "Test Taxpayer Intake",
+            2025,
+            CaseStatus.InformationGathering,
+            0,
+            [new IntakeExpectedItemRecord(expectedItemId, DocumentCategory.T4Slip, 1)],
+            link,
+            [],
+            [],
+            [],
+            [],
+            null);
+
+        return new NewIntakeCase(
+            stored,
+            [
+                Audit(IntakeAuditKind.CaseCreated, actor),
+                Audit(IntakeAuditKind.ChecklistConfirmed, actor),
+                Audit(IntakeAuditKind.LinkIssued, actor),
+            ]);
+    }
+
+    public static IntakeTokenDigest Digest(byte value) =>
+        new(Enumerable.Repeat(value, 32).Select(candidate => (byte)candidate).ToArray());
+
+    public static IntakeAuditEventRecord Audit(
+        IntakeAuditKind kind,
+        Guid actor,
+        Guid? expectedItemId = null) =>
+        new(
+            Guid.NewGuid(),
+            0,
+            kind,
+            IntakeActorKind.Client,
+            actor,
+            expectedItemId,
+            CreatedAtUtc);
 
     private static T Construct<T>(params object?[] arguments)
     {

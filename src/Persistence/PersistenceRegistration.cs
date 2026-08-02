@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
+using ClientIntake.Contracts;
 using Persistence.Repositories;
 using Persistence.Services;
 using Tenancy.Contracts;
@@ -42,6 +43,7 @@ public static class PersistenceRegistration
             options => options.UseSqlServer(validatedConnectionString));
 
         services.AddScoped<IReviewRecordRepository, SqlReviewRecordRepository>();
+        services.AddScoped<IIntakeStore, SqlIntakeStore>();
         services.AddScoped<IAuthenticationSessionStore, SqlAuthenticationSessionStore>();
         services.AddScoped<IIdentityDirectory, SqlIdentityDirectory>();
         services.AddScoped<IReviewRecordPurgeService, SqlReviewRecordPurgeService>();

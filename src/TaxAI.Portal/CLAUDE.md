@@ -80,19 +80,21 @@ routes plus exactly one framework component endpoint,
 which takes no route parameter. No `/_blazor` circuit endpoint exists, because no
 interactive render mode is configured.
 
-## The frozen ClientIntake contract is not wired here
+## The ClientIntake backend is wired but not exposed
 
-`ClientIntake` exists as an approved contract with
-`NotImplementedException` bodies. **The portal does not reference it, register
-it, resolve it, or expose any intake route.** Doing any of those belongs to the
-later approved tasks of spec 014.
+Spec 014 T02 adds the `ClientIntake` reference and registers both workflow
+interfaces, the Persistence-owned SQL store, the cryptographic
+credential/digest source, validated workflow options, and the authenticated
+encrypted streaming content adapter in Development/test only. **The portal maps
+no intake route and contains no intake component or upload transport.**
 
-## Dependencies point inward, and are exactly four
+## Dependencies point inward, and are exactly five
 
 The production project references are exactly:
 
 - `TaxLogicEngine`;
 - `CaseProcessing`;
+- `ClientIntake`;
 - `Tenancy`;
 - `Persistence`.
 
@@ -153,7 +155,8 @@ tenant identity.
 - **No tax-year policy lives here.** The portal declares no supported-year list,
   current-year concept, tax-year fallback, or tax-year literal as policy.
 - `IDocumentExtractionIngress` remains unimplemented, unregistered, and
-  unresolved. The portal accepts no document upload.
+  unresolved. The portal exposes no document-upload route; opaque intake bytes
+  can reach the backend only after T03 supplies the approved transport.
 
 ## Deployment refusal
 
@@ -179,13 +182,12 @@ firm or membership, expanding the browser allowlist, or adding a second
 taxpayer-data surface still requires a further approved `tax-domain`
 specification.**
 
-Spec 014 T01 added a rendering foundation, not a capability. **A Blazor
-foundation is not authorization to add a screen.** Mapping an intake route,
-registering an intake workflow, registering Interactive Server, making a
-component interactive, applying a global render mode, adding a client script,
-adding a WebAssembly or npm dependency, or serving a file other than the tracked
-stylesheets each requires the later approved tasks of spec 014 or a further
-specification.
+Spec 014 T02 adds the in-process intake backend and its Development-only
+infrastructure, not a browser capability. **A wired backend is not authorization
+to add a screen.** Mapping an intake route, registering Interactive Server,
+making a component interactive, applying a global render mode, adding a client
+script, adding a WebAssembly or npm dependency, or serving a file other than the
+tracked stylesheets each requires T03 or a further approved specification.
 
 The same is true for editing or approving taxpayer values, listing taxpayers,
 exporting a record, implementing an extraction ingress, or exposing a JSON API.

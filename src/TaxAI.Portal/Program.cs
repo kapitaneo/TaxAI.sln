@@ -29,9 +29,11 @@ builder.Host.UseDefaultServiceProvider(options =>
 
 // Fail closed before anything is registered. The connection string is required
 // in every environment and never appears in a tracked file; outside Development
-// its transport requirements are checked here too. The guard compares the
-// environment name ordinally rather than calling IsDevelopment(), so a security
-// control is never written as a negated environment branch.
+// its transport requirements are checked here too. Intake's required settings
+// are validated inside the single composition root before any intake service is
+// registered. The guard compares the environment name ordinally rather than
+// calling IsDevelopment(), so a security control is never written as a negated
+// environment branch.
 var databaseConnectionString = PortalStartupGuards.RequireDatabaseConnectionString(
     builder.Configuration,
     builder.Environment.EnvironmentName);

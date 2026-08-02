@@ -105,7 +105,13 @@ public sealed class CookieAndTokenTests
             Assert.DoesNotContain(forbidden, payload, StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.False(NineDigitRun.IsMatch(payload), $"The cookie payload contains a nine-digit run: {payload}");
+        var piiProbe = payload.Replace(
+            PortalIdentityHarness.Canonical(session.SessionId),
+            string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.False(
+            NineDigitRun.IsMatch(piiProbe),
+            $"The cookie payload contains a nine-digit run outside its opaque session key: {payload}");
     }
 
     [Fact] // AC-99, AC-165

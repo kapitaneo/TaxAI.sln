@@ -196,19 +196,41 @@
     public contract, no EF migration or model snapshot, and no database schema
     changed.
 
-**No intake capability ships yet.** There is no intake route, workflow body,
-relational intake table, encrypted content adapter, or interactive component —
-and no Interactive Server registration, so the host carries no SignalR circuit
-surface at all. **Spec 014 T03 owns Interactive Server**, introducing it with the
-first interactive island (the adaptive questionnaire and upload panel) rather
-than ahead of it.
+- Spec 014 T02 — complete backend and additive infrastructure:
+  - the frozen signatures now have deterministic implementations for
+    server-scoped case/checklist creation, one-time links, revocable client
+    sessions, adaptive questions, immutable answers/submissions, upload
+    validation and duplicate handling, progress/readiness, audit, and exact
+    immutable review association;
+  - `TaxCases` remains the only case/readiness authority, client scope is always
+    session-derived, and only the two keyed-digest bootstrap lookups omit a firm;
+  - `Persistence` now references exactly `ClientIntake`, `TaxCases`, and
+    `Tenancy`, implements the scoped SQL store, and adds only migration
+    `20260730000000_AddClientIntake` with twelve intake metadata tables; the
+    initial migration and existing review/identity schema are unchanged;
+  - `TaxAI.Portal` now references `ClientIntake`, wires the workflows and store,
+    supplies purpose-separated cryptographic credentials, and registers the
+    authenticated encrypted streaming content store only in Development/test;
+  - startup validates the canonical HTTPS public origin plus every lifetime,
+    size/count, rate/concurrency, digest, fingerprint, encryption-key, and
+    outside-web-root content setting and retains non-Development refusal;
+  - the content contract has no read member, SQL stores no source bytes or
+    filename, and the sole potentially SIN-bearing surface is the encrypted
+    opaque source object outside web root.
+
+**The backend ships without an intake HTTP surface.** There is no intake route,
+upload transport, intake component, raw-content preview/download, production
+content provider, retention/purge path, extraction, tax processing, or review
+construction. Interactive Server is still unregistered, so the host carries no
+SignalR circuit surface. **Spec 014 T03 owns the routes, components, upload
+transport, and Interactive Server**, introducing the first circuit with the
+island that needs it.
 
 ## Next
 
-Spec 014 T02, T03, and T04 remain. They implement the intake backend and
-additive migration, then the client and accountant UI and routes, then the
-cross-module security proof. Each is a separate human-named task; none may be
-started without T01's `.done` marker on `master`.
+Spec 014 T03 and T04 remain. They add the client/accountant UI and routes, then
+run the cross-module security proof. Each is a separate human-named task; T03
+must not begin until T02's `.done` marker is on `master`.
 
 The first taxpayer-data surface is complete under spec 012's exact browser
 allowlist. Any expansion of that allowlist, document upload, stored-package

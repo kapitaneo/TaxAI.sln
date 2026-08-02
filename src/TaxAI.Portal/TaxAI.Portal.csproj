@@ -29,6 +29,7 @@
        reached through their contracts and are never referenced here directly. -->
   <ItemGroup>
     <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
+    <ProjectReference Include="..\ClientIntake\ClientIntake.csproj" />
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
     <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
     <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
