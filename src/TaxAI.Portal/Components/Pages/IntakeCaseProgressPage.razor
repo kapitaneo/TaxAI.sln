@@ -1,0 +1,130 @@
+@using System.Globalization
+@using ClientIntake.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxAI.Portal.Components.Layout
+@using TaxAI.Portal.Components.Shared
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intake progress | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">Client intake</p>
+    <h1>@Model.PrimaryTaxpayerDisplayName</h1>
+
+    <dl class="summary progress-summary">
+        <div><dt>Tax year</dt><dd>@Model.TaxYear</dd></div>
+        <div><dt>Case status</dt><dd>@Model.CaseStatus</dd></div>
+        <div><dt>Readiness</dt><dd>@Model.Readiness</dd></div>
+        <div><dt>Questionnaire</dt><dd>@Model.AnsweredQuestionCount of @Model.ExpectedQuestionCount answered</dd></div>
+        <div><dt>Latest submission</dt><dd>@SubmissionText</dd></div>
+        <div><dt>Unsubmitted changes</dt><dd>@(Model.UnsubmittedChanges ? "Yes" : "No")</dd></div>
+        <div><dt>Expected T4 documents</dt><dd>@Model.ExpectedT4Count</dd></div>
+        <div><dt>Expected medical documents</dt><dd>@Model.ExpectedMedicalExpenseCount</dd></div>
+    </dl>
+
+    <section aria-labelledby="documents-heading">
+        <h2 id="documents-heading">Expected documents</h2>
+        <ExpectedDocumentChecklist Items="Model.ExpectedDocuments" />
+    </section>
+
+    <section aria-labelledby="link-heading">
+        <h2 id="link-heading">Client link</h2>
+        <dl class="summary">
+            <div><dt>State</dt><dd>@Model.LinkState</dd></div>
+            <div><dt>Issued</dt><dd>@FormatInstant(Model.LinkIssuedAtUtc)</dd></div>
+            <div><dt>Expires</dt><dd>@FormatInstant(Model.LinkExpiresAtUtc)</dd></div>
+            @if (Model.LinkRevokedAtUtc is { } revoked)
+            {
+                <div><dt>Revoked</dt><dd>@FormatInstant(revoked)</dd></div>
+            }
+            @if (Model.LinkSpentAtUtc is { } spent)
+            {
+                <div><dt>Redeemed</dt><dd>@FormatInstant(spent)</dd></div>
+            }
+        </dl>
+        <div class="actions">
+            <form method="post" action="@ReissueUrl">
+                <AntiforgeryToken />
+                <button type="submit">Reissue secure link</button>
+            </form>
+            <form method="post" action="@RevokeUrl">
+                <AntiforgeryToken />
+                <button type="submit" class="secondary">Revoke client access</button>
+            </form>
+        </div>
+    </section>
+
+    <section aria-labelledby="handoff-heading">
+        <h2 id="handoff-heading">Accountant review handoff</h2>
+        @switch (Model.HandoffState)
+        {
+            case ReviewHandoffState.Available when Model.ReviewRecordId is { } recordId:
+                <p><a class="button-link" href="@($"/reviews/{recordId:D}")">Open accountant review</a></p>
+                break;
+            case ReviewHandoffState.AwaitingReviewRecord:
+                <p class="notice">The intake is ready and is awaiting an existing review record.</p>
+                break;
+            case ReviewHandoffState.Unavailable:
+                <p class="notice">The associated review is unavailable.</p>
+                break;
+            default:
+                <p>The intake must be ready before review handoff is available.</p>
+                break;
+        }
+        @if (Model.HandoffState is ReviewHandoffState.NotReady or
+            ReviewHandoffState.AwaitingReviewRecord)
+        {
+            <form method="post" action="@AssociationUrl" class="intake-form compact">
+                <AntiforgeryToken />
+                <label for="review-record">Existing review record</label>
+                <input id="review-record"
+                       name="recordId"
+                       type="text"
+                       inputmode="text"
+                       autocomplete="off"
+                       required />
+                <button type="submit">Associate review record</button>
+            </form>
+        }
+    </section>
+</LayoutView>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Guid CaseId { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public AccountantIntakeView Model { get; set; } = default!;
+
+    private string ReissueUrl =>
+        $"/intake-cases/{CaseId:D}/link/reissue";
+
+    private string RevokeUrl =>
+        $"/intake-cases/{CaseId:D}/link/revoke";
+
+    private string AssociationUrl =>
+        $"/intake-cases/{CaseId:D}/review-association";
+
+    private string SubmissionText =>
+        Model.LatestSubmissionVersion is { } version
+            ? $"Version {version.ToString(CultureInfo.InvariantCulture)}"
+            : "Not submitted";
+
+    private static string FormatInstant(DateTimeOffset value) =>
+        value.ToUniversalTime().ToString(
+            "yyyy-MM-dd HH:mm 'UTC'",
+            CultureInfo.InvariantCulture);
+
+}

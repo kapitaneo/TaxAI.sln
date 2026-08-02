@@ -91,27 +91,69 @@ public sealed class RouteAuthenticationBaselineTests
         Assert.Equal(
             new[]
             {
+                "/_blazor",
+                "/_blazor/disconnect/",
+                "/_blazor/initializers/",
+                "/_blazor/negotiate",
                 "/_framework/opaque-redirect",
+                "/client-intake",
+                "/client-intake/answers",
+                "/client-intake/documents",
+                "/client-intake/link/{credential}",
+                "/client-intake/redeem",
+                "/client-intake/submissions",
+                "/intake-cases",
+                "/intake-cases/new",
+                "/intake-cases/{caseId:guid}",
+                "/intake-cases/{caseId:guid}/link/reissue",
+                "/intake-cases/{caseId:guid}/link/revoke",
+                "/intake-cases/{caseId:guid}/review-association",
                 "/reviews/{recordId:guid}",
             },
             additive.Select(endpoint => endpoint.Path).ToArray());
 
-        var review = Assert.Single(
-            additive,
-            endpoint => endpoint.Path == "/reviews/{recordId:guid}");
-        Assert.Equal(new[] { "GET" }, review.Methods);
-        Assert.Equal("required", review.Authorization);
-        Assert.False(review.Antiforgery);
-
-        // The one framework endpoint is contributed by MapRazorComponents itself.
-        // It is not a route this application wrote, takes no parameter, and
-        // requires no antiforgery because it accepts no application form post.
+        var frameworkPaths = new[]
+        {
+            "/_blazor",
+            "/_blazor/disconnect/",
+            "/_blazor/initializers/",
+            "/_blazor/negotiate",
+            "/_framework/opaque-redirect",
+        };
         foreach (var endpoint in additive.Where(candidate =>
-                     candidate.Path != "/reviews/{recordId:guid}"))
+                     frameworkPaths.Contains(
+                         candidate.Path,
+                         StringComparer.Ordinal)))
         {
             Assert.False(endpoint.Antiforgery);
             Assert.DoesNotContain("{", endpoint.Path, StringComparison.Ordinal);
         }
+
+        var expectedApplications = new[]
+        {
+            new EndpointContract("/client-intake", ["GET"], "anonymous", false),
+            new EndpointContract("/client-intake/answers", ["POST"], "anonymous", true),
+            new EndpointContract("/client-intake/documents", ["POST"], "anonymous", true),
+            new EndpointContract("/client-intake/link/{credential}", ["GET"], "anonymous", false),
+            new EndpointContract("/client-intake/redeem", ["POST"], "anonymous", true),
+            new EndpointContract("/client-intake/submissions", ["POST"], "anonymous", true),
+            new EndpointContract("/intake-cases", ["POST"], "required", true),
+            new EndpointContract("/intake-cases/new", ["GET"], "required", false),
+            new EndpointContract("/intake-cases/{caseId:guid}", ["GET"], "required", false),
+            new EndpointContract("/intake-cases/{caseId:guid}/link/reissue", ["POST"], "required", true),
+            new EndpointContract("/intake-cases/{caseId:guid}/link/revoke", ["POST"], "required", true),
+            new EndpointContract("/intake-cases/{caseId:guid}/review-association", ["POST"], "required", true),
+            new EndpointContract("/reviews/{recordId:guid}", ["GET"], "required", false),
+        };
+
+        Assert.Equal(
+            JsonSerializer.Serialize(expectedApplications, JsonOptions),
+            JsonSerializer.Serialize(
+                additive.Where(endpoint => !frameworkPaths.Contains(
+                        endpoint.Path,
+                        StringComparer.Ordinal))
+                    .ToArray(),
+                JsonOptions));
 
         Assert.Equal(
             baseline.Responses.Select(ResponseKey),

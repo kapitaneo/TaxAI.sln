@@ -165,10 +165,9 @@
     projections, storage records, and the
     `IIntakeStore`/`IIntakeContentStore`/`IIntakeCredentialSource` ports are declared
     exactly as approved;
-  - **every workflow constructor and method throws
-    `NotImplementedException`** — T01 froze signatures and shipped no behaviour;
-    nothing in the portal resolves or invokes them, and the module implements
-    none of its own ports;
+  - T01 initially left every workflow constructor and method throwing
+    `NotImplementedException`; T02 subsequently implemented those frozen
+    signatures without widening them;
   - `IIntakeStore` has exactly two firm-omitting members, both keyed-digest
     lookups that *return* trusted scope; `IIntakeContentStore` exposes no read
     member at all;
@@ -218,25 +217,49 @@
     filename, and the sole potentially SIN-bearing surface is the encrypted
     opaque source object outside web root.
 
-**The backend ships without an intake HTTP surface.** There is no intake route,
-upload transport, intake component, raw-content preview/download, production
-content provider, retention/purge path, extraction, tax processing, or review
-construction. Interactive Server is still unregistered, so the host carries no
-SignalR circuit surface. **Spec 014 T03 owns the routes, components, upload
-transport, and Interactive Server**, introducing the first circuit with the
-island that needs it.
+- Spec 014 T03 — secure HTTP and component experience:
+  - the exact six accountant and six anonymous client routes map over the T02
+    workflows, with firm scope derived only from the revalidated accountant
+    session and client scope derived only from the protected intake session;
+  - one-time link confirmation/redeem, clean redirect, secure path-scoped
+    cookie, purpose-separated protected proof, fixed safe `404`/`429`, finite
+    rate and upload-concurrency limits, antiforgery, no-store browser headers,
+    and local-only CSP are enforced at the HTTP boundary;
+  - successful create, issued-link, confirmation, client intake, questionnaire,
+    checklist, upload, submission, progress, and handoff states render through
+    strongly typed presentation-only Razor components;
+  - review and accountant screens remain static SSR. Interactive Server is
+    registered only for the questionnaire's local closed-code reveal panel,
+    with detailed errors and WebSocket compression disabled and no global
+    render mode;
+  - the tracked upload module sends only `upload.bin` plus the antiforgery
+    header; the endpoint uses `MultipartReader`, discards received filenames,
+    enforces configured limits, and streams into the workflow;
+  - progress cannot recover a raw client URL, and the existing review URL
+    appears only for a verified ready association. No review record is created;
+  - no production file under `ClientIntake`, `Persistence`, `Tenancy`, or a
+    domain module, and no migration, snapshot, or schema shape changes.
+
+The encrypted opaque source object outside web root remains the sole potentially
+SIN-bearing exception. No raw-content read/download route, production content
+provider, retention/purge path, extraction, tax processing, review construction,
+or deployment authorization ships. T03 verifies the HTTP/component layer with
+controlled collaborators; final cross-module AC-1…AC-99 evidence belongs to T04.
 
 ## Next
 
-Spec 014 T03 and T04 remain. They add the client/accountant UI and routes, then
-run the cross-module security proof. Each is a separate human-named task; T03
-must not begin until T02's `.done` marker is on `master`.
+Spec 014 T04 remains. It adds only the cross-module acceptance/security proof,
+records AC-1…AC-99 evidence and authoritative test totals, and updates guidance
+to mark the specification complete. It must not begin until T03's `.done`
+marker is on `master`; T03 does not claim final acceptance verification.
 
-The first taxpayer-data surface is complete under spec 012's exact browser
-allowlist. Any expansion of that allowlist, document upload, stored-package
-mutation or deletion, firm or membership provisioning, taxpayer listing,
-review decisions, export, or second taxpayer-data surface requires another
-human-approved `tax-domain` specification.
+The first taxpayer-data surface is complete under spec 012's review allowlist;
+T03 adds the separately approved intake surface. Both are limited to their
+approved browser allowlists.
+Any expansion, raw-document view/download, stored-package deletion, firm or
+membership provisioning, taxpayer listing, review decisions, export, or
+additional taxpayer-data surface requires another human-approved `tax-domain`
+specification.
 
 Question F — whether the portal exposes the untrusted document-extraction
 ingress — remains reserved, and no ingress implementation ships.
@@ -252,7 +275,7 @@ operations, and production provisioning.
 - new CRA forms;
 - T1 calculation;
 - NETFILE/EFILE;
-- any second taxpayer-data screen, taxpayer listing, or editing;
-- document upload, OCR, or LLM integration;
+- any unapproved taxpayer-data screen, taxpayer listing, or editing;
+- raw-document view/download, extraction, OCR, or LLM integration;
 - production deployment or provisioning;
 - microservices.

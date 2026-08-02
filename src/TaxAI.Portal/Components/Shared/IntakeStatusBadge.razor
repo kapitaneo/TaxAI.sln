@@ -1,0 +1,23 @@
+@using ClientIntake.Models
+
+<span class="@CssClass" data-status="@Status.ToString().ToLowerInvariant()">@Label</span>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public ExpectedDocumentStatus Status { get; set; }
+
+    private string CssClass =>
+        $"status-badge status-{Status.ToString().ToLowerInvariant()}";
+
+    private string Label =>
+        Status switch
+        {
+            ExpectedDocumentStatus.Requested => "Requested",
+            ExpectedDocumentStatus.Uploaded => "Uploaded",
+            ExpectedDocumentStatus.Rejected => "Rejected",
+            ExpectedDocumentStatus.Missing => "Missing",
+            ExpectedDocumentStatus.Ready => "Ready",
+            _ => "Unavailable",
+        };
+}

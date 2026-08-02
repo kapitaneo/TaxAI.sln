@@ -1,0 +1,154 @@
+@using ClientIntake.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxCases.Models
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode InteractiveServer
+
+<section aria-labelledby="questionnaire-heading">
+    <h2 id="questionnaire-heading">Document availability</h2>
+    <form method="post" action="/client-intake/answers" class="questionnaire">
+        <AntiforgeryToken />
+        @foreach (var question in Model.Questions)
+        {
+            <fieldset>
+                <legend>@QuestionPrompt(question)</legend>
+                @foreach (var option in question.Options)
+                {
+                    <label>
+                        <input type="radio"
+                               name="@AnswerName(question.Category)"
+                               value="@option"
+                               checked="@(Selected(question) == option)"
+                               @onchange="args => Select(question.Category, args)" />
+                        @AnswerLabel(option)
+                    </label>
+                }
+            </fieldset>
+        }
+        <button type="submit">Save answers</button>
+    </form>
+</section>
+
+<section aria-labelledby="checklist-heading">
+    <h2 id="checklist-heading">Expected documents</h2>
+    <ExpectedDocumentChecklist Items="Model.ExpectedDocuments" />
+</section>
+
+@foreach (var question in Model.Questions)
+{
+    @if (ShowUploads(question))
+    {
+        <section class="upload-group" aria-label="@($"{CategoryLabel(question.Category)} uploads")">
+            <h3>@CategoryLabel(question.Category) uploads</h3>
+            @foreach (var item in Model.ExpectedDocuments.Where(
+                item => item.Category == question.Category))
+            {
+                <form data-intake-upload>
+                    <AntiforgeryToken />
+                    <input type="hidden" name="category" value="@item.Category" />
+                    <input type="hidden" name="ordinal" value="@item.Ordinal" />
+                    <label>
+                        @CategoryLabel(item.Category) @item.Ordinal
+                        <input type="file"
+                               name="document"
+                               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                               required />
+                    </label>
+                    <button type="button" data-upload-button>Upload document</button>
+                    <p class="upload-message" data-upload-message aria-live="polite"></p>
+                </form>
+            }
+        </section>
+    }
+}
+
+@code {
+    private AvailabilityAnswerCode? _t4Selection;
+    private AvailabilityAnswerCode? _medicalSelection;
+
+    [Parameter]
+    [EditorRequired]
+    public ClientIntakeView Model { get; set; } = default!;
+
+    private AvailabilityAnswerCode? Selected(IntakeQuestionView question) =>
+        question.Category switch
+        {
+            DocumentCategory.T4Slip => _t4Selection ?? question.CurrentAnswer,
+            DocumentCategory.MedicalExpenseEvidence =>
+                _medicalSelection ?? question.CurrentAnswer,
+            _ => null,
+        };
+
+    private bool ShowUploads(IntakeQuestionView question) =>
+        Selected(question) == AvailabilityAnswerCode.AvailableNow;
+
+    private void Select(DocumentCategory category, ChangeEventArgs args)
+    {
+        var answer = ParseAnswer(args.Value?.ToString());
+        if (category == DocumentCategory.T4Slip)
+        {
+            _t4Selection = answer;
+        }
+        else if (category == DocumentCategory.MedicalExpenseEvidence)
+        {
+            _medicalSelection = answer;
+        }
+    }
+
+    private static AvailabilityAnswerCode? ParseAnswer(string? value) =>
+        value switch
+        {
+            nameof(AvailabilityAnswerCode.AvailableNow) =>
+                AvailabilityAnswerCode.AvailableNow,
+            nameof(AvailabilityAnswerCode.WillProvideLater) =>
+                AvailabilityAnswerCode.WillProvideLater,
+            nameof(AvailabilityAnswerCode.Unavailable) =>
+                AvailabilityAnswerCode.Unavailable,
+            _ => null,
+        };
+
+    private static string AnswerName(DocumentCategory category) =>
+        category switch
+        {
+            DocumentCategory.T4Slip => "t4Answer",
+            DocumentCategory.MedicalExpenseEvidence => "medicalExpenseAnswer",
+            _ => "unsupportedAnswer",
+        };
+
+    private static string QuestionPrompt(IntakeQuestionView question)
+    {
+        if (!string.IsNullOrEmpty(question.Prompt))
+        {
+            return question.Prompt;
+        }
+
+        // Prompt is intentionally JsonIgnored by the browser model contract.
+        // Interactive Server therefore rebuilds only these two closed labels
+        // when the protected component parameters are hydrated.
+        return question.Category switch
+        {
+            DocumentCategory.T4Slip =>
+                "Are the requested T4 documents available now?",
+            DocumentCategory.MedicalExpenseEvidence =>
+                "Are the requested medical-expense documents available now?",
+            _ => "Is the requested document available now?",
+        };
+    }
+
+    private static string AnswerLabel(AvailabilityAnswerCode answer) =>
+        answer switch
+        {
+            AvailabilityAnswerCode.AvailableNow => "Available now",
+            AvailabilityAnswerCode.WillProvideLater => "Will provide later",
+            AvailabilityAnswerCode.Unavailable => "Unavailable",
+            _ => "Unavailable",
+        };
+
+    private static string CategoryLabel(DocumentCategory category) =>
+        category switch
+        {
+            DocumentCategory.T4Slip => "T4",
+            DocumentCategory.MedicalExpenseEvidence => "Medical document",
+            _ => "Document",
+        };
+}

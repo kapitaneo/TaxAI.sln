@@ -40,10 +40,14 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
     private static readonly string[] ExpectedProductionFiles =
     {
+        "ClientIntakeCookie.cs",
+        "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
         "FirmEndpoints.cs",
         "IntakeConfiguration.cs",
+        "IntakeEndpoints.cs",
+        "IntakeHttpSecurity.cs",
         "ModuleRegistration.cs",
         "PortalAuthorization.cs",
         "PortalContent.cs",
@@ -81,12 +85,17 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         {
             "model binding attribute",
             @"\[From(?:Body|Query|Route|Form|Header|Services)\b",
-            new[] { "FirmEndpoints.cs" }
+            new[]
+            {
+                "ClientIntakeEndpoints.cs",
+                "FirmEndpoints.cs",
+                "IntakeEndpoints.cs",
+            }
         },
         {
             "request body",
             @"Request\s*\.\s*Body|\bReadFromJsonAsync\b|\bReadAsStringAsync\b",
-            Array.Empty<string>()
+            new[] { "ClientIntakeEndpoints.cs" }
         },
         { "request query", @"Request\s*\.\s*Query|\bQueryString\b", Array.Empty<string>() },
         {
@@ -98,7 +107,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         {
             "request cookies",
             @"Request\s*\.\s*Cookies|\bCookieOptions\b",
-            Array.Empty<string>()
+            new[] { "ClientIntakeCookie.cs", "IntakeHttpSecurity.cs" }
         },
         {
             "route parameter binding",
@@ -331,7 +340,11 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
 
-            Assert.Equal(new[] { "ReviewEndpoints.cs" }, matching);
+            Assert.Equal(
+                field == "TaxpayerDisplayName"
+                    ? new[] { "IntakeEndpoints.cs", "ReviewEndpoints.cs" }
+                    : new[] { "ReviewEndpoints.cs" },
+                matching);
         }
     }
 
@@ -391,7 +404,15 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         {
             "authorization wiring",
             @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b|\bAllowAnonymous\b",
-            new[] { "FirmEndpoints.cs", "PortalIdentity.cs", "Program.cs", "ReviewEndpoints.cs" }
+            new[]
+            {
+                "ClientIntakeEndpoints.cs",
+                "FirmEndpoints.cs",
+                "IntakeEndpoints.cs",
+                "PortalIdentity.cs",
+                "Program.cs",
+                "ReviewEndpoints.cs",
+            }
         },
         {
             "identity",
@@ -494,7 +515,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         Assert.Equal(
             new[]
             {
+                "ClientIntakeEndpoints.cs",
                 "FirmEndpoints.cs",
+                "IntakeEndpoints.cs",
                 "PortalAuthorization.cs",
                 "PortalIdentity.cs",
                 "PortalStartupGuards.cs",
@@ -617,12 +640,34 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     [InlineData(@"DateTime\s*\.\s*Now")]
     [InlineData(@"DateTime\s*\.\s*UtcNow")]
     [InlineData(@"DateTimeOffset\s*\.\s*Now")]
-    [InlineData(@"\bTimeProvider\b")]
     public void EveryOtherClockReadingStaysForbiddenEverywhere(string pattern)
     {
         // Including in the one file allowed a clock at all. There is exactly one
         // way this host may ask what time it is.
         AssertNoProductionMatch("system clock", pattern);
+    }
+
+    [Fact]
+    public void TimeProviderIsConfinedToTheCompositionAndIntakeBoundaries()
+    {
+        var matching = ProductionSourceFiles()
+            .Where(path => Regex.IsMatch(
+                string.Join("\n", ExecutableLines(path)),
+                @"\bTimeProvider\b",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "ClientIntakeEndpoints.cs",
+                "IntakeEndpoints.cs",
+                "ModuleRegistration.cs",
+            },
+            matching);
     }
 
     [Fact] // spec 011 FR-20 as amended
@@ -823,7 +868,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         Assert.True(Directory.Exists(webRoot), "wwwroot must exist and hold only the tracked stylesheet.");
 
         Assert.Equal(
-            new[] { "portal.css" },
+            new[] { "intake.css", "portal.css" },
             Directory.EnumerateFiles(webRoot, "*", SearchOption.AllDirectories)
                 .Select(path => Path.GetRelativePath(webRoot, path))
                 .OrderBy(name => name, StringComparer.Ordinal)
@@ -833,17 +878,49 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public void ThePortalShipsNoHandwrittenJavaScript() // AC-42, spec 014 AC-89
     {
-        // The web root and the component tree carry no script this repository
-        // wrote. blazor.web.js comes from the shared framework and is referenced by
-        // App.razor, which the review endpoint does not use; there is no bundle,
-        // no module, and no inline handler.
-        var offending = Directory
+        var scripts = Directory
             .EnumerateFiles(PortalRoot, "*.js", SearchOption.AllDirectories)
             .Where(path => !IsBuildOutput(path))
             .Select(path => Path.GetRelativePath(RepositoryRoot, path))
+            .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.True(offending.Length == 0, $"Handwritten JavaScript found: {string.Join(", ", offending)}");
+        Assert.Equal(
+            new[]
+            {
+                "src\\TaxAI.Portal\\Components\\Shared\\ClientQuestionnairePanel.razor.js",
+            },
+            scripts);
+
+        var module = File.ReadAllText(
+            Path.Combine(
+                PortalRoot,
+                "Components",
+                "Shared",
+                "ClientQuestionnairePanel.razor.js"));
+        Assert.Contains(
+            "body.append(\"document\", file, \"upload.bin\")",
+            module,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "X-TaxAI-Antiforgery",
+            module,
+            StringComparison.Ordinal);
+        foreach (var forbidden in new[]
+                 {
+                     "firmId",
+                     "caseId",
+                     "participantId",
+                     "documentId",
+                     "contentKey",
+                     "fingerprint",
+                 })
+        {
+            Assert.DoesNotContain(
+                forbidden,
+                module,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     // -------------------------------------------------------------- guard

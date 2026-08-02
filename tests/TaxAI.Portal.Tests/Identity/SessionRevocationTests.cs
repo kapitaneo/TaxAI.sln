@@ -201,7 +201,7 @@ public sealed class SessionRevocationTests
 
         Assert.Equal(HttpStatusCode.OK, shell.StatusCode);
         Assert.Contains(
-            "Authenticated accountants can review one stored package in read-only form.",
+            "Authenticated accountants can create client intakes, monitor progress, and review stored packages.",
             await shell.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
     }

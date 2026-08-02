@@ -1,0 +1,149 @@
+.lede {
+    max-width: 46rem;
+    color: #334155;
+}
+
+.intake-form,
+.questionnaire {
+    display: grid;
+    gap: .85rem;
+    max-width: 42rem;
+}
+
+.intake-form.compact {
+    max-width: 32rem;
+}
+
+.intake-form label,
+.questionnaire legend {
+    font-weight: 700;
+}
+
+.intake-form input,
+.questionnaire input[type="text"] {
+    box-sizing: border-box;
+    width: 100%;
+    padding: .7rem;
+    border: 1px solid #94a3b8;
+    border-radius: .4rem;
+    font: inherit;
+}
+
+button,
+.button-link {
+    display: inline-block;
+    width: fit-content;
+    padding: .7rem 1rem;
+    border: 0;
+    border-radius: .4rem;
+    background: #155e75;
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: #475569;
+}
+
+button:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+
+.notice {
+    padding: 1rem;
+    border-left: .3rem solid #0891b2;
+    background: #ecfeff;
+}
+
+.one-time-link {
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, monospace;
+}
+
+.progress-summary {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.document-checklist {
+    display: grid;
+    gap: .55rem;
+    padding: 0;
+    list-style: none;
+}
+
+.document-checklist li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .45rem;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: .2rem .55rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #0f172a;
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+.status-uploaded {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-rejected,
+.status-missing {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-ready {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.questionnaire fieldset,
+.upload-group {
+    display: grid;
+    gap: .65rem;
+    margin: 0 0 1rem;
+    padding: 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .5rem;
+}
+
+.questionnaire fieldset label {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+}
+
+.upload-group form {
+    display: grid;
+    gap: .65rem;
+    padding: .75rem 0;
+}
+
+.upload-message {
+    min-height: 1.5em;
+    margin: 0;
+}
+
+section + section {
+    margin-top: 2rem;
+}

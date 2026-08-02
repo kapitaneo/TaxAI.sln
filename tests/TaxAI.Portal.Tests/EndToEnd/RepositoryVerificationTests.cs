@@ -127,6 +127,7 @@ public sealed class RepositoryVerificationTests
                      "Database persistence",
                      "Retention and purge",
                      "firm-scoped read-only accountant review screen",
+                     "Client intake experience",
                  })
         {
             Assert.Contains(capability, Readme, StringComparison.OrdinalIgnoreCase);
@@ -136,17 +137,19 @@ public sealed class RepositoryVerificationTests
     [Fact]
     public void TheReadmeExplicitlyDisclaimsEveryUnshippedSurface() // spec 011 AC-145
     {
+        var readme = NormalizeWhitespace(Readme);
+
         foreach (var disclaimer in new[]
                  {
-                     "No second taxpayer-data screen",
-                     "No client or accountant intake route, upload transport",
-                     "raw-content read/download surface",
+                     "No taxpayer listing or unapproved taxpayer-data surface",
+                     "No raw-content preview, read, or download surface",
+                     "encrypted opaque source object outside web root",
                      "No OCR or LLM adapter ships.",
                      "No production deployment configuration ships.",
                      "No production provisioning ships",
                  })
         {
-            Assert.Contains(disclaimer, Readme, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(disclaimer, readme, StringComparison.OrdinalIgnoreCase);
         }
 
         foreach (var unsupportedClaim in new[]
@@ -161,7 +164,7 @@ public sealed class RepositoryVerificationTests
         {
             Assert.DoesNotContain(
                 unsupportedClaim,
-                Readme,
+                readme,
                 StringComparison.OrdinalIgnoreCase);
         }
     }
@@ -269,7 +272,8 @@ public sealed class RepositoryVerificationTests
                      "Spec 012",
                      "first taxpayer-data surface is complete",
                      "exact browser allowlist",
-                     "second taxpayer-data surface",
+                     "separately approved intake surface",
+                     "additional taxpayer-data surface",
                      "`tax-domain` specification",
                      "Question F",
                      "remains reserved",

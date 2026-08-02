@@ -38,7 +38,7 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         "</head>\n" +
         "<body>\n" +
         "<h1>TaxAI</h1>\n" +
-        "<p>Authenticated accountants can review one stored package in read-only form.</p>\n" +
+        "<p>Authenticated accountants can create client intakes, monitor progress, and review stored packages.</p>\n" +
         "<p><a href=\"/sign-in\">Sign in</a></p>\n" +
         "</body>\n" +
         "</html>\n";
@@ -148,6 +148,18 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         { "/sign-in", "GET" },
         { "/firms", "GET" },
         { "/firms/select", "POST" },
+        { "/intake-cases/new", "GET" },
+        { "/intake-cases", "POST" },
+        { "/intake-cases/{caseId:guid}", "GET" },
+        { "/intake-cases/{caseId:guid}/link/reissue", "POST" },
+        { "/intake-cases/{caseId:guid}/link/revoke", "POST" },
+        { "/intake-cases/{caseId:guid}/review-association", "POST" },
+        { "/client-intake/link/{credential}", "GET" },
+        { "/client-intake/redeem", "POST" },
+        { "/client-intake", "GET" },
+        { "/client-intake/answers", "POST" },
+        { "/client-intake/documents", "POST" },
+        { "/client-intake/submissions", "POST" },
         { "/reviews/{recordId:guid}", "GET" },
         { "/sign-out", "POST" },
     };
@@ -180,6 +192,10 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     /// </summary>
     private static readonly string[] FrameworkComponentEndpoints =
     {
+        "/_blazor",
+        "/_blazor/disconnect/",
+        "/_blazor/initializers/",
+        "/_blazor/negotiate",
         "/_framework/opaque-redirect",
     };
 
@@ -241,19 +257,35 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [Fact] // spec 011 AC-128
     public void OnlyTheReviewRouteTakesTheOpaqueRecordSelector()
     {
-        // Scoped to this application's own routes. The framework's component
-        // endpoints are enumerated separately and are asserted parameterless below,
-        // which is stronger than letting them widen this search.
-        var parameterized = Assert.Single(
-            ApplicationRouteEndpoints(),
-            endpoint => endpoint.RoutePattern.Parameters.Count > 0);
-        var parameter = Assert.Single(parameterized.RoutePattern.Parameters);
+        var parameterized = ApplicationRouteEndpoints()
+            .Where(endpoint => endpoint.RoutePattern.Parameters.Count > 0)
+            .Select(endpoint => endpoint.RoutePattern.RawText!)
+            .OrderBy(pattern => pattern, StringComparer.Ordinal)
+            .ToArray();
 
-        Assert.Equal("/reviews/{recordId:guid}", parameterized.RoutePattern.RawText);
-        Assert.Equal("recordId", parameter.Name);
         Assert.Equal(
-            new[] { "guid" },
-            parameter.ParameterPolicies.Select(policy => policy.Content));
+            new[]
+            {
+                "/client-intake/link/{credential}",
+                "/intake-cases/{caseId:guid}",
+                "/intake-cases/{caseId:guid}/link/reissue",
+                "/intake-cases/{caseId:guid}/link/revoke",
+                "/intake-cases/{caseId:guid}/review-association",
+                "/reviews/{recordId:guid}",
+            },
+            parameterized);
+
+        var constrained = ApplicationRouteEndpoints()
+            .Where(endpoint => endpoint.RoutePattern.RawText!.Contains(
+                ":guid",
+                StringComparison.Ordinal))
+            .SelectMany(endpoint => endpoint.RoutePattern.Parameters)
+            .ToArray();
+        Assert.All(
+            constrained,
+            parameter => Assert.Equal(
+                new[] { "guid" },
+                parameter.ParameterPolicies.Select(policy => policy.Content)));
     }
 
     [Fact] // spec 014 AC-89
@@ -287,12 +319,19 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
             .Where(pattern => pattern.StartsWith("/_blazor", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Empty(circuitEndpoints);
+        Assert.Equal(
+            new[]
+            {
+                "/_blazor/negotiate",
+                "/_blazor",
+                "/_blazor/disconnect/",
+                "/_blazor/initializers/",
+            },
+            circuitEndpoints);
     }
 
     [Theory] // spec 011 AC-128, AC-129
     [InlineData("firm")]
-    [InlineData("case")]
     [InlineData("participant")]
     [InlineData("document")]
     [InlineData("session")]
@@ -313,6 +352,25 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         }
     }
 
+    [Fact]
+    public void CaseSelectorsAppearOnlyOnTheFourAccountantIntakeRoutes()
+    {
+        Assert.Equal(
+            new[]
+            {
+                "/intake-cases/{caseId:guid}",
+                "/intake-cases/{caseId:guid}/link/reissue",
+                "/intake-cases/{caseId:guid}/link/revoke",
+                "/intake-cases/{caseId:guid}/review-association",
+            },
+            ApplicationRouteEndpoints()
+                .Where(endpoint => endpoint.RoutePattern.Parameters.Any(
+                    parameter => parameter.Name == "caseId"))
+                .Select(endpoint => endpoint.RoutePattern.RawText!)
+                .OrderBy(pattern => pattern, StringComparer.Ordinal)
+                .ToArray());
+    }
+
     [Fact] // spec 011 AC-130
     public void EveryEndpointIsEitherEnumeratedAnonymousOrAuthorizationRequired()
     {
@@ -320,7 +378,18 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         // authorization — is the one that looks fine and is not. An endpoint
         // that is public because nobody protected it reads exactly like one that
         // is public by decision.
-        var anonymous = new[] { "/", "/health", "/sign-in" };
+        var anonymous = new[]
+        {
+            "/",
+            "/client-intake",
+            "/client-intake/answers",
+            "/client-intake/documents",
+            "/client-intake/link/{credential}",
+            "/client-intake/redeem",
+            "/client-intake/submissions",
+            "/health",
+            "/sign-in",
+        };
 
         foreach (var endpoint in ApplicationRouteEndpoints())
         {
@@ -342,6 +411,14 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
 
     [Theory] // spec 011 AC-130
     [InlineData("/firms/select")]
+    [InlineData("/intake-cases")]
+    [InlineData("/intake-cases/{caseId:guid}/link/reissue")]
+    [InlineData("/intake-cases/{caseId:guid}/link/revoke")]
+    [InlineData("/intake-cases/{caseId:guid}/review-association")]
+    [InlineData("/client-intake/redeem")]
+    [InlineData("/client-intake/answers")]
+    [InlineData("/client-intake/documents")]
+    [InlineData("/client-intake/submissions")]
     [InlineData("/sign-out")]
     public void EveryStateChangingRouteRequiresAntiforgery(string pattern)
     {

@@ -1,0 +1,38 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxAI.Portal.Components.Layout
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirm client intake | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">TaxAI client intake</p>
+    <h1>Continue to your @TaxYear intake</h1>
+    <p>This confirmation keeps emailed links safe from automatic preview tools. Continuing uses the link once.</p>
+    <form method="post" action="/client-intake/redeem" class="intake-form compact">
+        <AntiforgeryToken />
+        <input type="hidden"
+               name="redemptionHandle"
+               value="@RedemptionHandle" />
+        <button type="submit">Continue securely</button>
+    </form>
+</LayoutView>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public int TaxYear { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public string RedemptionHandle { get; set; } = default!;
+}

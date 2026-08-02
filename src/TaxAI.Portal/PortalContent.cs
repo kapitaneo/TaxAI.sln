@@ -33,8 +33,9 @@ internal static class PortalContent
 
     /// <summary>
     /// The entire body of <c>GET /</c>: a static, server-rendered shell that
-    /// describes the one authenticated review capability without rendering any
-    /// taxpayer value. It contains no data binding and no dynamic value.
+    /// describes the authenticated review and intake capabilities without
+    /// rendering any taxpayer value. It contains no data binding and no dynamic
+    /// value.
     /// </summary>
     internal const string ShellHtml =
         "<!DOCTYPE html>\n" +
@@ -46,7 +47,7 @@ internal static class PortalContent
         "</head>\n" +
         "<body>\n" +
         "<h1>TaxAI</h1>\n" +
-        "<p>Authenticated accountants can review one stored package in read-only form.</p>\n" +
+        "<p>Authenticated accountants can create client intakes, monitor progress, and review stored packages.</p>\n" +
         "<p><a href=\"/sign-in\">Sign in</a></p>\n" +
         "</body>\n" +
         "</html>\n";
