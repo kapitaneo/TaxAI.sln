@@ -26,12 +26,18 @@ JSON surface.
 `Layout/PortalLayout`, and `Pages/ReviewPage`, plus `_Imports`. There are
 exactly five components, and the set is asserted exactly.
 
-- **Static server rendering is the default, because nothing opts out.** No
-  component declares `@rendermode` and no global render mode is applied.
-  Interactive Server is registered so a later approved task's one adaptive
-  questionnaire island can opt in per component; **no component is interactive
-  today**, so the circuit has no component to run and no taxpayer model to carry.
-  WebSocket compression is disabled.
+- **Static server rendering only — interactivity is not registered.** No
+  component declares `@rendermode`, no global render mode is applied, and neither
+  `AddInteractiveServerComponents` nor `AddInteractiveServerRenderMode` appears
+  anywhere in this project. That is stronger than "no component opts in": with
+  nothing registered there is no mode for a component to request and **no
+  `/_blazor` SignalR endpoint for the framework to materialize**. A circuit on the
+  host that serves taxpayer data has to earn its place, and today nothing uses
+  one. There is no `blazor.web.js` reference either; static SSR bootstraps
+  nothing.
+  **Spec 014 T03 owns Interactive Server**, arriving with the first interactive
+  island (the adaptive questionnaire and upload panel), its registration, and its
+  script — together, in one reviewable diff.
 - **No component is routable.** None declares `@page`. `ReviewPage` is returned
   as `RazorComponentResult<ReviewPage>` by a minimal endpoint that has already
   authenticated the caller, revalidated the local user and membership, resolved
@@ -69,9 +75,10 @@ registers a `{**path:file}` catch-all over the entire URL space, which:
   authorization-required — the third state spec 011 forbids.
 
 The route inventory therefore stays exact and closed: this application's seven
-routes plus exactly five framework component endpoints (`/_blazor`,
-`/_blazor/disconnect/`, `/_blazor/initializers/`, `/_blazor/negotiate`, and
-`/_framework/opaque-redirect`). None of those five takes a route parameter.
+routes plus exactly one framework component endpoint,
+`/_framework/opaque-redirect`, which `MapRazorComponents<App>()` contributes and
+which takes no route parameter. No `/_blazor` circuit endpoint exists, because no
+interactive render mode is configured.
 
 ## The frozen ClientIntake contract is not wired here
 
@@ -174,10 +181,11 @@ specification.**
 
 Spec 014 T01 added a rendering foundation, not a capability. **A Blazor
 foundation is not authorization to add a screen.** Mapping an intake route,
-registering an intake workflow, making a component interactive, applying a global
-render mode, adding a WebAssembly or npm dependency, or serving a file other than
-the tracked stylesheets each requires the later approved tasks of spec 014 or a
-further specification.
+registering an intake workflow, registering Interactive Server, making a
+component interactive, applying a global render mode, adding a client script,
+adding a WebAssembly or npm dependency, or serving a file other than the tracked
+stylesheets each requires the later approved tasks of spec 014 or a further
+specification.
 
 The same is true for editing or approving taxpayer values, listing taxpayers,
 exporting a record, implementing an extraction ingress, or exposing a JSON API.

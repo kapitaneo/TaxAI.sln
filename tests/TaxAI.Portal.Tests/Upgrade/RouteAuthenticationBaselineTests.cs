@@ -77,8 +77,12 @@ public sealed class RouteAuthenticationBaselineTests
         // Replaces spec 013's single additive endpoint, superseded by spec 014 T01's
         // Blazor foundation. An exact set is strictly stronger than the single entry
         // it replaces: it still pins the one taxpayer route's method, authorization,
-        // and antiforgery state, and additionally names every framework endpoint the
-        // component mapping contributed, so a sixth one cannot appear unnoticed.
+        // and antiforgery state, and additionally names the one framework endpoint
+        // the component mapping contributed, so a third cannot appear unnoticed.
+        //
+        // The four /_blazor SignalR endpoints are absent because T01 registers no
+        // interactive render mode. If they reappear, this assertion is where it
+        // shows up.
         var additive = actual.Endpoints
             .Where(endpoint => !legacyPaths.Contains(endpoint.Path))
             .OrderBy(endpoint => endpoint.Path, StringComparer.Ordinal)
@@ -87,10 +91,6 @@ public sealed class RouteAuthenticationBaselineTests
         Assert.Equal(
             new[]
             {
-                "/_blazor",
-                "/_blazor/disconnect/",
-                "/_blazor/initializers/",
-                "/_blazor/negotiate",
                 "/_framework/opaque-redirect",
                 "/reviews/{recordId:guid}",
             },
@@ -103,10 +103,9 @@ public sealed class RouteAuthenticationBaselineTests
         Assert.Equal("required", review.Authorization);
         Assert.False(review.Antiforgery);
 
-        // The framework endpoints exist because Interactive Server is registered
-        // for a later task. None of them is a route this application wrote, none
-        // takes a parameter, and none requires antiforgery because none accepts an
-        // application form post.
+        // The one framework endpoint is contributed by MapRazorComponents itself.
+        // It is not a route this application wrote, takes no parameter, and
+        // requires no antiforgery because it accepts no application form post.
         foreach (var endpoint in additive.Where(candidate =>
                      candidate.Path != "/reviews/{recordId:guid}"))
         {

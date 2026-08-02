@@ -210,20 +210,16 @@ public sealed class PortalBoundaryTests
         // registration; it is enumerated rather than special-cased so nothing is
         // silently exempt. AddTaxAiModules is the single call into the
         // composition root.
-        // AddInteractiveServerRenderMode is the endpoint-side half of the spec 014
-        // Blazor foundation. It is enumerated here rather than exempted, so the
-        // one place interactivity could be switched on is a place this test names.
-        {
-            "Program.cs",
-            new[] { "AddInteractiveServerRenderMode", "AddServerHeader", "AddTaxAiModules" }
-        },
+        // No AddInteractiveServerRenderMode: spec 014 T01 maps the component
+        // endpoint for static server rendering only, and the exact set here is
+        // what stops interactivity being switched on without a diff.
+        { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
         { "FirmEndpoints.cs", new[] { "AddClaim" } },
         {
             "ModuleRegistration.cs",
             new[]
             {
                 "AddAntiforgery",
-                "AddInteractiveServerComponents",
                 "AddPolicy",
                 "AddPortalIdentity",
                 "AddRazorComponents",
@@ -319,7 +315,6 @@ public sealed class PortalBoundaryTests
                 "AddAntiforgery" or
                 "AddPolicy" or
                 "AddRazorComponents" or
-                "AddInteractiveServerComponents" or
                 "AddSingleton" or
                 "AddScoped" or
                 "AddTransient" or
@@ -332,10 +327,10 @@ public sealed class PortalBoundaryTests
         // host's own identity wiring. Replaces spec 011 T17's single-entry
         // assertion.
         //
-        // AddRazorComponents and AddInteractiveServerComponents are excluded above
-        // because they are framework builder calls, not a contributing module's
-        // entry point — the same reason AddAntiforgery and AddPolicy are excluded.
-        // They are still pinned exactly, by the per-file allow-list.
+        // AddRazorComponents is excluded above because it is a framework builder
+        // call, not a contributing module's entry point — the same reason
+        // AddAntiforgery and AddPolicy are excluded. It is still pinned exactly, by
+        // the per-file allow-list.
         Assert.Equal(new[] { "AddPortalIdentity", "AddTaxAiPersistence" }, moduleExtensions);
 
         // Each of those extensions is declared exactly once, by the module that
@@ -533,16 +528,57 @@ public sealed class PortalBoundaryTests
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        // The endpoint-side registration exists, but it is not applied globally:
-        // AddInteractiveServerRenderMode configures the mode that a component may
-        // later request, and `.razor` files requesting it are none.
+        // And no interactive render mode is configured anywhere in the host. This
+        // is stronger than "no component opts in": with nothing registered, there
+        // is no mode for a component to request and no circuit endpoint for the
+        // framework to materialize.
+        //
+        // Spec 014 T03 introduces the first interactive island and the
+        // registration it needs. Until then a taxpayer-data host carries no
+        // SignalR surface.
+        foreach (var file in ProductionSourceFiles())
+        {
+            var executable = string.Join("\n", ExecutableLines(file));
+
+            foreach (var forbidden in new[]
+                     {
+                         "AddInteractiveServerComponents",
+                         "AddInteractiveServerRenderMode",
+                         "AddInteractiveWebAssemblyComponents",
+                         "AddInteractiveWebAssemblyRenderMode",
+                         "RenderMode.InteractiveServer",
+                         "RenderMode.InteractiveAuto",
+                         "RenderMode.InteractiveWebAssembly",
+                         "InteractiveServerRenderMode",
+                     })
+            {
+                Assert.DoesNotContain(forbidden, executable, StringComparison.Ordinal);
+            }
+        }
+
+        // The one framework call that stays is the static component mapping.
         var program = string.Join(
             "\n",
             ExecutableLines(Path.Combine(PortalRoot, "Program.cs")));
 
-        Assert.Contains("AddInteractiveServerRenderMode", program, StringComparison.Ordinal);
-        Assert.DoesNotContain("RenderMode.InteractiveServer", program, StringComparison.Ordinal);
-        Assert.DoesNotContain("AddInteractiveWebAssembly", program, StringComparison.Ordinal);
+        Assert.Contains("MapRazorComponents<App>();", program, StringComparison.Ordinal);
+    }
+
+    [Fact] // spec 014 AC-89
+    public void TheHostShipsNoClientScriptReference()
+    {
+        // Static server rendering needs no script. Nothing is interactive and no
+        // component uses enhanced navigation, so blazor.web.js would bootstrap
+        // nothing — omitting it keeps the host free of a client-side stack
+        // entirely. T03 adds the script with the island that needs it.
+        foreach (var component in ComponentFiles())
+        {
+            var markup = ComponentMarkup(component);
+
+            Assert.DoesNotContain("<script", markup, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("blazor.web.js", markup, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("blazor.server.js", markup, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
@@ -620,7 +656,7 @@ public sealed class PortalBoundaryTests
                          "IReviewRecordRepository",
                          "IIntakeStore",
                          "IIntakeContentStore",
-                         "IIntakeSecretSource",
+                         "IIntakeCredentialSource",
                          "IAccountantIntakeWorkflow",
                          "IClientIntakeWorkflow",
                          "PortalAuthorization",

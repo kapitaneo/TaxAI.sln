@@ -78,9 +78,16 @@ PR number and final implementation commit SHA.
      approved net10 xunit/test-SDK/runner/coverlet package matrix and references
      only `ClientIntake`.
   5. Register the framework Blazor Web App services/endpoints in the existing
-     composition root. Static SSR is the default. Register support for
-     Interactive Server but apply no global render mode and add no
-     WebAssembly/npm/SPA/third-party asset.
+     composition root. Static SSR is the default. **[AMENDED by the human before
+     T01 merge — Interactive Server moved to T03.]** T01 registers
+     `AddRazorComponents()` and maps `MapRazorComponents<App>()` only. It must
+     **not** call `AddInteractiveServerComponents` or
+     `AddInteractiveServerRenderMode`, apply a global render mode, reference a
+     client script, or add a WebAssembly/npm/SPA/third-party asset. No T01
+     component declares an interactive render mode, so registering Interactive
+     Server would materialize four `/_blazor` SignalR endpoints on the
+     taxpayer-data host for no current functionality. T03 adds the registration
+     with the first island that needs it.
   6. Keep the existing anonymous shell and health bodies/routes byte-identical.
   7. Keep `GET /reviews/{recordId:guid}`,
      `PortalAuthorization.FirmScopedPolicy`, response headers, trusted firm
@@ -136,7 +143,14 @@ PR number and final implementation commit SHA.
   - `src/ClientIntake/Contracts/IClientIntakeWorkflow.cs` *(new)*
   - `src/ClientIntake/Contracts/IIntakeStore.cs` *(new)*
   - `src/ClientIntake/Contracts/IIntakeContentStore.cs` *(new)*
-  - `src/ClientIntake/Contracts/IIntakeSecretSource.cs` *(new)*
+  - `src/ClientIntake/Contracts/IIntakeCredentialSource.cs` *(new)* —
+    **[AMENDED by the human before T01 merge]** originally
+    `IIntakeSecretSource.cs`. The repository forbids any tracked file name
+    containing "secret", a hygiene guard against committed secret material
+    enforced independently by `TaxCases.Tests` and `DocumentExtraction.Tests`.
+    The port and its file were renamed rather than weakening that guard; the
+    secret-bearing value type `IntakeSecret` is unchanged, and every method
+    signature on the port is identical.
   - `src/ClientIntake/Services/AccountantIntakeWorkflow.cs` *(new)*
   - `src/ClientIntake/Services/ClientIntakeWorkflow.cs` *(new)*
 
@@ -458,6 +472,17 @@ PR number and final implementation commit SHA.
      that performs local closed-code reveal. The panel invokes no workflow or
      authorization service, and its serialized state contains only the client
      allowlist.
+
+     **[AMENDED by the human before T01 merge — Interactive Server moved here
+     from T01.]** T03 therefore also adds, in the same diff as that panel:
+     `AddInteractiveServerComponents(options => options.DetailedErrors = false)`
+     in the composition root;
+     `AddInteractiveServerRenderMode(/* WebSocket compression disabled */)` on
+     `MapRazorComponents<App>()`; and the `blazor.web.js` reference in `App`.
+     Update the portal's route inventory, route/authentication baseline, and
+     endpoint-authorization tests to account for the four `/_blazor` endpoints
+     this materializes, using exact allowlists rather than prefix filters. Apply
+     no global render mode.
   9. Use a tracked collocated/local upload module to send the literal filename
      `upload.bin` and antiforgery header. Parse with `MultipartReader`, never
      `IFormFile`/`ReadFormAsync`, discard any received filename immediately,

@@ -75,20 +75,21 @@ internal static class ModuleRegistration
         services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
         services.AddSingleton<T4CaseProcessor>();
 
-        // The Blazor Web App foundation, framework-provided and nothing more.
+        // The Blazor Web App foundation: static server rendering, and nothing
+        // more.
         //
-        // Static server rendering is the default because no component declares a
-        // render mode and no global mode is applied here. Interactive Server
-        // support is registered so a later task's one adaptive questionnaire
-        // island can opt in per component; registering the capability is not the
-        // same as turning it on, and today nothing uses it.
+        // Deliberately NOT AddInteractiveServerComponents(). No component in this
+        // project declares an interactive render mode, so Interactive Server would
+        // provide no current functionality while opening a SignalR circuit
+        // endpoint surface on the host that serves taxpayer data. Registering a
+        // capability nothing uses is still surface, and this host's surface is
+        // enumerated exactly.
         //
-        // DetailedErrors stays false in every environment. A circuit error that
-        // describes itself is a disclosure surface, and this host's whole
-        // diagnostic posture is one fixed response.
-        services
-            .AddRazorComponents()
-            .AddInteractiveServerComponents(options => options.DetailedErrors = false);
+        // Interactive Server registration belongs to spec 014 T03, which
+        // introduces the first genuinely interactive island — the adaptive
+        // questionnaire and upload panel. It arrives with the component that
+        // needs it.
+        services.AddRazorComponents();
 
         services.AddTaxAiPersistence(databaseConnectionString);
         services.AddPortalIdentity(configuration, environment);

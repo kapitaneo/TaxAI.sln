@@ -5,28 +5,35 @@ Wave:   0 (contract wave; not contract-only — ships the Blazor foundation and
         the review-screen migration as its independently valuable product result)
 PR:     #133  https://github.com/kapitaneo/TaxAI.sln/pull/133
 Branch: feat/014-w0-t01
-Commit: 6ce01bb
+Commit: see PR head (narrowing + rename applied after the first review pass)
 
 ## Gate — all three commands, in order
 
-    dotnet build TaxAI.sln                  Build succeeded. 0 Warning(s) 0 Error(s)
-    dotnet test TaxAI.sln                   all 9 projects passed
+    dotnet build TaxAI.sln                   Build succeeded. 0 Warning(s) 0 Error(s)
+    dotnet test TaxAI.sln                    all 9 projects passed
     pwsh ./scripts/Invoke-SolutionTests.ps1  gate passed (authoritative)
 
-Result: 3348 tests, 0 failed, 0 skipped, every floor met.
+Result: 3350 tests, 0 failed, 0 skipped, every floor met.
 
     TaxLogicEngine.Tests         261 passed (floor 261)
     TaxCases.Tests               337 passed (floor 337)
     DocumentExtraction.Tests     673 passed (floor 673)
     CaseProcessing.Tests         594 passed (floor 594)
     CaseReview.Tests             482 passed (floor 482)
-    TaxAI.Portal.Tests           451 passed (floor 451, raised from 431)
+    TaxAI.Portal.Tests           453 passed (floor 453, raised from 431)
     Tenancy.Tests                289 passed (floor 289)
     Persistence.Tests            146 passed (floor 137)
     ClientIntake.Tests           115 passed (floor 115, new)
 
 No floor was lowered. Persistence.Tests' floor of 137 is pre-existing and was
 left alone: this task added no Persistence test.
+
+Also run at the human's request, after the narrowing:
+
+    endpoint inventory + authorization suites   127 passed
+    all Portal tests                            453 passed
+    dotnet publish -c Release                   succeeded
+    git diff --check                            clean
 
 ## Delivered
 
@@ -45,15 +52,43 @@ extraction, browser-safety guard, closed projection, invariant amounts,
 collection order, single FindAsync call with the request cancellation token, and
 identical empty 404.
 
-## Two defects found and avoided
+## Human-directed amendments, applied before merge
 
-1. MapStaticAssets() registers a {**path:file} catch-all over the whole URL
-   space. It turned GET /sign-out from 405 into 404 and added an endpoint in the
-   "neither anonymous nor authorization-required" third state spec 011 forbids.
-   Replaced with UseStaticFiles() middleware, which adds no endpoint.
-2. A [property: JsonIgnore] target on a positional parameter whose property is
-   declared by hand is discarded by the compiler (CS0657) while looking exactly
-   like a working omission. It had left two Fingerprint properties serializable.
+1. STATIC SSR ONLY — Interactive Server moved to T03.
+   Removed AddInteractiveServerComponents() and AddInteractiveServerRenderMode(),
+   and the blazor.web.js reference in App.razor. No T01 component declares an
+   interactive render mode, so the registration provided no current functionality
+   while materializing four /_blazor SignalR endpoints on the taxpayer-data host.
+   Kept: AddRazorComponents(), MapRazorComponents<App>(), the typed
+   RazorComponentResult review rendering, and all endpoint-owned authorization
+   and safe-404 behaviour.
+
+   Endpoint surface before -> after: 12 route endpoints -> 8. The four /_blazor
+   endpoints are gone; /_framework/opaque-redirect remains, contributed by
+   MapRazorComponents itself and taking no route parameter. Asserted by
+   ShellPageTests.NoInteractiveServerCircuitEndpointIsMapped, by an exact
+   production-source scan for every interactive-registration token, and by
+   PortalBoundaryTests.TheHostShipsNoClientScriptReference.
+
+   Wording updated in architecture.md (marked [AMENDED]), tasks.md T01
+   requirement 5 and T03 requirement 8 (marked [AMENDED]), root CLAUDE.md,
+   README.md, NEXT.md, and src/TaxAI.Portal/CLAUDE.md.
+
+2. IIntakeSecretSource -> IIntakeCredentialSource (type and file).
+   The repository forbids any tracked file name containing "secret" — a hygiene
+   guard against committed secret material, enforced independently by
+   TaxCases.Tests.RepositoryHygiene_HasNoForbiddenTrackedFiles and
+   DocumentExtraction.Tests.NoForbiddenFileIsTrackedAnywhereInTheRepository.
+   src/ClientIntake/Contracts/IIntakeSecretSource.cs tripped it.
+
+   The guard was NOT weakened. The port and its file were renamed instead, on the
+   human's decision. Every method signature on the port is identical, and the
+   secret-bearing value type IntakeSecret is unchanged. The constructor parameter
+   was renamed secretSource -> credentialSource for coherence.
+
+   This surfaced only after the first commit: the hygiene tests scan
+   `git ls-files`, so the file was invisible to them while untracked. The earlier
+   green gate was testing a genuinely different state, not a wrong one.
 
 ## AC-99 storage neutrality — verified against master
 
@@ -89,17 +124,25 @@ additive endpoint set, and the static-file surface. New component scans added fo
 AC-90/91/96/98, which the .cs-only scanners could not see. Both superseded rows
 are registered in AmendmentAuditTests against the immutable spec 012 PRD ledger.
 
+## Known, reported, not fixed
+
+- One flaky run of TaxAI.Portal.Tests.Identity.CookieAndTokenTests
+  .TheDecryptedCookieCarriesNoFirmNoUserAndNoTaxpayerValue was observed once and
+  did not reproduce in five subsequent full runs. It is a pre-existing identity /
+  Data-Protection test that touches neither the component model nor routing.
+  Reported rather than suppressed; worth watching in CI.
+- dotnet publish materializes the framework's own wwwroot/_framework/
+  blazor.web.js and blazor.server.js. They ship with the shared framework's
+  static web assets, no component references them, and nothing loads them. The
+  repository's own wwwroot contains exactly portal.css.
+
 ## Deliberately not shipped
 
 No intake route, workflow body, relational intake table, or encrypted content
-adapter. No interactive component. Interactive Server is registered per T01
-requirement 5 and the approved architecture, adding the framework's five
-/_blazor and /_framework/opaque-redirect endpoints; no component opts in, so the
-circuit has no component to run and no taxpayer model to carry. Flagged in the
-PR as something a reviewer may reasonably want deferred to T03.
-
-Deployment refusal unchanged: Development-only startup, and no deployment
-anywhere that can receive real taxpayer data.
+adapter. No interactive component, no Interactive Server registration, no
+/_blazor endpoint, and no client script. Deployment refusal unchanged:
+Development-only startup, and no deployment anywhere that can receive real
+taxpayer data.
 
 ## Human review required
 

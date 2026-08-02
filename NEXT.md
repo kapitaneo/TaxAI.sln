@@ -163,7 +163,7 @@
     `TaxCases`, `Tenancy`, and `TaxLogicEngine`, with no package reference;
   - the closed intake vocabularies, accountant/client commands and safe
     projections, storage records, and the
-    `IIntakeStore`/`IIntakeContentStore`/`IIntakeSecretSource` ports are declared
+    `IIntakeStore`/`IIntakeContentStore`/`IIntakeCredentialSource` ports are declared
     exactly as approved;
   - **every workflow constructor and method throws
     `NotImplementedException`** — T01 froze signatures and shipped no behaviour;
@@ -177,9 +177,11 @@
     structural `ToString()`, and every collection constructor copies into a
     read-only snapshot;
   - one Blazor Web App foundation added to `TaxAI.Portal` — `App`, `Routes`,
-    `PortalLayout`, `ReviewPage` — with static server rendering as the default:
-    no component declares a render mode, no global mode is applied, and there is
-    no WebAssembly, npm tree, remote script, remote font, or third-party asset;
+    `PortalLayout`, `ReviewPage` — **static server rendering only**: no component
+    declares a render mode, no global mode is applied, **Interactive Server is not
+    registered**, so no `/_blazor` circuit endpoint exists and no client script
+    loads; and there is no WebAssembly, npm tree, remote font, or third-party
+    asset;
   - `ReviewEndpoints.cs` lost only its `Render` method, `StringBuilder`,
     appended markup, and inline style assembly, and now returns
     `RazorComponentResult<ReviewPage>` with one closed `ReviewPageModel`; its
@@ -195,9 +197,11 @@
     changed.
 
 **No intake capability ships yet.** There is no intake route, workflow body,
-relational intake table, encrypted content adapter, or interactive component.
-Interactive Server is registered for a later task; because no component opts in,
-the circuit has no component to run and no taxpayer model to carry.
+relational intake table, encrypted content adapter, or interactive component —
+and no Interactive Server registration, so the host carries no SignalR circuit
+surface at all. **Spec 014 T03 owns Interactive Server**, introducing it with the
+first interactive island (the adaptive questionnaire and upload panel) rather
+than ahead of it.
 
 ## Next
 

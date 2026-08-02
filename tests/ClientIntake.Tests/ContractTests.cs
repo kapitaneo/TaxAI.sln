@@ -33,7 +33,7 @@ public sealed class ContractTests
                 "ClientIntake.Contracts.IAccountantIntakeWorkflow",
                 "ClientIntake.Contracts.IClientIntakeWorkflow",
                 "ClientIntake.Contracts.IIntakeContentStore",
-                "ClientIntake.Contracts.IIntakeSecretSource",
+                "ClientIntake.Contracts.IIntakeCredentialSource",
                 "ClientIntake.Contracts.IIntakeStore",
                 "ClientIntake.Models.AccountantIntakeView",
                 "ClientIntake.Models.AvailabilityAnswerCode",
@@ -356,9 +356,9 @@ public sealed class ContractTests
     [Fact]
     public void TheSecretSourceNeverStoresOrReturnsARawCredentialFromStorage()
     {
-        AssertMembers<IIntakeSecretSource>("CreateCredential", "CreateIdentifier", "Digest");
+        AssertMembers<IIntakeCredentialSource>("CreateCredential", "CreateIdentifier", "Digest");
 
-        var digest = typeof(IIntakeSecretSource).GetMethod(nameof(IIntakeSecretSource.Digest))!;
+        var digest = typeof(IIntakeCredentialSource).GetMethod(nameof(IIntakeCredentialSource.Digest))!;
         Assert.Equal(typeof(IntakeTokenDigest), digest.ReturnType);
         Assert.Equal(
             new[] { typeof(IntakeSecret), typeof(IntakeTokenPurpose) },
@@ -366,7 +366,7 @@ public sealed class ContractTests
 
         // Digesting is one-way: nothing verifies or recovers a raw credential.
         Assert.DoesNotContain(
-            typeof(IIntakeSecretSource).GetMethods(),
+            typeof(IIntakeCredentialSource).GetMethods(),
             method =>
                 method.Name.Contains("Verify", StringComparison.Ordinal) ||
                 method.Name.Contains("Validate", StringComparison.Ordinal) ||
@@ -403,7 +403,7 @@ public sealed class ContractTests
             new[]
             {
                 typeof(IIntakeStore),
-                typeof(IIntakeSecretSource),
+                typeof(IIntakeCredentialSource),
                 typeof(IReviewRecordRepository),
                 typeof(IntakeWorkflowOptions),
             },
@@ -420,7 +420,7 @@ public sealed class ContractTests
             {
                 typeof(IIntakeStore),
                 typeof(IIntakeContentStore),
-                typeof(IIntakeSecretSource),
+                typeof(IIntakeCredentialSource),
                 typeof(IntakeWorkflowOptions),
             },
             constructor.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
@@ -454,10 +454,10 @@ public sealed class ContractTests
         // T01 freezes signatures and ships no behavior. These are the assertions
         // that make "contract wave" mean something rather than being a promise.
         AssertThrowsNotImplemented(() => new AccountantIntakeWorkflow(
-            store: null!, secretSource: null!, reviewRecords: null!, options: null!));
+            store: null!, credentialSource: null!, reviewRecords: null!, options: null!));
 
         AssertThrowsNotImplemented(() => new ClientIntakeWorkflow(
-            store: null!, contentStore: null!, secretSource: null!, options: null!));
+            store: null!, contentStore: null!, credentialSource: null!, options: null!));
     }
 
     [Fact]

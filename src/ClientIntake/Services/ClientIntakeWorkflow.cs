@@ -24,7 +24,7 @@ public sealed class ClientIntakeWorkflow : IClientIntakeWorkflow
     public ClientIntakeWorkflow(
         IIntakeStore store,
         IIntakeContentStore contentStore,
-        IIntakeSecretSource secretSource,
+        IIntakeCredentialSource credentialSource,
         IntakeWorkflowOptions options) =>
         throw new NotImplementedException();
 

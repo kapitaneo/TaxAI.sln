@@ -351,7 +351,7 @@ complete and delivered two things:
 
 - **The frozen `ClientIntake` contract.** `src/ClientIntake/` declares the closed
   intake vocabularies, the accountant/client commands and safe projections, the
-  `IIntakeStore`/`IIntakeContentStore`/`IIntakeSecretSource` ports, and the two
+  `IIntakeStore`/`IIntakeContentStore`/`IIntakeCredentialSource` ports, and the two
   workflow classes. **Every workflow constructor and method throws
   `NotImplementedException`**, nothing in the portal resolves or invokes them, and
   the module implements none of its own ports. `IIntakeStore` has exactly two
@@ -368,11 +368,20 @@ complete and delivered two things:
   assembly are gone, replaced by `RazorComponentResult<ReviewPage>` with one
   closed `ReviewPageModel`.
 
-**Static server rendering is the default and nothing is interactive.** No
-component declares `@rendermode` and no global mode is applied. Interactive
-Server is registered for a later task, which adds the framework's five
-`/_blazor` and `/_framework/opaque-redirect` endpoints; no component opts in, so
-the circuit has no component to run and no taxpayer model to carry.
+**The foundation is static server rendering only.** No component declares
+`@rendermode`, no global mode is applied, and **Interactive Server is not
+registered at all** — neither `AddInteractiveServerComponents` nor
+`AddInteractiveServerRenderMode` appears in the host. No component is
+interactive, so a circuit would have provided no functionality while expanding a
+taxpayer-data host's endpoint surface; the four `/_blazor` SignalR endpoints
+therefore do not exist. `MapRazorComponents<App>()` contributes exactly one
+framework endpoint, `/_framework/opaque-redirect`. There is also no
+`blazor.web.js` reference: nothing needs bootstrapping.
+
+**Interactive Server registration belongs to spec 014 T03**, which introduces the
+first genuinely interactive island — the adaptive questionnaire and upload panel
+— and brings the registration and the client script with the component that
+needs them.
 
 **Static assets are served by `UseStaticFiles()` middleware, deliberately not
 `MapStaticAssets()`.** The endpoint-routing variant registers a

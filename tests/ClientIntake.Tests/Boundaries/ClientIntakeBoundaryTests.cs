@@ -46,7 +46,7 @@ public sealed class ClientIntakeBoundaryTests
         "IAccountantIntakeWorkflow.cs",
         "IClientIntakeWorkflow.cs",
         "IIntakeContentStore.cs",
-        "IIntakeSecretSource.cs",
+        "IIntakeCredentialSource.cs",
         "IIntakeStore.cs",
         "IntakeCommands.cs",
         "IntakeEnums.cs",
@@ -320,7 +320,7 @@ public sealed class ClientIntakeBoundaryTests
             .Where(type =>
                 typeof(IIntakeStore).IsAssignableFrom(type) ||
                 typeof(IIntakeContentStore).IsAssignableFrom(type) ||
-                typeof(IIntakeSecretSource).IsAssignableFrom(type))
+                typeof(IIntakeCredentialSource).IsAssignableFrom(type))
             .Select(type => type.FullName!)
             .ToArray();
 

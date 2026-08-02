@@ -154,15 +154,22 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
 
     /// <summary>
     /// The framework's own endpoints, contributed by
-    /// <c>MapRazorComponents&lt;App&gt;().AddInteractiveServerRenderMode(...)</c>
-    /// in spec 014 T01. This project declares none of them and no component uses
-    /// them: nothing in the portal is interactive, so the circuit has no component
-    /// to run and no taxpayer model to carry.
+    /// <c>MapRazorComponents&lt;App&gt;()</c> in spec 014 T01. Exactly one, and it
+    /// is the form-post redirect helper the component result model uses — not a
+    /// circuit, not a page, and not a route this project declares.
     /// <para>
-    /// They are enumerated exactly rather than filtered out by prefix. A pattern
-    /// match on <c>/_</c> would have let any future framework endpoint in
-    /// silently, and the point of this inventory is that every reachable path on a
-    /// taxpayer-data host is named in one place.
+    /// The four <c>/_blazor</c> SignalR endpoints are deliberately <b>absent</b>.
+    /// They appear only when an interactive render mode is configured, and this
+    /// host configures none: nothing in the portal is interactive, so a circuit
+    /// endpoint would expand a taxpayer-data host's surface while providing no
+    /// current functionality. Spec 014 T03 introduces the first interactive island
+    /// and the registration that goes with it.
+    /// </para>
+    /// <para>
+    /// Enumerated exactly rather than filtered out by prefix. A pattern match on
+    /// <c>/_</c> would let any future framework endpoint in silently, and the point
+    /// of this inventory is that every reachable path on a taxpayer-data host is
+    /// named in one place.
     /// </para>
     /// <para>
     /// There is deliberately <b>no catch-all</b> here. <c>MapStaticAssets()</c>
@@ -173,10 +180,6 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     /// </summary>
     private static readonly string[] FrameworkComponentEndpoints =
     {
-        "/_blazor",
-        "/_blazor/disconnect/",
-        "/_blazor/initializers/",
-        "/_blazor/negotiate",
         "/_framework/opaque-redirect",
     };
 
@@ -256,11 +259,6 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [Fact] // spec 014 AC-89
     public void TheFrameworkComponentEndpointsAreParameterlessAndCarryNoTaxpayerPath()
     {
-        // They exist because Interactive Server is registered for a later task.
-        // None takes a route parameter, so none can carry a firm, case, record, or
-        // taxpayer selector, and none is a taxpayer-data surface today: no
-        // component in this project is interactive, so the circuit has nothing to
-        // render.
         var framework = MappedRouteEndpoints()
             .Where(endpoint => FrameworkComponentEndpoints.Contains(
                 endpoint.RoutePattern.RawText!,
@@ -269,10 +267,27 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
 
         Assert.Equal(FrameworkComponentEndpoints.Length, framework.Length);
 
+        // No route parameter, so none can carry a firm, case, record, or taxpayer
+        // selector.
         foreach (var endpoint in framework)
         {
             Assert.Empty(endpoint.RoutePattern.Parameters);
         }
+    }
+
+    [Fact] // spec 014 AC-89, AC-90
+    public void NoInteractiveServerCircuitEndpointIsMapped()
+    {
+        // The narrowing, asserted rather than assumed. Interactive Server is not
+        // registered in T01, so the framework materializes no SignalR circuit
+        // endpoint on the host that serves taxpayer data. T03 introduces both the
+        // first interactive island and the registration it needs.
+        var circuitEndpoints = MappedRouteEndpoints()
+            .Select(endpoint => endpoint.RoutePattern.RawText!)
+            .Where(pattern => pattern.StartsWith("/_blazor", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Empty(circuitEndpoints);
     }
 
     [Theory] // spec 011 AC-128, AC-129

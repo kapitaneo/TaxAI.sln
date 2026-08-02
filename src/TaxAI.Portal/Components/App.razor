@@ -1,13 +1,18 @@
 @* The root component of the Blazor Web App foundation.
 
-   No @rendermode directive, here or on Routes or the layout. That is what makes
-   static server rendering the default for every component in this project: an
-   interactive mode has to be asked for per component, so a read-only taxpayer
-   page cannot silently become a circuit surface.
+   Static server rendering only. No @rendermode directive here, on Routes, or on
+   the layout, and no global mode is applied in Program.cs — an interactive mode
+   has to be asked for per component, so a read-only taxpayer page cannot
+   silently become a circuit surface.
 
-   Every asset is local. blazor.web.js ships with the framework and portal.css is
-   tracked in this repository; there is no CDN script, remote stylesheet, remote
-   font, or third-party image to fetch. *@
+   There is deliberately no blazor.web.js reference. Nothing in this project is
+   interactive and no component uses enhanced navigation, so the script would
+   bootstrap nothing; omitting it keeps this host free of a client-side stack
+   entirely. Spec 014 T03 adds the script together with the first interactive
+   island that needs it.
+
+   Every asset is local and tracked in this repository: no CDN script, remote
+   stylesheet, remote font, or third-party image. *@
 
 <!DOCTYPE html>
 <html lang="en">
@@ -23,6 +28,5 @@
 </head>
 <body>
     <Routes />
-    <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

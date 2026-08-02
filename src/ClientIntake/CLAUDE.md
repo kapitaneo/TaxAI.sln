@@ -90,6 +90,11 @@ active. Readiness uses only the latest immutable submission.
   store member and no member that returns or verifies a raw credential.
 - `IntakeTokenPurpose` enforces domain separation, so a bootstrap-link digest can
   never be replayed as a session digest.
+- The port is `IIntakeCredentialSource`, **not** `IIntakeSecretSource`. The
+  repository forbids any tracked file name containing "secret" — a hygiene guard
+  against committed secret material, enforced independently by two suites — and a
+  contract file has no business tripping it. `IntakeSecret` remains the
+  secret-bearing value type; this port mints and digests one.
 
 ## PII posture: no SIN in any form, by omission
 

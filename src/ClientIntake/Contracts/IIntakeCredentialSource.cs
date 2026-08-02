@@ -5,6 +5,14 @@ namespace ClientIntake.Contracts;
 /// <summary>
 /// The single source of opaque identifiers, credentials, and keyed digests.
 /// <para>
+/// Named for what it produces. It is deliberately not called
+/// <c>IIntakeSecretSource</c>: the repository forbids any tracked file name
+/// containing "secret", a hygiene guard against committed secret material that
+/// two independent suites enforce, and a contract file has no business tripping
+/// it. The secret-bearing value type is <see cref="IntakeSecret"/>; this is the
+/// port that mints and digests one.
+/// </para>
+/// <para>
 /// It is a port rather than a static helper so the workflows stay deterministic
 /// functions of their arguments: randomness and key material are the only
 /// non-deterministic inputs the intake workflow has, and both arrive here. A
@@ -18,7 +26,7 @@ namespace ClientIntake.Contracts;
 /// session digest.
 /// </para>
 /// </summary>
-public interface IIntakeSecretSource
+public interface IIntakeCredentialSource
 {
     /// <summary>Creates one opaque, non-sequential identifier.</summary>
     Guid CreateIdentifier();

@@ -134,20 +134,20 @@ app.MapGet(
 // allowed to run while the durable session has no active firm.
 FirmEndpoints.Map(app);
 
-// The Blazor Web App endpoint set.
+// The Blazor Web App endpoint. Static server rendering only.
 //
 // No component in this project declares a @page directive, so this contributes no
-// routable page: it adds only the framework's own circuit endpoints. No global
-// render mode is applied here and no component declares one, which is what makes
-// static server rendering the default for everything this host renders today.
+// routable page — and with no interactive render mode configured, no circuit
+// endpoint either. It adds no route at all today. It is the framework handle the
+// component model is mounted on; the review screen reaches its component through
+// RazorComponentResult from its own authorization-gated endpoint.
 //
-// Interactive Server support is registered, but nothing is interactive yet. The
-// circuit therefore has no component to run and no taxpayer model to carry; a
-// later approved task's one adaptive questionnaire island is what will opt in per
-// component. WebSocket compression is disabled because that circuit will render
-// security-sensitive state and a compression side channel buys nothing here.
-app.MapRazorComponents<App>()
-   .AddInteractiveServerRenderMode(options => options.DisableWebSocketCompression = true);
+// Deliberately NOT .AddInteractiveServerRenderMode(). That call is what
+// materializes the /_blazor SignalR endpoints, and nothing in this project is
+// interactive, so they would expand this taxpayer-data host's endpoint surface
+// while providing no current functionality. Spec 014 T03 adds it together with
+// the first interactive island that needs it.
+app.MapRazorComponents<App>();
 
 // The portal's one taxpayer-data surface. Authorization revalidates the local
 // user and active memberships before this endpoint can obtain the trusted firm;

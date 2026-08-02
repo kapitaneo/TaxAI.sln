@@ -31,7 +31,7 @@ public sealed class AccountantIntakeWorkflow : IAccountantIntakeWorkflow
     /// </summary>
     public AccountantIntakeWorkflow(
         IIntakeStore store,
-        IIntakeSecretSource secretSource,
+        IIntakeCredentialSource credentialSource,
         IReviewRecordRepository reviewRecords,
         IntakeWorkflowOptions options) =>
         throw new NotImplementedException();
