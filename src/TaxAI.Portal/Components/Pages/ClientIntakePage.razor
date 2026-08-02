@@ -1,0 +1,52 @@
+@using ClientIntake.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxAI.Portal.Components.Layout
+@using TaxAI.Portal.Components.Shared
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Client intake | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">TaxAI client intake</p>
+    <h1>@Model.TaxYear document intake</h1>
+    <p class="lede">Answer the availability questions, add the expected documents that are ready, then submit your current package.</p>
+
+    <ClientQuestionnairePanel Model="Model" />
+
+    <section aria-labelledby="submission-heading">
+        <h2 id="submission-heading">Submission</h2>
+        <p>@SubmissionText</p>
+        @if (Model.UnsubmittedChanges)
+        {
+            <p class="notice">You have changes that are not in the latest submission.</p>
+        }
+        <form method="post" action="/client-intake/submissions">
+            <AntiforgeryToken />
+            <button type="submit">Submit current intake</button>
+        </form>
+    </section>
+</LayoutView>
+<script src="/_framework/blazor.web.js"></script>
+<script type="module"
+        src="/Components/Shared/ClientQuestionnairePanel.razor.js"></script>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public ClientIntakeView Model { get; set; } = default!;
+
+    private string SubmissionText =>
+        Model.LatestSubmissionVersion is { } version
+            ? $"Latest immutable submission: version {version}."
+            : "No intake submission has been created.";
+}

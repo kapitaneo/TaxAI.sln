@@ -1,0 +1,48 @@
+@using System.Globalization
+@using TaxAI.Portal.Components.Layout
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Client link issued | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">Client intake</p>
+    <h1>Secure client link issued</h1>
+    <div class="notice">
+        <p>This link is displayed once. If it is lost, reissue it from the progress page.</p>
+        <p class="one-time-link">@ClientUrl</p>
+        <p>Expires <time datetime="@LinkExpiresAtUtc.ToString("O", CultureInfo.InvariantCulture)">@FormatInstant(LinkExpiresAtUtc)</time>.</p>
+    </div>
+    <p><a class="button-link" href="@ProgressUrl">Open intake progress</a></p>
+</LayoutView>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public Guid CaseId { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public DateTimeOffset LinkExpiresAtUtc { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public string ClientUrl { get; set; } = default!;
+
+    private string ProgressUrl =>
+        $"/intake-cases/{CaseId:D}";
+
+    private static string FormatInstant(DateTimeOffset value) =>
+        value.ToUniversalTime().ToString(
+            "yyyy-MM-dd HH:mm 'UTC'",
+            CultureInfo.InvariantCulture);
+}

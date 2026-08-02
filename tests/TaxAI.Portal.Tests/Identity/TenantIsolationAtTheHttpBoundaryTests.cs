@@ -151,10 +151,9 @@ public sealed class TenantIsolationAtTheHttpBoundaryTests
                  {
                      @"Request\s*\.\s*Query",
                      @"Request\s*\.\s*Headers",
-                     @"Request\s*\.\s*Cookies",
-                     @"Request\s*\.\s*Body",
                      @"\bRouteData\b|\bGetRouteValue\b",
-                     @"\[From(?:Query|Header|Route|Body)\]",
+                     @"\[From(?:Query|Header|Route|Body)[^]]*firm",
+                     @"\[FromForm[^]]*firm",
                  })
         {
             Assert.DoesNotMatch(

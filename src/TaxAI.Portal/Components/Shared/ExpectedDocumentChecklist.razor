@@ -1,0 +1,33 @@
+@using ClientIntake.Models
+@using TaxCases.Models
+
+@if (Items.Count == 0)
+{
+    <p class="empty">No expected documents.</p>
+}
+else
+{
+    <ol class="document-checklist">
+        @foreach (var item in Items)
+        {
+            <li>
+                <span>@CategoryLabel(item.Category) @item.Ordinal</span>
+                <IntakeStatusBadge Status="item.Status" />
+            </li>
+        }
+    </ol>
+}
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public IReadOnlyList<ExpectedDocumentView> Items { get; set; } = default!;
+
+    private static string CategoryLabel(DocumentCategory category) =>
+        category switch
+        {
+            DocumentCategory.T4Slip => "T4",
+            DocumentCategory.MedicalExpenseEvidence => "Medical document",
+            _ => "Document",
+        };
+}

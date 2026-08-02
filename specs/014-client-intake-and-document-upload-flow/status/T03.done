@@ -1,0 +1,69 @@
+# Spec 014 — T03 complete
+
+Task:   T03 — Deliver the client intake and accountant progress experience
+Wave:   2
+PR:     #135  https://github.com/kapitaneo/TaxAI.sln/pull/135
+Branch: feat/014-w2-t03
+Implementation commit: 1792161
+
+## Gate — all three commands, in order, after every new file was staged
+
+    dotnet build TaxAI.sln                   Build succeeded. 0 Warning(s) 0 Error(s)
+    dotnet test TaxAI.sln                    all 9 projects passed
+    pwsh ./scripts/Invoke-SolutionTests.ps1  gate passed (authoritative)
+
+Result: 3472 tests, 0 failed, 0 skipped, every floor met.
+
+    TaxLogicEngine.Tests         261 passed (floor 261)
+    TaxCases.Tests               337 passed (floor 337)
+    DocumentExtraction.Tests     673 passed (floor 673)
+    CaseProcessing.Tests         594 passed (floor 594)
+    CaseReview.Tests             482 passed (floor 482)
+    TaxAI.Portal.Tests           528 passed (floor 528, raised from 473)
+    Tenancy.Tests                289 passed (floor 289)
+    Persistence.Tests            151 passed (floor 151)
+    ClientIntake.Tests           157 passed (floor 157)
+
+No floor was lowered. `git diff --check` and the upload JavaScript syntax check
+also passed.
+
+## Delivered
+
+- The exact six firm-scoped accountant routes and six identifier-free client
+  routes map over the T02 workflow contracts. Firm and client scope remain
+  server-derived and are revalidated on every operation.
+- Read-only link confirmation exchanges a protected digest proof for one secure,
+  HTTP-only, SameSite-Strict, path-scoped protected session cookie and redirects
+  to a clean URL.
+- Public, session, answer, upload, and submission limits run before resource
+  validity and return fixed non-oracular responses with the shared intake
+  browser-header policy.
+- Every successful screen is a strongly typed presentation-only Razor
+  component. Review and accountant screens stay static SSR; only the closed-code
+  questionnaire reveal panel uses Interactive Server, with detailed errors and
+  WebSocket compression disabled.
+- The local upload module sends only `upload.bin` and the antiforgery header.
+  `MultipartReader` streams one configured file, discards the received filename,
+  preserves zero-byte input for backend rejection/audit, and rejects a second
+  section before a valid workflow can complete.
+- Accountant progress renders the backend projection, never recovers a raw
+  client URL, and links to the unchanged review route only after verified ready
+  association.
+
+## Boundary retained
+
+No production file under ClientIntake, Persistence, Tenancy, TaxCases,
+CaseReview, CaseProcessing, DocumentExtraction, or TaxLogicEngine changed. No
+migration, model snapshot, schema shape, review contract, raw-content read or
+download path, extraction, tax processing, review manufacture, production
+content provider, retention rule, or deployment authorization was added.
+
+The encrypted opaque source object outside web root remains the sole
+potentially SIN-bearing exception. T03 verifies the HTTP/component layer with
+controlled collaborators; T04 still owns final cross-module AC-1 through AC-99
+verification and the spec-completion claim.
+
+## Human review required
+
+Not merged. Not self-approved. T04 must not begin until this marker is on
+`master`.

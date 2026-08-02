@@ -403,7 +403,7 @@ public sealed class StartupRefusalTests
             "Healthy",
             developmentClient.GetStringAsync("/health").GetAwaiter().GetResult());
         Assert.Contains(
-            "Authenticated accountants can review one stored package in read-only form.",
+            "Authenticated accountants can create client intakes, monitor progress, and review stored packages.",
             developmentClient.GetStringAsync("/").GetAwaiter().GetResult(),
             StringComparison.Ordinal);
     }
@@ -500,7 +500,7 @@ public sealed class StartupRefusalTests
 
         Assert.Equal("Healthy", client.GetStringAsync("/health").GetAwaiter().GetResult());
         Assert.Contains(
-            "Authenticated accountants can review one stored package in read-only form.",
+            "Authenticated accountants can create client intakes, monitor progress, and review stored packages.",
             client.GetStringAsync("/").GetAwaiter().GetResult(),
             StringComparison.Ordinal);
     }

@@ -347,8 +347,8 @@ provisioning, and non-Development startup-refusal requirements remain in force.
 
 Spec 014 (Client Intake and Document Upload Flow) is **in progress**. T01
 delivered the frozen `ClientIntake` contract plus the Blazor foundation and
-review-screen migration. T02 implements and wires the backend without exposing
-an intake route:
+review-screen migration; T02 implemented the backend; T03 exposes the approved
+HTTP and component experience:
 
 - **The complete in-process workflow.** `ClientIntake` now creates the
   server-scoped 2025 case/checklist, issues and atomically redeems one-time
@@ -371,29 +371,31 @@ an intake route:
   read member, relational rows store no source bytes or filenames, and the
   encrypted source object is the sole raw-byte exception. It may contain SIN and
   is never queryable, rendered, logged, or served.
-- **The Blazor Web App foundation and the review-screen migration remain
-  unchanged.** The portal's `Components/` tree holds `App`, `Routes`,
-  `PortalLayout`, and `ReviewPage`. `ReviewEndpoints.cs` keeps its route, policy,
-  headers, trusted-firm extraction, browser-safety guard, closed projection,
-  invariant amounts, collection order, single `FindAsync` call, and identical
-  empty `404`; only its `Render` method, `StringBuilder`, appended markup, and
-  inline style assembly are gone, replaced by
-  `RazorComponentResult<ReviewPage>` with one closed `ReviewPageModel`.
-
-**The foundation is static server rendering only.** No component declares
-`@rendermode`, no global mode is applied, and **Interactive Server is not
-registered at all** — neither `AddInteractiveServerComponents` nor
-`AddInteractiveServerRenderMode` appears in the host. No component is
-interactive, so a circuit would have provided no functionality while expanding a
-taxpayer-data host's endpoint surface; the four `/_blazor` SignalR endpoints
-therefore do not exist. `MapRazorComponents<App>()` contributes exactly one
-framework endpoint, `/_framework/opaque-redirect`. There is also no
-`blazor.web.js` reference: nothing needs bootstrapping.
-
-**Interactive Server registration belongs to spec 014 T03**, which introduces the
-first genuinely interactive island — the adaptive questionnaire and upload panel
-— and brings the registration and the client script with the component that
-needs them.
+- **The HTTP boundary is closed and server-derived.** Six firm-scoped
+  accountant routes and six anonymous client routes map over the workflow
+  contracts. Accountant firm scope comes only from the revalidated portal
+  session; a one-time raw credential is exchanged for a protected,
+  path-scoped, revocable client cookie. Every mutation is a non-GET with
+  antiforgery, and finite public/session/answer/upload/submission rate or
+  concurrency policies run before resource validity. Invalid resources share
+  one empty `404`, while overload shares one fixed `429`.
+- **The UI remains presentation-only.** Create, one-time-link, confirmation,
+  client intake, questionnaire, checklist, progress, and review-handoff states
+  render through strongly typed components. Review and accountant screens stay
+  static SSR. Only `ClientQuestionnairePanel` declares
+  `@rendermode InteractiveServer`, solely for local closed-code reveal;
+  detailed circuit errors and WebSocket compression are disabled, and no
+  global render mode is applied. The host therefore has the exact four
+  `/_blazor` framework endpoints plus `/_framework/opaque-redirect`.
+- **The upload transport is streaming and neutral-name.** The tracked local
+  module sends the literal `upload.bin` and antiforgery header. The endpoint
+  parses with `MultipartReader`, discards received filenames, enforces
+  configured limits, and streams into the workflow. There is no
+  `IFormFile`, form buffering, content read, preview, or download route.
+- **The review-screen migration remains unchanged.** `ReviewEndpoints.cs`
+  keeps its route, policy, headers, trusted-firm extraction, browser-safety
+  guard, closed projection, invariant amounts, collection order, single
+  `FindAsync` call, and identical empty `404`.
 
 **Static assets are served by `UseStaticFiles()` middleware, deliberately not
 `MapStaticAssets()`.** The endpoint-routing variant registers a
@@ -401,13 +403,13 @@ needs them.
 route's `405` into a `404` and adds an endpoint in the "neither explicitly
 anonymous nor authorization-required" third state spec 011 forbids.
 
-**No intake HTTP or UI capability ships in T02.** There is no client/accountant
-intake route, upload transport, component, raw-content preview/download,
-extraction, parsing, tax processing, review manufacture, production content
-provider, retention/purge path, or deployment authorization. The review and
-identity schema, public review/persistence contracts, existing route inventory,
-static-SSR-only posture, and deployment refusal are unchanged. T03 owns the
-first intake routes/components and Interactive Server registration.
+**T03 does not complete spec 014 acceptance verification.** It proves the
+HTTP/component behavior with controlled collaborators. T04 owns the final
+cross-module AC-1…AC-99 proof and completion record. No raw-content
+preview/download, extraction, parsing, tax processing, review manufacture,
+production content provider, retention/purge path, or deployment authorization
+ships. The review and identity schema, public review/persistence contracts, and
+deployment refusal are unchanged.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

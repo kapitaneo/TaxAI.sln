@@ -18,8 +18,9 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
 - **Currency rounding** — decimal-only tax math, rounded half-up to cents through
   the engine's `MoneyRounding`.
 - **Engine SIN masking** — the existing in-memory `RecipientIdentifier` masks a
-  SIN to its last three digits. The newer web and persistence boundary is
-  stricter: no SIN in any form is stored or rendered.
+  SIN to its last three digits. The newer structured web and relational
+  persistence boundary is stricter: no SIN in any form is stored or rendered;
+  the encrypted opaque upload exception is described below.
 - **Tax case core** — an immutable engagement aggregate with
   firm/year/participant isolation, participant-scoped evidence and intake,
   derived readiness, and deterministic change records.
@@ -48,35 +49,39 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   records. The seven-year default is an engineering product decision, not a CRA
   fact or statutory claim.
 - **Portal host** — the ASP.NET Core host serves a fixed public shell and
-  health response plus sign-in, sign-out, authenticated firm selection, and one
-  firm-scoped read-only accountant review screen. The screen renders one exact
-  immutable package version using a closed allowlist and carries no SIN in any
-  form.
-- **Blazor Web App foundation (static server rendering only)** — the review
-  screen is a statically server-rendered Razor component returned by its own
-  authorization-gated endpoint, styled from tracked local and component-scoped
-  CSS. Interactive Server is not registered, so no SignalR circuit endpoint
-  exists; there is no client script, WebAssembly project, npm tree, or
-  third-party asset.
-- **Client intake backend** — the `ClientIntake` workflows implement
+  health response plus identity, firm selection, accountant review, and the
+  firm-scoped accountant/client intake flow. Accountant requests revalidate
+  trusted firm membership; client requests use one-time credentials followed by
+  a protected, revocable, path-scoped session cookie. The existing one
+  firm-scoped read-only accountant review screen still renders one exact
+  immutable package version through its closed allowlist.
+- **Blazor Web App** — review and accountant screens remain static SSR. Only the
+  client questionnaire's closed-code reveal panel uses Interactive Server;
+  detailed circuit errors and WebSocket compression are disabled. Components
+  are endpoint-returned, presentation-only, and styled with tracked local CSS.
+  There is no global render mode, WebAssembly project, npm tree, or third-party
+  asset.
+- **Client intake experience** — the `ClientIntake` workflows implement
   server-derived cases, one-time links, revocable sessions, adaptive
   questionnaires, immutable answers and submissions, validated opaque evidence
   uploads, progress/readiness projection, audit, and exact review association.
   Persistence supplies the firm/case-scoped SQL metadata store and one additive
   migration. The portal wires purpose-separated credentials and a
-  Development-only authenticated encrypted streaming content store without
-  exposing an intake route.
+  Development-only authenticated encrypted streaming content store, maps the
+  exact accountant and client routes, streams neutral-name multipart uploads,
+  and exposes the existing review URL only after verified ready association.
 
 ## Deliberately not shipped
 
-- No second taxpayer-data screen or taxpayer listing ships.
-- No client or accountant intake route, upload transport, intake screen, or
-  raw-content read/download surface ships. The implemented backend is available
-  only through in-process contracts; spec 014 T03 owns the HTTP and component
-  surface.
-- No interactive Blazor component ships, and Interactive Server is not registered
-  at all — so the host exposes no SignalR circuit endpoint and loads no client
-  script. Spec 014 T03 introduces both, with the first island that needs them.
+- No taxpayer listing or unapproved taxpayer-data surface ships.
+- No raw-content preview, read, or download surface ships. The sole
+  potentially SIN-bearing exception is the authenticated encrypted opaque
+  source object outside web root; it is never rendered, logged, queried, or
+  served. All metadata, browser state, URLs, cookies, errors, and diagnostics
+  remain SIN-free.
+- No client-side workflow, authorization, status, readiness, upload-validation,
+  fingerprint, tax, or review authority ships. Interactive Server is confined
+  to presentation-only closed-code reveal.
 - No OCR or LLM adapter ships.
 - No production deployment configuration ships.
 - No production provisioning ships for a firm, user, membership, or
@@ -109,8 +114,8 @@ src/
   Tenancy/                        Trusted-firm, session, projection, retention ports
   Persistence/                    EF Core model, migrations, and SQL adapters
   TaxAI.Portal/                   ASP.NET Core host and composition root
-    Components/                   Blazor Web App foundation and the review screen
-    wwwroot/                      Tracked local stylesheet
+    Components/                   Static screens and one narrow interactive island
+    wwwroot/                      Tracked local styles and upload module
 tests/
   TaxLogicEngine.Tests/           xUnit suite
   TaxCases.Tests/                 xUnit suite

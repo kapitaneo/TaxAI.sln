@@ -96,21 +96,13 @@ internal static class ModuleRegistration
                     intake.FingerprintKey));
         }
 
-        // The Blazor Web App foundation: static server rendering, and nothing
-        // more.
-        //
-        // Deliberately NOT AddInteractiveServerComponents(). No component in this
-        // project declares an interactive render mode, so Interactive Server would
-        // provide no current functionality while opening a SignalR circuit
-        // endpoint surface on the host that serves taxpayer data. Registering a
-        // capability nothing uses is still surface, and this host's surface is
-        // enumerated exactly.
-        //
-        // Interactive Server registration belongs to spec 014 T03, which
-        // introduces the first genuinely interactive island — the adaptive
-        // questionnaire and upload panel. It arrives with the component that
-        // needs it.
-        services.AddRazorComponents();
+        // Static SSR remains the default. Interactive Server is registered only
+        // for the one questionnaire island that declares it; detailed circuit
+        // errors stay off and Program disables WebSocket compression.
+        services
+            .AddRazorComponents()
+            .AddInteractiveServerComponents(
+                options => options.DetailedErrors = false);
 
         services.AddTaxAiPersistence(databaseConnectionString);
         services.AddScoped<IAccountantIntakeWorkflow, AccountantIntakeWorkflow>();
@@ -121,10 +113,14 @@ internal static class ModuleRegistration
                 provider.GetRequiredService<IIntakeCredentialSource>(),
                 provider.GetRequiredService<IntakeWorkflowOptions>()));
         services.AddPortalIdentity(configuration, environment);
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ClientIntakeCookie>();
+        services.AddIntakeRateLimiting(intake);
 
         services.AddAntiforgery(options =>
         {
             options.FormFieldName = FirmEndpoints.AntiforgeryFieldName;
+            options.HeaderName = IntakeHttpSecurity.AntiforgeryHeaderName;
             options.Cookie.Name = FirmEndpoints.AntiforgeryCookieName;
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;

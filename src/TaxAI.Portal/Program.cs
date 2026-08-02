@@ -73,6 +73,10 @@ app.Use(async (context, next) =>
     catch (Exception failure)
     {
         context.Response.Clear();
+        if (IntakeHttpSecurity.IsIntakePath(context.Request.Path))
+        {
+            IntakeHttpSecurity.ApplyResponseHeaders(context.Response);
+        }
         context.Response.StatusCode = failure is BadHttpRequestException badRequest
             ? badRequest.StatusCode
             : StatusCodes.Status500InternalServerError;
@@ -81,18 +85,24 @@ app.Use(async (context, next) =>
     }
 });
 
-// Identity runs before routing decides anything, and authorization after. Both
-// are called explicitly rather than left to the implicit ordering, so the one
-// place to read the pipeline is this file.
+// Intake browser headers apply before every handler, rate-limit refusal, method
+// refusal, and authorization result. Endpoint rate limiting runs after explicit
+// routing but before any token/session validity check.
+app.Use(IntakeHttpSecurity.ApplyResponseHeadersAsync);
+app.UseRouting();
+app.UseRateLimiter();
+
+// Identity and authorization are still explicit. Antiforgery follows the
+// applicable accountant authorization or public/session rate-limit context and
+// precedes every state-changing handler.
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
-// The tracked local stylesheets, and nothing else. Spec 014 replaced the review
-// screen's inline assembled <style> block with component-scoped and global CSS,
-// so those two files have to be reachable. Every asset is local and tracked in
-// this repository: there is no CDN, remote font, remote image, or third-party
-// request anywhere in this application.
+// The tracked local stylesheets, framework assets, and one collocated neutral-
+// name upload module. Every asset is local and tracked in this repository:
+// there is no CDN, remote font, remote image, or third-party request anywhere
+// in this application.
 //
 // Middleware, deliberately NOT MapStaticAssets(). The endpoint-routing version
 // registers a `{**path:file}` catch-all over the entire URL space, and that
@@ -100,8 +110,8 @@ app.UseAntiforgery();
 // answering GET with 404 instead of 405, because the catch-all matches the path
 // before method selection can reject it. It also adds an endpoint that is neither
 // explicitly anonymous nor authorization-required, which is the third state spec
-// 011 forbids. Middleware serves the same two files and adds no route at all, so
-// the host's endpoint inventory stays exact and closed.
+// 011 forbids. Middleware serves the tracked local assets and adds no route at
+// all, so the host's endpoint inventory stays exact and closed.
 app.UseStaticFiles();
 
 // Server-rendered constant content: no view engine and no data binding. The shell
@@ -136,24 +146,24 @@ app.MapGet(
 // allowed to run while the durable session has no active firm.
 FirmEndpoints.Map(app);
 
-// The Blazor Web App endpoint. Static server rendering only.
-//
-// No component in this project declares a @page directive, so this contributes no
-// routable page — and with no interactive render mode configured, no circuit
-// endpoint either. It adds no route at all today. It is the framework handle the
-// component model is mounted on; the review screen reaches its component through
-// RazorComponentResult from its own authorization-gated endpoint.
-//
-// Deliberately NOT .AddInteractiveServerRenderMode(). That call is what
-// materializes the /_blazor SignalR endpoints, and nothing in this project is
-// interactive, so they would expand this taxpayer-data host's endpoint surface
-// while providing no current functionality. Spec 014 T03 adds it together with
-// the first interactive island that needs it.
-app.MapRazorComponents<App>();
+// The Blazor Web App endpoint. No component declares @page and static SSR
+// remains the default. Review and intake screens reach components through
+// authorization/rate-gated endpoints. Only ClientQuestionnairePanel opts into
+// Interactive Server; WebSocket compression is disabled for that narrow
+// presentation-only circuit.
+app.MapRazorComponents<App>()
+   .AddInteractiveServerRenderMode(
+       options => options.DisableWebSocketCompression = true);
 
-// The portal's one taxpayer-data surface. Authorization revalidates the local
+// The complete intake HTTP surface. Accountant routes re-enter R-1 on every
+// request; client routes derive scope only from a one-time link or protected
+// session cookie.
+IntakeEndpoints.Map(app);
+ClientIntakeEndpoints.Map(app);
+
+// The unchanged accountant review surface. Authorization revalidates the local
 // user and active memberships before this endpoint can obtain the trusted firm;
-// the handler then uses only Tenancy's already-firm-scoped read contract, and
+// the handler then uses only Tenancy's already-firm-scoped read contract and
 // returns a statically server-rendered component rather than assembled markup.
 ReviewEndpoints.Map(app);
 

@@ -34,10 +34,14 @@ public sealed class PortalBoundaryTests
     /// </summary>
     private static readonly string[] ExpectedProductionFiles =
     {
+        "ClientIntakeCookie.cs",
+        "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
         "FirmEndpoints.cs",
         "IntakeConfiguration.cs",
+        "IntakeEndpoints.cs",
+        "IntakeHttpSecurity.cs",
         "ModuleRegistration.cs",
         "PortalAuthorization.cs",
         "PortalContent.cs",
@@ -61,6 +65,14 @@ public sealed class PortalBoundaryTests
     private static readonly string[] ExpectedComponentFiles =
     {
         "App.razor",
+        "ClientIntakePage.razor",
+        "ClientLinkConfirmationPage.razor",
+        "ClientQuestionnairePanel.razor",
+        "ExpectedDocumentChecklist.razor",
+        "IntakeCaseCreatePage.razor",
+        "IntakeCaseIssuedPage.razor",
+        "IntakeCaseProgressPage.razor",
+        "IntakeStatusBadge.razor",
         "PortalLayout.razor",
         "ReviewPage.razor",
         "Routes.razor",
@@ -134,12 +146,19 @@ public sealed class PortalBoundaryTests
         var nonFrameworkReferences = CompiledNonFrameworkReferences();
 
         Assert.Equal(
-            new[] { "CaseProcessing", "ClientIntake", "Persistence", "TaxLogicEngine", "Tenancy" },
+            new[]
+            {
+                "CaseProcessing",
+                "ClientIntake",
+                "Persistence",
+                "TaxCases",
+                "TaxLogicEngine",
+                "Tenancy",
+            },
             nonFrameworkReferences);
     }
 
     [Theory] // spec 011 AC-13
-    [InlineData("TaxCases")]
     [InlineData("CaseReview")]
     [InlineData("DocumentExtraction")]
     public void TheCompiledPortal_NamesNoModuleItReachesThroughAContract(string module)
@@ -163,7 +182,6 @@ public sealed class PortalBoundaryTests
         Assert.DoesNotContain(
             typeof(Program).Assembly.GetReferencedAssemblies(),
             reference =>
-                reference.Name!.Equals("TaxCases", StringComparison.OrdinalIgnoreCase) ||
                 reference.Name!.Equals("CaseReview", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -216,16 +234,40 @@ public sealed class PortalBoundaryTests
         // No AddInteractiveServerRenderMode: spec 014 T01 maps the component
         // endpoint for static server rendering only, and the exact set here is
         // what stops interactivity being switched on without a diff.
-        { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
+        {
+            "Program.cs",
+            new[]
+            {
+                "AddInteractiveServerRenderMode",
+                "AddServerHeader",
+                "AddTaxAiModules",
+            }
+        },
+        { "ClientIntakeCookie.cs", Array.Empty<string>() },
+        { "ClientIntakeEndpoints.cs", Array.Empty<string>() },
         { "CryptographicIntakeCredentialSource.cs", Array.Empty<string>() },
         { "DevelopmentEncryptedIntakeContentStore.cs", new[] { "AddRange" } },
         { "FirmEndpoints.cs", new[] { "AddClaim" } },
         { "IntakeConfiguration.cs", Array.Empty<string>() },
+        { "IntakeEndpoints.cs", Array.Empty<string>() },
+        {
+            "IntakeHttpSecurity.cs",
+            new[]
+            {
+                "AddFixedWindowPolicy",
+                "AddIntakeRateLimiting",
+                "AddPolicy",
+                "AddRateLimiter",
+                "AddUploadPolicy",
+            }
+        },
         {
             "ModuleRegistration.cs",
             new[]
             {
                 "AddAntiforgery",
+                "AddIntakeRateLimiting",
+                "AddInteractiveServerComponents",
                 "AddPolicy",
                 "AddPortalIdentity",
                 "AddRazorComponents",
@@ -319,6 +361,8 @@ public sealed class PortalBoundaryTests
             .Select(match => match.Value)
             .Where(token => token is not (
                 "AddAntiforgery" or
+                "AddIntakeRateLimiting" or
+                "AddInteractiveServerComponents" or
                 "AddPolicy" or
                 "AddRazorComponents" or
                 "AddSingleton" or
@@ -362,7 +406,7 @@ public sealed class PortalBoundaryTests
         // The three tax singletons plus the four intake singleton registrations
         // remain explicit and exact.
         Assert.Equal(
-            7,
+            9,
             new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
                 .Matches(compositionRoot)
                 .Count);
@@ -378,7 +422,7 @@ public sealed class PortalBoundaryTests
 
         // AC-32 — no tax-domain model enters the portal. The one approved
         // persisted review projection is deliberately not one of these types.
-        { "taxpayer data type", @"\bT4Slip\b|\bT5Slip\b|\bT4RawInput\b|\bT5RawInput\b|\bTaxLineEntry\b|\bT4MappingResult\b|\bT5MappingResult\b|\bRecipientIdentifier\b|\bValidatedExtraction\b|\bExtractionEnvelope\b|\bProcessedT4Extraction\b|\bTaxCase\b" },
+        { "taxpayer data type", @"\bT5Slip\b|\bT4RawInput\b|\bT5RawInput\b|\bTaxLineEntry\b|\bT4MappingResult\b|\bT5MappingResult\b|\bRecipientIdentifier\b|\bValidatedExtraction\b|\bExtractionEnvelope\b|\bProcessedT4Extraction\b|\bTaxCase\b" },
 
         // AC-34 — no second mapping authority and no mapping-resource read.
         { "mapping table or resource read", @"TaxLogicEngine\.Mappings|\bGetManifestResourceStream\b|\bT4LineMap\b|\bT5LineMap\b|\bT4BoxCodes\b|\bT4OtherInformationCodes\b|\bDictionary\s*<" },
@@ -453,7 +497,13 @@ public sealed class PortalBoundaryTests
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(new[] { "ReviewEndpoints.cs" }, matching);
+        Assert.Equal(
+            new[]
+            {
+                "ClientIntakeEndpoints.cs",
+                "ReviewEndpoints.cs",
+            },
+            matching);
 
         var review = string.Join(
             "\n",
@@ -523,69 +573,89 @@ public sealed class PortalBoundaryTests
     [Fact]
     public void NoComponentDeclaresARenderModeAndNoGlobalModeIsApplied() // AC-90
     {
-        // Static server rendering is the default precisely because nothing opts
-        // out. A @rendermode on App, Routes, or the layout would make the whole
-        // tree interactive at once, and a read-only taxpayer page would silently
-        // become a circuit surface.
+        // Static server rendering remains the default. Exactly one
+        // presentation-only questionnaire island opts in.
         foreach (var component in ComponentFiles())
         {
-            Assert.DoesNotContain(
-                "@rendermode",
-                ComponentMarkup(component),
-                StringComparison.OrdinalIgnoreCase);
-        }
-
-        // And no interactive render mode is configured anywhere in the host. This
-        // is stronger than "no component opts in": with nothing registered, there
-        // is no mode for a component to request and no circuit endpoint for the
-        // framework to materialize.
-        //
-        // Spec 014 T03 introduces the first interactive island and the
-        // registration it needs. Until then a taxpayer-data host carries no
-        // SignalR surface.
-        foreach (var file in ProductionSourceFiles())
-        {
-            var executable = string.Join("\n", ExecutableLines(file));
-
-            foreach (var forbidden in new[]
-                     {
-                         "AddInteractiveServerComponents",
-                         "AddInteractiveServerRenderMode",
-                         "AddInteractiveWebAssemblyComponents",
-                         "AddInteractiveWebAssemblyRenderMode",
-                         "RenderMode.InteractiveServer",
-                         "RenderMode.InteractiveAuto",
-                         "RenderMode.InteractiveWebAssembly",
-                         "InteractiveServerRenderMode",
-                     })
+            var markup = ComponentMarkup(component);
+            if (Path.GetFileName(component) == "ClientQuestionnairePanel.razor")
             {
-                Assert.DoesNotContain(forbidden, executable, StringComparison.Ordinal);
+                Assert.Equal(
+                    1,
+                    Regex.Matches(
+                        markup,
+                        @"@rendermode\s+InteractiveServer",
+                        RegexOptions.CultureInvariant,
+                        TimeSpan.FromSeconds(1)).Count);
+            }
+            else
+            {
+                Assert.DoesNotContain(
+                    "@rendermode",
+                    markup,
+                    StringComparison.OrdinalIgnoreCase);
             }
         }
 
-        // The one framework call that stays is the static component mapping.
+        var registration = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ModuleRegistration.cs")));
         var program = string.Join(
             "\n",
             ExecutableLines(Path.Combine(PortalRoot, "Program.cs")));
 
-        Assert.Contains("MapRazorComponents<App>();", program, StringComparison.Ordinal);
+        Assert.Contains(
+            "AddInteractiveServerComponents(",
+            registration,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "options => options.DetailedErrors = false",
+            registration,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "AddInteractiveServerRenderMode(",
+            program,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "options => options.DisableWebSocketCompression = true",
+            program,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "AddInteractiveWebAssembly",
+            registration + program,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "@rendermode",
+            ComponentMarkup(
+                ComponentFiles().Single(path =>
+                    Path.GetFileName(path) == "App.razor")),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact] // spec 014 AC-89
     public void TheHostShipsNoClientScriptReference()
     {
-        // Static server rendering needs no script. Nothing is interactive and no
-        // component uses enhanced navigation, so blazor.web.js would bootstrap
-        // nothing — omitting it keeps the host free of a client-side stack
-        // entirely. T03 adds the script with the island that needs it.
-        foreach (var component in ComponentFiles())
-        {
-            var markup = ComponentMarkup(component);
+        var scriptComponents = ComponentFiles()
+            .Where(component => ComponentMarkup(component).Contains(
+                "<script",
+                StringComparison.OrdinalIgnoreCase))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
 
-            Assert.DoesNotContain("<script", markup, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("blazor.web.js", markup, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("blazor.server.js", markup, StringComparison.OrdinalIgnoreCase);
-        }
+        Assert.Equal(
+            new[] { "App.razor", "ClientIntakePage.razor" },
+            scriptComponents);
+        Assert.Contains(
+            "blazor.web.js",
+            ComponentMarkup(ComponentFiles().Single(path =>
+                Path.GetFileName(path) == "App.razor")),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            ComponentFiles(),
+            component => ComponentMarkup(component).Contains(
+                "blazor.server.js",
+                StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -719,7 +789,13 @@ public sealed class PortalBoundaryTests
     public void TheReusableStylesLiveInTrackedLocalOrScopedCssOnly() // AC-98
     {
         Assert.Equal(
-            new[] { "PortalLayout.razor.css", "ReviewPage.razor.css", "portal.css" },
+            new[]
+            {
+                "PortalLayout.razor.css",
+                "ReviewPage.razor.css",
+                "intake.css",
+                "portal.css",
+            },
             StylesheetFiles()
                 .Select(Path.GetFileName)
                 .OrderBy(name => name, StringComparer.Ordinal)

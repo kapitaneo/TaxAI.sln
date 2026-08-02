@@ -5,11 +5,9 @@
    has to be asked for per component, so a read-only taxpayer page cannot
    silently become a circuit surface.
 
-   There is deliberately no blazor.web.js reference. Nothing in this project is
-   interactive and no component uses enhanced navigation, so the script would
-   bootstrap nothing; omitting it keeps this host free of a client-side stack
-   entirely. Spec 014 T03 adds the script together with the first interactive
-   island that needs it.
+   The local framework script activates only components that explicitly select
+   an interactive render mode. Static SSR remains the default; review and
+   accountant pages never become circuits.
 
    Every asset is local and tracked in this repository: no CDN script, remote
    stylesheet, remote font, or third-party image. *@
@@ -21,6 +19,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <base href="/" />
     <link rel="stylesheet" href="portal.css" />
+    <link rel="stylesheet" href="intake.css" />
     @* Component-scoped CSS bundle: PortalLayout.razor.css and
        ReviewPage.razor.css are compiled into this one local file. *@
     <link rel="stylesheet" href="TaxAI.Portal.styles.css" />
@@ -28,5 +27,6 @@
 </head>
 <body>
     <Routes />
+    <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

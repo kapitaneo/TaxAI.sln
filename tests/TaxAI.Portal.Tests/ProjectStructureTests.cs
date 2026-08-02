@@ -294,15 +294,23 @@ public sealed class ProjectStructureTests
         Assert.Equal(
             new[]
             {
-                "Program",
-                "TaxAI.Portal.Components.App",
-                "TaxAI.Portal.Components.Layout.PortalLayout",
-                "TaxAI.Portal.Components.Pages.ReviewBoxModel",
+                 "Program",
+                 "TaxAI.Portal.Components.App",
+                 "TaxAI.Portal.Components.Layout.PortalLayout",
+                 "TaxAI.Portal.Components.Pages.ClientIntakePage",
+                 "TaxAI.Portal.Components.Pages.ClientLinkConfirmationPage",
+                 "TaxAI.Portal.Components.Pages.IntakeCaseCreatePage",
+                 "TaxAI.Portal.Components.Pages.IntakeCaseIssuedPage",
+                 "TaxAI.Portal.Components.Pages.IntakeCaseProgressPage",
+                 "TaxAI.Portal.Components.Pages.ReviewBoxModel",
                 "TaxAI.Portal.Components.Pages.ReviewLineModel",
                 "TaxAI.Portal.Components.Pages.ReviewPage",
                 "TaxAI.Portal.Components.Pages.ReviewPageModel",
                 "TaxAI.Portal.Components.Pages.ReviewSlipModel",
-                "TaxAI.Portal.Components.Routes",
+                 "TaxAI.Portal.Components.Routes",
+                 "TaxAI.Portal.Components.Shared.ClientQuestionnairePanel",
+                 "TaxAI.Portal.Components.Shared.ExpectedDocumentChecklist",
+                 "TaxAI.Portal.Components.Shared.IntakeStatusBadge",
 
                 // The Razor compiler emits a type for _Imports.razor too. It is a
                 // using list, declares no member, and renders nothing.
@@ -328,6 +336,10 @@ public sealed class ProjectStructureTests
         foreach (var forbidden in new[]
                  {
                      "ReviewEndpoints",
+                     "IntakeEndpoints",
+                     "ClientIntakeEndpoints",
+                     "ClientIntakeCookie",
+                     "IntakeHttpSecurity",
                      "FirmEndpoints",
                      "PortalAuthorization",
                      "PortalIdentity",
@@ -483,7 +495,10 @@ public sealed class ProjectStructureTests
                      "revokes the session server-side",
                      "computes no tax and implements no CRA mapping",
                      "No tax-year policy",
-                     "single approved taxpayer-data surface",
+                     "approved accountant/client intake flow",
+                     "exactly six firm-scoped accountant routes",
+                     "exactly six anonymous client routes",
+                     "sole exception is the raw uploaded source byte stream",
                      "taxpayer display name",
                      "employer display name",
                      "opaque `recordId` route key",
@@ -495,11 +510,11 @@ public sealed class ProjectStructureTests
 
         foreach (var gatedSurface in new[]
                  {
-                     "uploading a document",
-                     "mutating or deleting a stored package",
+                     "Reading/downloading raw content",
+                     "mutating or deleting a stored review package",
                      "provisioning a firm or membership",
-                     "expanding the browser allowlist",
-                     "adding a second taxpayer-data surface",
+                     "expanding either browser allowlist",
+                     "adding another taxpayer-data surface",
                  })
         {
             Assert.Contains(gatedSurface, claude, StringComparison.OrdinalIgnoreCase);
