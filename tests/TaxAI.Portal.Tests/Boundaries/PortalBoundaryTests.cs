@@ -34,7 +34,10 @@ public sealed class PortalBoundaryTests
     /// </summary>
     private static readonly string[] ExpectedProductionFiles =
     {
+        "CryptographicIntakeCredentialSource.cs",
+        "DevelopmentEncryptedIntakeContentStore.cs",
         "FirmEndpoints.cs",
+        "IntakeConfiguration.cs",
         "ModuleRegistration.cs",
         "PortalAuthorization.cs",
         "PortalContent.cs",
@@ -131,7 +134,7 @@ public sealed class PortalBoundaryTests
         var nonFrameworkReferences = CompiledNonFrameworkReferences();
 
         Assert.Equal(
-            new[] { "CaseProcessing", "Persistence", "TaxLogicEngine", "Tenancy" },
+            new[] { "CaseProcessing", "ClientIntake", "Persistence", "TaxLogicEngine", "Tenancy" },
             nonFrameworkReferences);
     }
 
@@ -214,7 +217,10 @@ public sealed class PortalBoundaryTests
         // endpoint for static server rendering only, and the exact set here is
         // what stops interactivity being switched on without a diff.
         { "Program.cs", new[] { "AddServerHeader", "AddTaxAiModules" } },
+        { "CryptographicIntakeCredentialSource.cs", Array.Empty<string>() },
+        { "DevelopmentEncryptedIntakeContentStore.cs", new[] { "AddRange" } },
         { "FirmEndpoints.cs", new[] { "AddClaim" } },
+        { "IntakeConfiguration.cs", Array.Empty<string>() },
         {
             "ModuleRegistration.cs",
             new[]
@@ -353,9 +359,10 @@ public sealed class PortalBoundaryTests
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromSeconds(1)).Count));
 
-        // And the three spec 010 singletons are still exactly three.
+        // The three tax singletons plus the four intake singleton registrations
+        // remain explicit and exact.
         Assert.Equal(
-            3,
+            7,
             new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
                 .Matches(compositionRoot)
                 .Count);

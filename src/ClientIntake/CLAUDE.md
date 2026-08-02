@@ -13,10 +13,11 @@ workflow. It owns the closed intake vocabularies, the accountant and client
 commands and safe projections, the workflow services, and the declared
 persistence / content-store / credential-source ports.
 
-**As of spec 014 T01 this module is a frozen contract, not an implementation.**
-Every workflow constructor and method throws `NotImplementedException`. T02
-replaces those bodies without changing a signature. Nothing in the portal
-resolves or invokes a workflow stub.
+**As of spec 014 T02 this module is an implemented in-process backend.** The
+frozen T01 public signatures are unchanged. The accountant and client workflows
+now coordinate case/checklist creation, links, sessions, questions, answers,
+uploads, submissions, progress/readiness, audit, and review association. The
+portal wires them, but no intake route or UI component invokes them yet.
 
 ## What it is not
 
@@ -46,7 +47,7 @@ The production project references are exactly:
 Forbidden dependencies: `Persistence`, `TaxAI.Portal`, `CaseReview`,
 `CaseProcessing`, `DocumentExtraction`, and any package. No module may reference
 `ClientIntake` except `Persistence` (the relational metadata adapter) and
-`TaxAI.Portal` (the host) — and both of those arrive in later tasks, not T01.
+`TaxAI.Portal` (the host); T02 adds exactly those inward consumers.
 
 ## Scope always moves from a trusted boundary inward
 
@@ -135,8 +136,9 @@ would be a second policy, and the two would drift.
 
 ## The gate
 
-T01 froze this contract and shipped **no behavior**. Implementing a workflow
-body, adding a store or content adapter, exposing a route, or registering any of
-these types in the composition root belongs to the later approved tasks of spec
-014 — not to a passing improvement. Nothing here authorizes a production content
-provider, a retention or purge path, or a deployment.
+T02 implements the contract and allows `Persistence` to supply the relational
+metadata adapter and the portal composition root to supply credentials plus the
+Development/test encrypted content adapter. It authorizes **no intake route or
+UI component**. Those belong to T03. Nothing here authorizes a content-read API,
+production content provider, retention or purge path, extraction, tax
+processing, review construction, or deployment.

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Persistence.Tests.Support;
+using Persistence.Entities;
 using Tenancy.Models;
 
 namespace Persistence.Tests.Schema;
@@ -64,15 +65,28 @@ public sealed class TenantIsolationSchemaTests
             .Where(entity => !IdentityCarveOut.Contains(entity.ClrType))
             .ToArray();
 
+        var bootstrapIndexes = new List<(Type Entity, string Property)>();
         foreach (var entity in tenantEntities)
         {
             Assert.All(
                 entity.GetKeys(),
                 key => Assert.Equal(nameof(Firm.FirmId), key.Properties[0].Name));
-            Assert.All(
-                entity.GetIndexes(),
-                index => Assert.Equal(nameof(Firm.FirmId), index.Properties[0].Name));
+            foreach (var index in entity.GetIndexes())
+            {
+                if (index.Properties[0].Name != nameof(Firm.FirmId))
+                {
+                    bootstrapIndexes.Add((entity.ClrType, index.Properties[0].Name));
+                }
+            }
         }
+
+        Assert.Equal(
+            new[]
+            {
+                (typeof(IntakeClientSessionEntity), nameof(IntakeClientSessionEntity.SessionDigest)),
+                (typeof(IntakeLinkEntity), nameof(IntakeLinkEntity.CredentialDigest)),
+            },
+            bootstrapIndexes.OrderBy(entry => entry.Entity.FullName, StringComparer.Ordinal));
     }
 
     [Fact] // AC-118

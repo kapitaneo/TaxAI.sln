@@ -41,8 +41,8 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   issues a new one. A provider-supplied firm claim is never trusted.
 - **Database persistence** — EF Core SQL Server configurations and
   repository-owned migrations persist immutable, versioned review-record
-  snapshots behind trusted-firm-scoped contracts. No SIN or partial SIN is part
-  of that model.
+  snapshots and append-only intake metadata behind trusted-firm-scoped
+  contracts. No SIN or partial SIN is part of that model.
 - **Retention and purge** — persisted review records carry an exclusive UTC
   retention boundary, and a privileged firm-scoped service purges eligible
   records. The seven-year default is an engineering product decision, not a CRA
@@ -58,18 +58,22 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   CSS. Interactive Server is not registered, so no SignalR circuit endpoint
   exists; there is no client script, WebAssembly project, npm tree, or
   third-party asset.
-- **Client intake contract** — the frozen `ClientIntake` public surface: closed
-  intake vocabularies, accountant and client commands and safe projections, and
-  the declared persistence, content-store, and credential-source ports. **Every
-  workflow constructor and method throws `NotImplementedException`**; no intake
-  route, backend, or content adapter ships.
+- **Client intake backend** — the `ClientIntake` workflows implement
+  server-derived cases, one-time links, revocable sessions, adaptive
+  questionnaires, immutable answers and submissions, validated opaque evidence
+  uploads, progress/readiness projection, audit, and exact review association.
+  Persistence supplies the firm/case-scoped SQL metadata store and one additive
+  migration. The portal wires purpose-separated credentials and a
+  Development-only authenticated encrypted streaming content store without
+  exposing an intake route.
 
 ## Deliberately not shipped
 
 - No second taxpayer-data screen or taxpayer listing ships.
-- No document upload ships. The `ClientIntake` contract is declared and
-  deliberately unimplemented: no intake route, workflow body, relational intake
-  table, or encrypted content adapter ships.
+- No client or accountant intake route, upload transport, intake screen, or
+  raw-content read/download surface ships. The implemented backend is available
+  only through in-process contracts; spec 014 T03 owns the HTTP and component
+  surface.
 - No interactive Blazor component ships, and Interactive Server is not registered
   at all — so the host exposes no SignalR circuit endpoint and loads no client
   script. Spec 014 T03 introduces both, with the first island that needs them.
@@ -101,7 +105,7 @@ src/
   DocumentExtraction/             Untrusted-extraction contract
   CaseProcessing/                 Deterministic T4 processing coordinator
   CaseReview/                     Accountant review package and sign-off
-  ClientIntake/                   Client intake contract (frozen; no implementation)
+  ClientIntake/                   Deterministic intake application workflows
   Tenancy/                        Trusted-firm, session, projection, retention ports
   Persistence/                    EF Core model, migrations, and SQL adapters
   TaxAI.Portal/                   ASP.NET Core host and composition root
@@ -113,7 +117,7 @@ tests/
   DocumentExtraction.Tests/       xUnit suite
   CaseProcessing.Tests/           xUnit suite
   CaseReview.Tests/               xUnit suite
-  ClientIntake.Tests/             xUnit contract, omission, and boundary suite
+  ClientIntake.Tests/             xUnit contract, workflow, and boundary suite
   Tenancy.Tests/                  xUnit suite
   Persistence.Tests/              xUnit suite
   TaxAI.Portal.Tests/             xUnit in-process host and boundary suite

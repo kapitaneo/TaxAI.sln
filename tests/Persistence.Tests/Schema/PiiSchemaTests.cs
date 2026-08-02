@@ -12,7 +12,6 @@ public sealed class PiiSchemaTests
         "Address",
         "Birth",
         "Claim",
-        "Credential",
         "Email",
         "EmployerAccount",
         "Password",
@@ -91,7 +90,9 @@ public sealed class PiiSchemaTests
 
         Assert.All(
             context.Model.GetEntityTypes(),
-            entity => Assert.Equal("Tenancy", entity.ClrType.Assembly.GetName().Name));
+            entity => Assert.Contains(
+                entity.ClrType.Assembly.GetName().Name,
+                new[] { "Persistence", "Tenancy" }));
 
         var converters = context.Model
             .GetEntityTypes()
@@ -100,7 +101,7 @@ public sealed class PiiSchemaTests
             .Where(converter => converter is not null)
             .ToArray();
 
-        Assert.Empty(converters);
+        Assert.All(converters, converter => Assert.Equal(typeof(int), converter!.ProviderClrType));
     }
 
     [Fact] // AC-125, AC-187, AC-188

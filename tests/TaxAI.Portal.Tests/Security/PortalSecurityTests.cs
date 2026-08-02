@@ -40,7 +40,10 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
     private static readonly string[] ExpectedProductionFiles =
     {
+        "CryptographicIntakeCredentialSource.cs",
+        "DevelopmentEncryptedIntakeContentStore.cs",
         "FirmEndpoints.cs",
+        "IntakeConfiguration.cs",
         "ModuleRegistration.cs",
         "PortalAuthorization.cs",
         "PortalContent.cs",
@@ -568,29 +571,36 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     /// <c>DateTimeOffset.UtcNow</c> in one file, once.
     /// </para>
     /// </summary>
-    public static TheoryData<string, string, string> NarrowedInfrastructurePatterns() => new()
+    public static TheoryData<string, string, string[]> NarrowedInfrastructurePatterns() => new()
     {
         {
             "file system",
             @"\bSystem\.IO\b|\bFileStream\b|\bStreamReader\b|\bStreamWriter\b|\bFile\s*\.\s*[A-Z]|\bDirectory\s*\.\s*[A-Z]|\bDirectoryInfo\b|\bPath\s*\.\s*[A-Z]",
-            "PortalIdentity.cs"
+            new[]
+            {
+                "DevelopmentEncryptedIntakeContentStore.cs",
+                "IntakeConfiguration.cs",
+                "PortalIdentity.cs",
+            }
         },
         {
             "system clock",
             @"DateTimeOffset\s*\.\s*UtcNow",
-            "SessionTicketStore.cs"
+            new[] { "SessionTicketStore.cs" }
         },
     };
 
     [Theory] // spec 011 FR-20 as amended
     [MemberData(nameof(NarrowedInfrastructurePatterns))]
     public void ANarrowedInfrastructureConcernAppearsOnlyInItsOneApprovedFile(
-        string kind, string pattern, string approvedFile)
+        string kind, string pattern, string[] approvedFiles)
     {
         var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
         var violations = ProductionSourceFiles()
-            .Where(path => !Path.GetFileName(path).Equals(approvedFile, StringComparison.Ordinal))
+            .Where(path => !approvedFiles.Contains(
+                Path.GetFileName(path),
+                StringComparer.Ordinal))
             .Where(path => regex.IsMatch(string.Join("\n", ExecutableLines(path))))
             .Select(Path.GetFileName)
             .OrderBy(name => name, StringComparer.Ordinal)
@@ -598,7 +608,8 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
         Assert.True(
             violations.Length == 0,
-            $"{kind} pattern /{pattern}/ is approved only in {approvedFile}, and appears in: "
+            $"{kind} pattern /{pattern}/ is approved only in "
+            + $"{string.Join(", ", approvedFiles)}, and appears in: "
             + string.Join(", ", violations));
     }
 

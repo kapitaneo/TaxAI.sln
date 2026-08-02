@@ -127,6 +127,8 @@ internal static class PortalStartupGuards
         ArgumentNullException.ThrowIfNull(environmentName);
 
         _ = RequireDatabaseConnectionString(configuration, environmentName);
+        var environment = services.GetRequiredService<IWebHostEnvironment>();
+        _ = IntakeConfiguration.Require(configuration, environment);
 
         if (RunsInDevelopment(environmentName))
         {

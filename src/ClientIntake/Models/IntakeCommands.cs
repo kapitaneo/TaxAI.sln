@@ -293,7 +293,7 @@ public sealed class IntakeResult<T>
     /// </summary>
     public static IntakeResult<T> Failure(IntakeResultCode code)
     {
-        if (code == IntakeResultCode.Success)
+        if (!Enum.IsDefined(code) || code == IntakeResultCode.Success)
         {
             throw new ArgumentOutOfRangeException(nameof(code));
         }

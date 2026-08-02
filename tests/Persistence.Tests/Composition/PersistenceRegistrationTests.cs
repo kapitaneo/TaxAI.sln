@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ClientIntake.Contracts;
 using Persistence.Repositories;
 using Persistence.Services;
 using Tenancy.Contracts;
@@ -33,6 +34,9 @@ public sealed class PersistenceRegistrationTests
             services,
             ServiceLifetime.Scoped);
         AssertDescriptor<IReviewRecordRepository, SqlReviewRecordRepository>(
+            services,
+            ServiceLifetime.Scoped);
+        AssertDescriptor<IIntakeStore, SqlIntakeStore>(
             services,
             ServiceLifetime.Scoped);
         AssertDescriptor<IAuthenticationSessionStore, SqlAuthenticationSessionStore>(
@@ -94,6 +98,8 @@ public sealed class PersistenceRegistrationTests
 
         Assert.IsType<SqlReviewRecordRepository>(
             scope.ServiceProvider.GetRequiredService<IReviewRecordRepository>());
+        Assert.IsType<SqlIntakeStore>(
+            scope.ServiceProvider.GetRequiredService<IIntakeStore>());
         Assert.IsType<SqlAuthenticationSessionStore>(
             scope.ServiceProvider.GetRequiredService<IAuthenticationSessionStore>());
         Assert.IsType<SqlIdentityDirectory>(

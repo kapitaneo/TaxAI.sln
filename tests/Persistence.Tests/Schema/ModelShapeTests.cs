@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Persistence.Configurations;
+using Persistence.Entities;
 using Persistence.Tests.Support;
 using Tenancy.Models;
 
@@ -11,6 +12,18 @@ public sealed class ModelShapeTests
 {
     private static readonly Type[] ExpectedEntityTypes =
     [
+        typeof(IntakeAnswerVersionEntity),
+        typeof(IntakeAuditEventEntity),
+        typeof(IntakeCaseEntity),
+        typeof(IntakeClientSessionEntity),
+        typeof(IntakeDocumentEntity),
+        typeof(IntakeExpectedItemEntity),
+        typeof(IntakeLinkEntity),
+        typeof(IntakeReviewAssociationEntity),
+        typeof(IntakeSubmissionAnswerEntity),
+        typeof(IntakeSubmissionDocumentEntity),
+        typeof(IntakeSubmissionEntity),
+        typeof(IntakeUploadAttemptEntity),
         typeof(AuthenticationSession),
         typeof(Firm),
         typeof(FirmMembership),
@@ -154,6 +167,18 @@ public sealed class ModelShapeTests
                 .OrderBy(name => name, StringComparer.Ordinal));
         Assert.True(session.FindProperty(nameof(AuthenticationSession.ActiveFirmId))!.IsNullable);
         Assert.True(session.FindProperty(nameof(AuthenticationSession.RevokedAtUtc))!.IsNullable);
+    }
+
+    [Fact]
+    public void IntakeCaseUsesTheExplicitOptimisticConcurrencyToken()
+    {
+        using var context = RelationalTestContext.CreateSqlServerContext();
+        var intakeCase = context.Model.FindEntityType(typeof(IntakeCaseEntity))!;
+        var concurrency = intakeCase.FindProperty(
+            nameof(IntakeCaseEntity.ConcurrencyVersion))!;
+
+        Assert.True(concurrency.IsConcurrencyToken);
+        Assert.Equal("bigint", concurrency.GetColumnType());
     }
 
     [Fact] // T11 backing-field requirement

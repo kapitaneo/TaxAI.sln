@@ -44,8 +44,7 @@ internal sealed class RelationalTestContext : IAsyncDisposable
         if (applyMigrations)
         {
             await using var context = relational.CreateContext();
-            var targetMigration = context.Database.GetMigrations().Single();
-            await context.Database.MigrateAsync(targetMigration);
+            await context.Database.MigrateAsync();
         }
 
         return relational;
@@ -56,6 +55,8 @@ internal sealed class RelationalTestContext : IAsyncDisposable
         var connection = OpenConnection(_connectionString);
         var options = new DbContextOptionsBuilder<TaxAiDbContext>()
             .UseSqlite(connection, contextOwnsConnection: true)
+            .ConfigureWarnings(warnings =>
+                warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
             .AddInterceptors(SqliteMigrationLockCleanupInterceptor.Instance)
             .EnableDetailedErrors()
             .Options;

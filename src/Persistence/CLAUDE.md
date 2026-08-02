@@ -8,30 +8,38 @@ boundary for spec 011.
 ## Boundary and exact reference set
 
 Persistence is the modular monolith's infrastructure adapter for the contracts
-owned by `Tenancy`. It owns the EF Core model, repository-owned migrations,
-firm-scoped review-record storage, durable authentication sessions, identity
-directory reads, privileged retention purge, connection-string validation,
-opaque identifier generation, development-only synthetic seeding, and its one
-registration extension.
+owned by `Tenancy` and `ClientIntake`. It owns the EF Core model,
+repository-owned migrations, firm-scoped review-record and intake-metadata
+storage, durable authentication sessions, identity directory reads, privileged
+retention purge, connection-string validation, opaque identifier generation,
+development-only synthetic seeding, and its one registration extension.
 
-Its only production project reference is exactly `Tenancy`. Its package
-references are exactly the pinned `Microsoft.EntityFrameworkCore.SqlServer` and
+Its production project references are exactly `ClientIntake`, `TaxCases`, and
+`Tenancy`. The explicit `TaxCases` reference supplies only the existing
+category/lifecycle enum types used by intake storage records; Persistence never
+constructs, invokes, or maps `TaxCase`. Its package references are exactly the
+pinned `Microsoft.EntityFrameworkCore.SqlServer` and
 `Microsoft.EntityFrameworkCore.Design` packages. Persistence is the only
 production project permitted to reference EF Core.
 
 Persistence does not directly reference `TaxAI.Portal`, `TaxLogicEngine`,
-`TaxCases`, `DocumentExtraction`, `CaseProcessing`, or `CaseReview`. It receives
-only the already-projected persistence model through Tenancy contracts; it
-never receives or maps an executable review-package or tax-domain type.
+`DocumentExtraction`, `CaseProcessing`, or `CaseReview`. It receives only
+explicit storage records through inward contracts; it never receives or maps an
+executable review package or `TaxCase`.
 
 ## What this module owns
 
 - `TaxAiDbContext`, explicit entity configurations, and repository-owned SQL
   Server migrations.
 - `SqlReviewRecordRepository`, `SqlAuthenticationSessionStore`,
-  `SqlIdentityDirectory`, and `SqlReviewRecordPurgeService`.
+  `SqlIdentityDirectory`, `SqlReviewRecordPurgeService`, and `SqlIntakeStore`.
 - `GuidOpaqueIdentifierSource`, `SqlConnectionStringGuard`, the
   development-only synthetic seeder, and `AddTaxAiPersistence`.
+
+Migration `20260730000000_AddClientIntake` is additive: it creates only the
+twelve intake metadata tables. It does not alter the initial migration or any
+existing firm, identity, session, or review table. Source content remains
+outside SQL behind the write-only content-store contract.
 
 Schema changes come only from migrations. There is no `EnsureCreated`, no
 automatic migration at startup, and no background session or retention sweep.
@@ -39,16 +47,20 @@ automatic migration at startup, and no background session or retention sweep.
 ## Tenant isolation
 
 Every taxpayer-data save, read, and purge requires a trusted firm with no
-firm-omitting overload. Tenant-owned rows carry a non-nullable `FirmId`, and
-tenant lookup indexes and uniqueness constraints lead with it. A foreign-firm
-read is indistinguishable from not found. Existing review snapshots are
-immutable; a later save creates a new version rather than updating or
-overwriting one.
+firm-omitting overload. The only additional bootstrap exemptions are
+`FindLinkScopeAsync` and `FindClientScopeAsync`: each accepts only a keyed digest
+and returns trusted scope. All later client reads/writes revalidate the same live
+session in the operation. Tenant-owned rows carry a non-nullable `FirmId`, and
+tenant lookup indexes, uniqueness constraints, and required relationships are
+firm/case scoped. A foreign-firm read is indistinguishable from not found.
+Existing review snapshots and intake facts are immutable; later state is
+represented by a new version or append.
 
-The identity bootstrap is the closed exception: user, membership, and session
-lookups operate before a trusted firm is known. These operations are exactly
-the exemptions declared by `Tenancy.Models.FirmScopeExemptions`; they carry no
-taxpayer content and do not relax any review-record operation.
+Identity is the other closed bootstrap family: user, membership, and
+authentication-session lookups operate before a trusted firm is known. These
+operations are exactly the exemptions declared by
+`Tenancy.Models.FirmScopeExemptions`; they carry no taxpayer content and do not
+relax any review-record or intake operation.
 
 ## PII posture: omission at rest and in diagnostics
 
@@ -59,9 +71,9 @@ or emitted by an error:
   address, date of birth, email, or phone field.
 - Identity and session tables hold only the approved structural identity and
   lifetime fields. They store no taxpayer content, OIDC token, or claims blob.
-- Persistence maps only Tenancy's explicit allowlist model. It never maps or
-  serializes a `CaseReview`, `CaseProcessing`, `DocumentExtraction`,
-  `TaxCases`, or `TaxLogicEngine` type.
+- Persistence maps only explicit Tenancy and ClientIntake storage records. It
+  never maps or serializes a `CaseReview`, `CaseProcessing`,
+  `DocumentExtraction`, `TaxCase`, or `TaxLogicEngine` type.
 - Diagnostics contain fixed structural facts and approved counts only, never a
   taxpayer value, amount, code, session key, connection string, or caller text.
 
@@ -76,12 +88,13 @@ deletes only records in the trusted firm whose boundary has been reached.
 
 Persistence declares no supported-year list, current-year concept, tax-year
 literal as policy, adjacent-year fallback, or year coercion. It faithfully
-stores and queries the explicit tax year on an already-validated Tenancy record.
-The supported-year authority remains in `CaseReview`.
+stores and queries the explicit tax year on already-validated Tenancy and intake
+records. The supported-year authorities remain in `CaseReview` and the
+`ClientIntake` workflow that constructs `TaxCase`.
 
 ## Forbidden dependencies and behavior
 
-Do not add ASP.NET Core, a direct reference to any tax or review module, another
+Do not add ASP.NET Core, another tax or review module reference, another
 database provider, PostgreSQL, a cloud SDK, OCR, LLM, email, frontend code, a
 generic repository, an exposed `DbSet`/`IQueryable` contract, runtime schema
 mutation, automatic migration, a background scheduler, tax parsing, a box→line

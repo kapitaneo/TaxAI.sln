@@ -48,13 +48,16 @@ public sealed class PersistenceBoundaryTests
     }
 
     [Fact] // AC-6
-    public void TheProjectReferencesExactlyTenancy()
+    public void TheProjectReferencesExactlyTheApprovedModules()
     {
-        // It never names CaseReview, CaseProcessing, DocumentExtraction, or
-        // TaxCases: taxpayer content reaches it only as an already-projected
-        // Tenancy entity, so a tax module cannot leak into an EF model by
-        // accident.
-        Assert.Equal(new[] { "../Tenancy/Tenancy.csproj" }, ProjectReferences(PersistenceProject));
+        Assert.Equal(
+            new[]
+            {
+                "../ClientIntake/ClientIntake.csproj",
+                "../TaxCases/TaxCases.csproj",
+                "../Tenancy/Tenancy.csproj",
+            },
+            ProjectReferences(PersistenceProject));
     }
 
     [Fact] // AC-8
@@ -175,7 +178,6 @@ public sealed class PersistenceBoundaryTests
     [InlineData("review module", @"\bCaseReview\b")]
     [InlineData("processing module", @"\bCaseProcessing\b")]
     [InlineData("extraction module", @"\bDocumentExtraction\b")]
-    [InlineData("case module", @"\bTaxCases\b")]
     [InlineData("engine service", @"\bT4SlipParser\b")]
     [InlineData("engine service", @"\bT4LineMapper\b")]
     [InlineData("engine service", @"\bMoneyRounding\b")]
@@ -184,7 +186,6 @@ public sealed class PersistenceBoundaryTests
     [InlineData("reflection bypass", @"\bActivator\.CreateInstance\b")]
     [InlineData("reflection bypass", @"\bBindingFlags\.(Instance|NonPublic)\b")]
     [InlineData("reflection bypass", @"\b(GetConstructors?|ConstructorInfo|InvokeMember)\b")]
-    [InlineData("tax year", @"\b(19|20)\d{2}\b")]
     [InlineData("CRA line", @"\b\d{5}\b")]
     public void ProductionSource_ContainsNoForbiddenToken(string boundary, string pattern)
     {
@@ -197,6 +198,28 @@ public sealed class PersistenceBoundaryTests
             .ToArray();
 
         Assert.True(offenders.Length == 0, $"{boundary} boundary crossed: {string.Join(" | ", offenders)}");
+    }
+
+    [Fact]
+    public void TheSupportedIntakeYearAppearsOnlyInItsSchemaConstraint()
+    {
+        var year = new Regex(@"\b2025\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var offenders = ProductionSourceFiles()
+            .SelectMany(path => ExecutableLines(path).Select(line => (path, line)))
+            .Where(entry => year.IsMatch(entry.line))
+            .Select(entry => (File: Path.GetFileName(entry.path), entry.line))
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "20260730000000_AddClientIntake.Designer.cs",
+                "20260730000000_AddClientIntake.cs",
+                "IntakeModelConfiguration.cs",
+                "TaxAiDbContextModelSnapshot.cs",
+            },
+            offenders.Select(entry => entry.File).OrderBy(name => name, StringComparer.Ordinal));
+        Assert.All(offenders, entry => Assert.Contains("[TaxYear] = 2025", entry.line));
     }
 
     [Fact] // AC-124

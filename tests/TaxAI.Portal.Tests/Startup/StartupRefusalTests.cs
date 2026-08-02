@@ -58,7 +58,52 @@ internal static class PortalTestDeploymentConfiguration
             "TaxAi__DataProtection__KeyRingLocation", KeyRingLocation);
         Environment.SetEnvironmentVariable(
             "TaxAi__DataProtection__KeyProtectionIdentifier", KeyProtectionIdentifier);
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__PublicOrigin", "https://intake.test.invalid/");
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__LinkLifetime", "01:00:00");
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__ClientSessionIdleLifetime", "00:15:00");
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__MaximumFileBytes", "1048576");
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__MaximumFilesPerRequest", "1");
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__DigestKey", SyntheticKey(0x11));
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__FingerprintKey", SyntheticKey(0x22));
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__ContentEncryptionKey", SyntheticKey(0x33));
+        Environment.SetEnvironmentVariable(
+            "TaxAi__Intake__DevelopmentContentRoot",
+            Path.Combine(
+                Path.GetTempPath(),
+                $"taxai-intake-content-tests-{Environment.ProcessId}"));
+
+        foreach (var (name, value) in new[]
+                 {
+                     ("PublicPermitLimit", "20"),
+                     ("PublicWindow", "00:01:00"),
+                     ("SessionPermitLimit", "60"),
+                     ("SessionWindow", "00:01:00"),
+                     ("AnswerPermitLimit", "20"),
+                     ("AnswerWindow", "00:01:00"),
+                     ("UploadPermitLimit", "10"),
+                     ("UploadWindow", "00:01:00"),
+                     ("UploadConcurrencyLimit", "2"),
+                     ("SubmissionPermitLimit", "10"),
+                     ("SubmissionWindow", "00:01:00"),
+                 })
+        {
+            Environment.SetEnvironmentVariable($"TaxAi__Intake__{name}", value);
+        }
     }
+
+    private static string SyntheticKey(byte value) =>
+        Convert.ToBase64String(Enumerable.Repeat(value, 32).ToArray())
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
 }
 
 /// <summary>

@@ -25,16 +25,24 @@ public sealed class MigrationTests
         TimeSpan.FromSeconds(1));
 
     [Fact] // T11 repository-owned migration
-    public void ExactlyOneInitialMigrationAndOneSnapshotExist()
+    public void ExactlyOneInitialAndOneAdditiveMigrationAndOneSnapshotExist()
     {
         using var context = RelationalTestContext.CreateSqlServerContext();
         var migrations = context.GetService<IMigrationsAssembly>();
 
-        Assert.Single(migrations.Migrations);
+        Assert.Equal(
+            new[]
+            {
+                "20260729021907_InitialPersistence",
+                "20260730000000_AddClientIntake",
+            },
+            migrations.Migrations.Keys);
         Assert.NotNull(migrations.ModelSnapshot);
 
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_InitialPersistence.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_InitialPersistence.Designer.cs"));
+        Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddClientIntake.cs"));
+        Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddClientIntake.Designer.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*ModelSnapshot.cs"));
     }
 
@@ -72,6 +80,43 @@ public sealed class MigrationTests
             created);
         Assert.Equal(created, dropped);
         Assert.Contains("AuthenticationSessions", dropped, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void AdditiveMigrationCreatesAndDropsOnlyTheIntakeTables()
+    {
+        using var context = RelationalTestContext.CreateSqlServerContext();
+        var migration = MigrationById(context, "20260730000000_AddClientIntake");
+
+        var created = migration.UpOperations
+            .OfType<CreateTableOperation>()
+            .Select(operation => operation.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+        var dropped = migration.DownOperations
+            .OfType<DropTableOperation>()
+            .Select(operation => operation.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "IntakeAnswerVersions",
+                "IntakeAuditEvents",
+                "IntakeCases",
+                "IntakeClientSessions",
+                "IntakeDocuments",
+                "IntakeExpectedItems",
+                "IntakeLinks",
+                "IntakeReviewAssociations",
+                "IntakeSubmissionAnswers",
+                "IntakeSubmissionDocuments",
+                "IntakeSubmissions",
+                "IntakeUploadAttempts",
+            },
+            created);
+        Assert.Equal(created, dropped);
     }
 
     [Fact] // AC-119, AC-120, AC-121, AC-122, AC-156
@@ -160,9 +205,14 @@ public sealed class MigrationTests
 
     private static Migration InitialMigration(TaxAiDbContext context)
     {
+        return MigrationById(context, "20260729021907_InitialPersistence");
+    }
+
+    private static Migration MigrationById(TaxAiDbContext context, string migrationId)
+    {
         var migrations = context.GetService<IMigrationsAssembly>();
-        var entry = Assert.Single(migrations.Migrations);
-        return migrations.CreateMigration(entry.Value, context.Database.ProviderName!);
+        var migrationType = migrations.Migrations[migrationId];
+        return migrations.CreateMigration(migrationType, context.Database.ProviderName!);
     }
 
     private static string RemoveOnlyMigrationIdAttribute(string source) =>

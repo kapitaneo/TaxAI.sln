@@ -246,6 +246,7 @@ public sealed class ProjectStructureTests
             new[]
             {
                 "../CaseProcessing/CaseProcessing.csproj",
+                "../ClientIntake/ClientIntake.csproj",
                 "../Persistence/Persistence.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
                 "../Tenancy/Tenancy.csproj",
@@ -428,7 +429,9 @@ public sealed class ProjectStructureTests
         foreach (var required in new[]
                  {
                      "module boundary",
-                     "only production project reference is exactly `Tenancy`",
+                     "production project references are exactly `ClientIntake`, `TaxCases`, and `Tenancy`",
+                     "SqlIntakeStore",
+                     "20260730000000_AddClientIntake",
                      "Microsoft.EntityFrameworkCore.SqlServer",
                      "Microsoft.EntityFrameworkCore.Design",
                      "PII posture",
@@ -466,9 +469,10 @@ public sealed class ProjectStructureTests
 
         foreach (var required in new[]
                  {
-                     "exactly four",
+                     "exactly five",
                      "TaxLogicEngine",
                      "CaseProcessing",
+                     "ClientIntake",
                      "Tenancy",
                      "Persistence",
                      "no SIN in any form",

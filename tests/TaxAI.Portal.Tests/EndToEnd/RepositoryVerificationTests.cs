@@ -139,7 +139,8 @@ public sealed class RepositoryVerificationTests
         foreach (var disclaimer in new[]
                  {
                      "No second taxpayer-data screen",
-                     "No document upload ships.",
+                     "No client or accountant intake route, upload transport",
+                     "raw-content read/download surface",
                      "No OCR or LLM adapter ships.",
                      "No production deployment configuration ships.",
                      "No production provisioning ships",
@@ -348,35 +349,19 @@ public sealed class RepositoryVerificationTests
 
         Assert.NotEmpty(migrations);
 
-        // No intake table, column, or entity may exist yet: T02 owns the additive
-        // migration, and T01 must not have anticipated it.
-        foreach (var path in Directory
-                     .EnumerateFiles(
-                         Path.Combine(RepositoryRoot, "src", "Persistence"),
-                         "*.cs",
-                         SearchOption.AllDirectories)
-                     .Where(path => !IsUnderBuildOutput(path)))
-        {
-            var text = File.ReadAllText(path);
+        Assert.Single(migrations, path =>
+            Path.GetFileName(path) == "20260730000000_AddClientIntake.cs");
+        Assert.Single(migrations, path =>
+            Path.GetFileName(path) == "20260730000000_AddClientIntake.Designer.cs");
 
-
-            foreach (var forbidden in new[]
-                     {
-                         "IntakeCases",
-                         "IntakeLinks",
-                         "IntakeDocuments",
-                         "IntakeClientSessions",
-                         "IntakeAuditEvents",
-                         "ClientIntake",
-                     })
-            {
-                Assert.DoesNotContain(forbidden, text, StringComparison.Ordinal);
-            }
-        }
-
-        // Persistence's project reference set is untouched: still exactly Tenancy.
+        // Persistence receives only the two explicit T02 inward references.
         Assert.Equal(
-            new[] { "../Tenancy/Tenancy.csproj" },
+            new[]
+            {
+                "../ClientIntake/ClientIntake.csproj",
+                "../TaxCases/TaxCases.csproj",
+                "../Tenancy/Tenancy.csproj",
+            },
             XDocument
                 .Load(Path.Combine(RepositoryRoot, "src", "Persistence", "Persistence.csproj"))
                 .Descendants()
@@ -400,14 +385,13 @@ public sealed class RepositoryVerificationTests
     [Fact]
     public void TheHostStillDoesNotReferenceTheFrozenIntakeContract()
     {
-        // A frozen contract is not a wired one. T01 declared ClientIntake and
-        // deliberately left the portal unable to name it; T03 owns that reference.
+        // T02 wires the backend contract, while T03 still owns every route and
+        // component that could expose it.
         var portalProject = File.ReadAllText(
             Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "TaxAI.Portal.csproj"));
 
-        Assert.DoesNotContain("ClientIntake", portalProject, StringComparison.OrdinalIgnoreCase);
-
-        Assert.DoesNotContain(
+        Assert.Contains("ClientIntake", portalProject, StringComparison.Ordinal);
+        Assert.Contains(
             typeof(Program).Assembly.GetReferencedAssemblies(),
             reference => reference.Name!.Equals("ClientIntake", StringComparison.OrdinalIgnoreCase));
     }

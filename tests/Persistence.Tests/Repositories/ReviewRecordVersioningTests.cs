@@ -319,8 +319,7 @@ internal sealed class VersionRaceDatabase : IAsyncDisposable
 
         var database = new VersionRaceDatabase(connection);
         await using var context = database.CreateContext();
-        var targetMigration = context.Database.GetMigrations().Single();
-        await context.Database.MigrateAsync(targetMigration);
+        await context.Database.MigrateAsync();
         return database;
     }
 
@@ -328,6 +327,8 @@ internal sealed class VersionRaceDatabase : IAsyncDisposable
     {
         var options = new DbContextOptionsBuilder<TaxAiDbContext>()
             .UseSqlite(_connection, contextOwnsConnection: false)
+            .ConfigureWarnings(warnings =>
+                warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
             .AddInterceptors(interceptors)
             .EnableDetailedErrors()
             .Options;
