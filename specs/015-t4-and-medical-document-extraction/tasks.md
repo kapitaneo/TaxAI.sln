@@ -67,11 +67,26 @@ tested state — which a contract wave, by construction, does not.
   canada.ca citation. Deleting the Box 54 `[InlineData]` row lowers the executed
   count by one, so this task's own new tests must more than replace it; raise
   `TaxLogicEngine.Tests`'s floor to the observed count in the same pass.
-  **Isolated for review because it is the only task that changes merged
-  tax-domain behaviour.** — files: `src/TaxLogicEngine/Services/T4SlipParser.cs`,
+  **[AMENDED] T01 also owns the downstream test file
+  `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`**, which asserts
+  the same Box 54 requirement one module further out (AC-45a). The original file
+  list omitted it, but FR-48 removes the error that assertion depends on, so the
+  full suite cannot be green without it and rule 6 below could not be met. In
+  that file, and only for this: **remove** the superseded Box 54
+  parser-rejection case; **replace it with positive coverage proving a valid
+  employee-copy T4 without Box 54 reaches processing successfully**, completing
+  the pipeline and producing a slip and a mapping; leave **Box 12, Box 45,
+  `EmployerName`, `EmployeeName`, the tax-year rule, error ordering, and verbatim
+  engine-error propagation unchanged** and still asserted; change **no production
+  `CaseProcessing` code**; and **do not lower the `CaseProcessing.Tests` floor** —
+  add enough coverage for the net count to rise and raise that floor to the
+  observed count in the same pass. **Isolated for review because it is the only
+  task that changes merged tax-domain behaviour.** — files:
+  `src/TaxLogicEngine/Services/T4SlipParser.cs`,
   `src/TaxLogicEngine/CLAUDE.md`,
   `tests/TaxLogicEngine.Tests/Services/T4SlipParserTests.cs`,
   `tests/TaxLogicEngine.Tests/Services/T4SlipParserEmployeeCopyTests.cs`,
+  `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs` **[AMENDED]**,
   `scripts/test-projects.json` — depends on: none
 
 ---
@@ -399,7 +414,9 @@ deliberate.
 **3 — Every production path is owned by exactly one task.** No file appears in
 two tasks. `scripts/test-projects.json` is edited by six tasks (T01–T06), but
 each is in its own wave, so no two ever touch it concurrently; T07 does not touch
-it at all.
+it at all. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
+is owned by **T01 alone**, for the AC-45a supersession only; no other task may
+edit it, and T01 changes no production `CaseProcessing` code.
 
 **4 — Every task delivers coherent tested behaviour.** T01 a parser rule change,
 T02 a working extractor, T03 a working store, T04 a working ingest, T05 a working

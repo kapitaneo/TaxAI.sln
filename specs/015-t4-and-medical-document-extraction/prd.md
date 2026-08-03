@@ -196,9 +196,13 @@ These are facts about **this codebase**, not CRA claims. They are load-bearing.
    participant, and tax year plus unique document identifiers. FR-86 … FR-91
    respect this exactly.
 7. **`tests/TaxLogicEngine.Tests/Services/T4SlipParserTests.cs` directly asserts
-   the Box 54 and address requirements** that FR-48 and FR-52 supersede. Those
-   specific assertions are the *only* existing tests this feature may change
-   (AC-45).
+   the Box 54 and address requirements** that FR-48 and FR-52 supersede.
+8. **`tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs` directly
+   asserts the same Box 54 requirement downstream**, proving the processor
+   carries that engine rejection verbatim. FR-48 removes the error, so this
+   assertion becomes unreachable too. The assertions in these **two** files are
+   the *only* existing tests this feature may change (AC-45, AC-45a), and only
+   T01 may change them.
 
 ### Genuinely new — introduced by this feature
 
@@ -1336,21 +1340,56 @@ When it runs after this feature, Then every registered test project runs, nothin
 is skipped, no test fails, every project meets its recorded minimum, and each new
 test project is registered in `scripts/test-projects.json`.
 
-**AC-45 — No unauthorized tax behaviour changed (amended).** Given the existing
-`TaxLogicEngine.Tests`, `TaxCases.Tests`, `DocumentExtraction.Tests`,
+**AC-45 — No unauthorized tax behaviour changed (amended twice).** Given the
+existing `TaxLogicEngine.Tests`, `TaxCases.Tests`, `DocumentExtraction.Tests`,
 `CaseProcessing.Tests`, and `CaseReview.Tests` suites, When they run after this
 feature, Then every one passes, and the **only** existing tests modified are those
-in `tests/TaxLogicEngine.Tests/Services/T4SlipParserTests.cs` that directly assert
-the three superseded rules of AC-43. Every other existing test runs unmodified,
-and no test anywhere is removed, skipped, weakened, or rewritten to make a change
-pass.
+in **exactly these two files**, and only where they directly assert the three
+superseded rules of AC-43:
+
+1. `tests/TaxLogicEngine.Tests/Services/T4SlipParserTests.cs`;
+2. `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs` — **second
+   amendment**, see AC-45a.
+
+Every other existing test runs unmodified, and no test anywhere is removed,
+skipped, weakened, or rewritten to make a change pass.
+
+**AC-45a — The downstream Box 54 rejection case is superseded (T01-owned).**
+The first amendment named only the engine's own test file, but the Box 54
+requirement is also asserted **downstream**: `T4CaseProcessorTests.cs` carried an
+`[InlineData(T4BoxCodes.EmployerAccountNumber, "Box 54")]` case proving the
+processor carries that rejection verbatim. FR-48 removes the error, so the case
+becomes unreachable and the suite cannot be green without touching it. T01
+therefore also owns that file, and only for this. Given that file after T01,
+Then all of the following hold:
+
+- the obsolete Box 54 parser-rejection case is **superseded and removed** — it
+  asserts an error the engine no longer produces;
+- it is **replaced by positive coverage** proving that a valid employee-copy T4
+  **without Box 54 reaches processing successfully** — completing the pipeline
+  and producing a slip and a mapping, rather than merely not erroring;
+- **Box 12, Box 45, `EmployerName`, `EmployeeName`, the tax-year rule, error
+  ordering, and verbatim engine-error propagation remain unchanged** and are
+  still asserted, each still stopping the pipeline before the mapping provider;
+- **no production `CaseProcessing` change is authorized** by this criterion —
+  the module's source is untouched, and this is a test-only supersession;
+- the `CaseProcessing.Tests` floor in `scripts/test-projects.json` **SHALL NOT be
+  lowered**. Removing the case lowers the executed count by one, so T01 SHALL add
+  enough coverage for the net count to rise and SHALL raise the floor to the new
+  observed count, in the same pass (FR-30).
+
+**No other existing test file, and no production file outside
+`src/TaxLogicEngine/Services/T4SlipParser.cs`, is authorized by this
+criterion** — it grants no general exception.
 
 Note for `/plan`: superseding the Box 54 rule deletes one `[InlineData]` case
-from the required-box `[Theory]`, which **lowers** `TaxLogicEngine.Tests`'s
-executed count by one. `scripts/test-projects.json` records a floor of 261 for
-that project and **a floor is never lowered** (FR-30). The same PR SHALL
-therefore add the FR-48 … FR-53 engine tests (AC-63 … AC-67) so the project's
-net count rises, and SHALL raise the floor to the new count.
+from the required-box `[Theory]` in **each** of the two files named in AC-45,
+which **lowers** `TaxLogicEngine.Tests`'s and `CaseProcessing.Tests`'s executed
+counts by one apiece. `scripts/test-projects.json` records floors of 261 and 594
+for those projects and **a floor is never lowered** (FR-30). The same PR SHALL
+therefore add the FR-48 … FR-53 engine tests (AC-63 … AC-67) and the AC-45a
+downstream coverage so that **both** projects' net counts rise, and SHALL raise
+**both** floors to their new observed counts.
 
 **AC-46 — Solution assertions stay open.** Given every repository-level test, When
 inspected, Then none asserts a total or closed project set for `TaxAI.sln`; each
@@ -1804,7 +1843,7 @@ implementation.
 | Q-A1 | How may extraction read the encrypted source bytes, and who may do it? | A separate narrow extraction-only content-read port; `IIntakeContentStore` unchanged; four-part server-verified scope; extraction workflow only; live firm-scoped accountant request only; source-byte invariant preserved verbatim. | FR-31 … FR-36 | AC-48 … AC-53 |
 | Q-A2 | May taxpayer source bytes leave the TaxAI process, and to whom? | No. No external provider, cloud OCR, LLM, provider-side retention, or human review ships. Deterministic Development/test adapters only, with no taxpayer-content network egress. A real Canadian Azure provider is deferred to a separate infrastructure spec. No prompt or provider payload is logged or persisted. | FR-37 … FR-40, FR-21 | AC-54 … AC-56, AC-35, AC-38 |
 | Q-A3 | May the Box 12 SIN be extracted, where may it live, and how is a mis-read SIN corrected? | Yes, in process memory only, for one synchronous accountant-initiated operation. Never persisted, serialized, logged, audited, rendered, masked for display, hashed, tokenized, used in duplicate identity, or placed in a correction record. Not correctable in the UI. A missing or rejected SIN blocks acceptance; the remedy is re-extraction or a clearer document. Correction may require re-reading and re-extracting the source. | FR-41 … FR-47 | AC-57 … AC-62 |
-| Q-A4 | Does the employee copy of a 2025 T4 carry Box 54 and Box 45, and if not, what happens? | Verified on canada.ca: Box 54 is not entered on employee copies; Box 45 is required for 2025 because the relief covered 2023 and 2024 only. Approved parser change: Box 54 no longer required; Box 45 and Box 12 still required; display names still required; addresses become optional metadata. Supersedes the spec 003 `[CONFIRM]` assumption. | FR-48 … FR-53 | AC-63 … AC-68, AC-43, AC-45 |
+| Q-A4 | Does the employee copy of a 2025 T4 carry Box 54 and Box 45, and if not, what happens? | Verified on canada.ca: Box 54 is not entered on employee copies; Box 45 is required for 2025 because the relief covered 2023 and 2024 only. Approved parser change: Box 54 no longer required; Box 45 and Box 12 still required; display names still required; addresses become optional metadata. Supersedes the spec 003 `[CONFIRM]` assumption, and the matching downstream `T4CaseProcessorTests` Box 54 case (AC-45a). | FR-48 … FR-53 | AC-63 … AC-68, AC-43, AC-45, AC-45a |
 | Q-A5 | What is a medical receipt's structured output, and where does it go? | A separate neutral medical-evidence model, not the T4-only review contracts. Closed field set: printed date, printed gross amount, currency-or-unknown, provider display name, patient display name, receipt reference, provenance with per-field confidence, structural validation. No medical narrative. No eligibility, claimant, reimbursement, or CRA-line assertion. Verified on canada.ca that lines 33099/33199 depend on who the expense concerns and on later claim logic, so no mapping, aggregation, period selection, threshold, or calculation is performed. | FR-54 … FR-61 | AC-69 … AC-75 |
 | Q-A6 | May medical/health content reach a browser and SQL? | Only on the new accountant-only extraction-review surface, under its own explicit closed allowlist. Not added to the spec 012 route or its allowlist. Provider and patient names are sensitive display PII confined to that surface. Storable as immutable structured versions in SQL; never in logs, metrics, traces, exceptions, audit free text, URLs, cookies, headers, or diagnostics. | FR-62 … FR-65 | AC-76 … AC-80 |
 | Q-A7 | Is there a confidence threshold, and what does it gate? | No threshold is introduced. Confidence is displayable untrusted provider metadata and an attention signal only. It never rejects, creates a tax fact, auto-accepts, auto-creates a record, bypasses review, or is described as accuracy. Existing `[0,1]` structural validation is unchanged. | FR-66 … FR-68 | AC-81 … AC-84, AC-22, AC-23 |
@@ -1945,6 +1984,14 @@ this PRD.**
 - [x] AC-43 — the approved contract and semantic changes are enumerated exactly
       and the generic loophole is removed; AC-45 names the only existing tests
       that may change.
+- [x] AC-45 versus FR-48, applied during T01 — AC-45 originally named only
+      `T4SlipParserTests.cs`, but the Box 54 requirement is asserted downstream
+      in `T4CaseProcessorTests.cs` as well, so obeying it literally left the full
+      suite red and could not satisfy the plan's own "gate must be green" rule.
+      AC-45 now names both files, new **AC-45a** bounds the downstream change to
+      a test-only supersession with mandatory positive replacement coverage and
+      an unlowered floor, and `tasks.md` gives T01 sole ownership of that file.
+      No production `CaseProcessing` code is authorized.
 - [x] FR-19, FR-21, AC-35, AC-38, AC-39 — reconciled with FR-37/FR-40: no
       external production provider or SDK ships, and no criterion requires one.
 - [x] Status and Definition of Done — the blocked status is removed and this PRD
