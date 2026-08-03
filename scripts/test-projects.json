@@ -21,7 +21,7 @@
     { "name": "CaseReview.Tests", "minimumTests": 482, "establishedBy": "spec 009" },
     { "name": "TaxAI.Portal.Tests", "minimumTests": 571, "establishedBy": "spec 014 T04" },
     { "name": "Tenancy.Tests", "minimumTests": 289, "establishedBy": "spec 011 T21" },
-    { "name": "Persistence.Tests", "minimumTests": 167, "establishedBy": "spec 014 T04" },
+    { "name": "Persistence.Tests", "minimumTests": 171, "establishedBy": "spec 014 T04" },
     { "name": "ClientIntake.Tests", "minimumTests": 157, "establishedBy": "spec 014 T02" }
   ]
 }

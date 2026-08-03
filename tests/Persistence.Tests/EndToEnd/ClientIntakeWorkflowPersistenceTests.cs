@@ -7,6 +7,7 @@ using ClientIntake.Contracts;
 using ClientIntake.Models;
 using ClientIntake.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Persistence.Entities;
 using Persistence.Repositories;
 using Persistence.Tests.Support;
@@ -43,6 +44,96 @@ public sealed class ClientIntakeWorkflowPersistenceTests
 
     private static string FormattedSinProbe =>
         string.Join(" ", "046", "454", "286");
+
+    // The one caller-supplied string the intake tables legitimately store. It is
+    // the positive control for the no-SIN scan: if the scan ever stopped covering
+    // caller text, this value would stop appearing in it.
+    private const string TaxpayerDisplayName = "Synthetic Intake Taxpayer";
+
+    // The last three digits of the probe on their own — the shape a "partial
+    // SIN" or "last three" leak would take.
+    private const string LastThreeSinDigits = "286";
+
+    // Planted in the original filename the transport discards.
+    private const string PlantedFilename = "T4-046 454 286-<script>.pdf";
+
+    /// <summary>
+    /// Every probe long enough to be unambiguous. These scan the raw stored text
+    /// of <b>every</b> column of every row — identifier, digest, timestamp,
+    /// counter, enum, and binary columns included — because none of them can
+    /// arise by chance.
+    /// </summary>
+    private static string[] FullStrengthProbes =>
+    [
+        SinProbe,
+        FormattedSinProbe,
+        "046-454-286",
+        "***-**-286",
+        PlantedFilename,
+        "T4-046",
+        ".pdf",
+        "<script>",
+        "-1.005",
+    ];
+
+    /// <summary>
+    /// The closed set of intake columns that can semantically carry
+    /// taxpayer-originated or taxpayer-derived text, and therefore the only
+    /// columns the bare <see cref="LastThreeSinDigits"/> probe scans. Three
+    /// digits are also three hexadecimal characters, so against a structural
+    /// identifier that probe matches the random number generator rather than a
+    /// leak — a rendered GUID contains any given three of them roughly 0.7% of
+    /// the time, which failed this suite by chance on unmodified master.
+    /// <para>
+    /// <b>IntakeCases.PrimaryTaxpayerDisplayName</b> is the accountant-supplied
+    /// display name of the taxpayer: free text, taken verbatim from a caller,
+    /// and the one intake column a partial SIN could be typed into.
+    /// </para>
+    /// <para>
+    /// Every other column is excluded by omission, and
+    /// <see cref="EveryTextBearingIntakeColumnIsClassified"/> fails if the schema
+    /// grows a text column that nobody has classified. The full-strength probes
+    /// above still scan all of them.
+    /// </para>
+    /// </summary>
+    private static readonly (string Table, string Column)[] TaxpayerTextColumns =
+    [
+        ("IntakeCases", "PrimaryTaxpayerDisplayName"),
+    ];
+
+    /// <summary>
+    /// The intake columns that hold text but cannot hold taxpayer text, each
+    /// excluded from the short probe for a stated reason.
+    /// <para>
+    /// <b>IntakeDocuments.ContentKey</b> is a machine-generated content-store
+    /// object key. The workflow never places caller text in it — the transport
+    /// discards the received filename before the workflow is reached — so its
+    /// only content is opaque addressing.
+    /// </para>
+    /// </summary>
+    private static readonly (string Table, string Column)[] NonTaxpayerTextColumns =
+    [
+        ("IntakeDocuments", "ContentKey"),
+    ];
+
+    /// <summary>
+    /// One real column per category of structural value the short probe must not
+    /// scan. These are the columns whose contents are machine-generated, so a
+    /// three-character match in one is chance, not evidence.
+    /// </summary>
+    private static readonly (string Table, string Column)[] StructuralColumns =
+    [
+        ("IntakeCases", "CaseId"),                  // primary key
+        ("IntakeDocuments", "ExpectedItemId"),      // foreign key
+        ("IntakeAuditEvents", "ActorReference"),    // structural actor identifier
+        ("IntakeDocuments", "ContentKey"),          // content-store object key
+        ("IntakeLinks", "CredentialDigest"),        // opaque keyed digest
+        ("IntakeDocuments", "Fingerprint"),         // opaque content fingerprint
+        ("IntakeDocuments", "UploadedAtUtc"),       // timestamp
+        ("IntakeAuditEvents", "Sequence"),          // counter / sequence
+        ("IntakeCases", "CaseStatus"),              // enum / status
+        ("IntakeDocuments", "ByteCount"),           // byte count
+    ];
 
     private static readonly Guid FirmOne =
         Guid.Parse("1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a01");
@@ -150,11 +241,12 @@ public sealed class ClientIntakeWorkflowPersistenceTests
         var raw = created.Value!.LinkCredential.Reveal();
 
         var stored = await fixture.EveryStoredValueAsync();
+        var rendered = stored.Select(value => value.Text).ToArray();
 
-        Assert.NotEmpty(stored);
-        Assert.DoesNotContain(raw, stored, StringComparer.Ordinal);
+        Assert.NotEmpty(rendered);
+        Assert.DoesNotContain(raw, rendered, StringComparer.Ordinal);
         Assert.All(
-            stored,
+            rendered,
             value => Assert.DoesNotContain(raw, value, StringComparison.Ordinal));
 
         // Only the keyed digest is stored, and it is a digest of that credential.
@@ -671,9 +763,8 @@ public sealed class ClientIntakeWorkflowPersistenceTests
     {
         await using var fixture = await IntakeFixture.CreateAsync();
 
-        // Every probe below is planted inside the opaque source bytes and in the
+        // Every probe is planted inside the opaque source bytes and in the
         // original filename the transport discards. Neither may surface.
-        const string PlantedFilename = "T4-046 454 286-<script>.pdf";
         var ready = await fixture.ReadyCaseAsync(
             t4Body: SyntheticSource.Pdf(
                 $"{SinProbe} {FormattedSinProbe} 046-454-286 ***-**-286 -1.005 1.005"),
@@ -682,27 +773,33 @@ public sealed class ClientIntakeWorkflowPersistenceTests
         var stored = await fixture.EveryStoredValueAsync();
         Assert.NotEmpty(stored);
 
-        foreach (var probe in new[]
-                 {
-                     SinProbe,
-                     FormattedSinProbe,
-                     "046-454-286",
-                     "***-**-286",
-                     "286",
-                     PlantedFilename,
-                     "T4-046",
-                     ".pdf",
-                     "<script>",
-                     "-1.005",
-                 })
+        // Every full-length probe scans every column of every row exactly as it
+        // is stored. A failure names the table and column, so the next person
+        // does not have to work out which of a hundred values it was.
+        foreach (var value in stored)
         {
-            Assert.All(
-                stored,
-                value => Assert.DoesNotContain(
-                    probe,
-                    value,
-                    StringComparison.OrdinalIgnoreCase));
+            var carried = FullStrengthProbeIn(value);
+            Assert.True(
+                carried is null,
+                $"{value.Table}.{value.Column} contains the planted probe "
+                + $"'{carried}'.");
         }
+
+        // The bare last-three-digits probe scans the same raw stored text, in
+        // the columns that can semantically hold taxpayer text.
+        Assert.All(
+            stored,
+            value => Assert.False(
+                LeaksTheLastThreeSinDigits(value),
+                $"{value.Table}.{value.Column} contains the last three digits of "
+                + "the planted SIN."));
+
+        // ...and that scan is not hollow: the one caller-supplied string the
+        // intake tables legitimately store is inside it, in full.
+        Assert.Contains(
+            stored,
+            value => CanHoldTaxpayerText(value) &&
+                value.Text.Contains(TaxpayerDisplayName, StringComparison.Ordinal));
 
         // The content store is the one place the bytes live, and it is explicitly
         // NOT claimed to be SIN-free. This asserts the probe is still in there,
@@ -722,6 +819,134 @@ public sealed class ClientIntakeWorkflowPersistenceTests
                 .ToArray());
 
         _ = ready;
+    }
+
+    [Fact] // guards the short-probe column scoping in the test above
+    public void TheShortProbeSkipsStructuralColumns()
+    {
+        // The exact value that failed on unmodified master. Its "286" is random
+        // hexadecimal at position 1 of a primary key, not a partial SIN.
+        const string CollidingIdentifier = "32860C57-D73E-4A3F-8C0E-46DF14494E4A";
+
+        // No structural column participates, whatever it happens to contain.
+        Assert.All(
+            StructuralColumns,
+            column => Assert.False(
+                LeaksTheLastThreeSinDigits(
+                    new StoredValue(column.Table, column.Column, CollidingIdentifier)),
+                $"{column.Table}.{column.Column} is structural and must not be "
+                + "scanned by a three-character probe."));
+
+        // Including the content key, whose machine-generated GUID is exactly
+        // where a collision would otherwise hide.
+        Assert.False(
+            LeaksTheLastThreeSinDigits(
+                new StoredValue(
+                    "IntakeDocuments",
+                    "ContentKey",
+                    $"intake/{CollidingIdentifier.Replace("-", string.Empty)}")));
+    }
+
+    [Fact] // guards the short-probe column scoping in the test above
+    public void TheShortProbeDetectsALeakIntoATaxpayerTextColumn()
+    {
+        Assert.All(
+            TaxpayerTextColumns,
+            column => Assert.True(
+                LeaksTheLastThreeSinDigits(
+                    new StoredValue(
+                        column.Table,
+                        column.Column,
+                        $"Taxpayer {LastThreeSinDigits}")),
+                $"{column.Table}.{column.Column} is on the taxpayer-text "
+                + "allowlist and must be scanned."));
+
+        // The raw stored text is what gets scanned, so a leak stays visible even
+        // when it sits inside a GUID-shaped substring. Redacting identifiers out
+        // of the value — rather than scoping by column — would hide this one.
+        Assert.All(
+            TaxpayerTextColumns,
+            column => Assert.True(
+                LeaksTheLastThreeSinDigits(
+                    new StoredValue(
+                        column.Table,
+                        column.Column,
+                        "32860C57-D73E-4A3F-8C0E-46DF14494E4A")),
+                $"{column.Table}.{column.Column} must be scanned as stored, not "
+                + "with GUID-shaped substrings removed."));
+    }
+
+    [Fact] // guards the full-strength probes in the test above
+    public void EveryFullStrengthProbeScansEveryColumn()
+    {
+        foreach (var probe in FullStrengthProbes)
+        {
+            Assert.All(
+                StructuralColumns.Concat(TaxpayerTextColumns).ToArray(),
+                column => Assert.NotNull(
+                    FullStrengthProbeIn(
+                        new StoredValue(column.Table, column.Column, probe))));
+        }
+
+        // A column nobody classified is still scanned by every full probe: only
+        // the short probe is allowlisted.
+        Assert.All(
+            FullStrengthProbes,
+            probe => Assert.NotNull(
+                FullStrengthProbeIn(
+                    new StoredValue("IntakeSomethingNew", "SomeFutureColumn", probe))));
+    }
+
+    [Fact] // guards the taxpayer-text allowlist against schema drift
+    public async Task EveryTextBearingIntakeColumnIsClassified()
+    {
+        await using var fixture = await IntakeFixture.CreateAsync();
+        await using var context = fixture.CreateContext();
+
+        // Taken from the model rather than from SQLite: SQLite stores a GUID as
+        // TEXT too, so the storage type alone cannot tell them apart.
+        static IEnumerable<(string Table, string Column)> IntakeColumns(
+            DbContext context,
+            Func<IProperty, bool> predicate) =>
+            context.Model
+                .GetEntityTypes()
+                .Where(entity => entity.GetTableName()!.StartsWith(
+                    "Intake",
+                    StringComparison.Ordinal))
+                .SelectMany(entity => entity
+                    .GetProperties()
+                    .Where(predicate)
+                    .Select(property => (
+                        Table: entity.GetTableName()!,
+                        Column: property.GetColumnName(
+                            StoreObjectIdentifier.Create(entity, StoreObjectType.Table)!
+                                .Value)!)));
+
+        static (string Table, string Column)[] InOrder(
+            IEnumerable<(string Table, string Column)> columns) =>
+            columns
+                .OrderBy(column => column.Table, StringComparer.Ordinal)
+                .ThenBy(column => column.Column, StringComparer.Ordinal)
+                .ToArray();
+
+        // A new text column fails here until somebody classifies it as taxpayer
+        // text or states why it is not. Neither list may silently absorb it.
+        Assert.Equal(
+            InOrder(TaxpayerTextColumns.Concat(NonTaxpayerTextColumns)),
+            InOrder(IntakeColumns(
+                context,
+                property => property.ClrType == typeof(string))));
+
+        // And every column named in any of the three lists really exists, so a
+        // typo cannot quietly exempt a column from the short probe.
+        var declared = IntakeColumns(context, _ => true).ToHashSet();
+
+        Assert.All(
+            TaxpayerTextColumns
+                .Concat(NonTaxpayerTextColumns)
+                .Concat(StructuralColumns)
+                .ToArray(),
+            column => Assert.Contains(column, declared));
     }
 
     [Fact] // AC-66
@@ -939,7 +1164,7 @@ public sealed class ClientIntakeWorkflowPersistenceTests
                 firm ?? TrustedFirmOne,
                 AccountantActor,
                 new CreateIntakeCaseCommand(
-                    "Synthetic Intake Taxpayer",
+                    TaxpayerDisplayName,
                     2025,
                     t4Count,
                     medicalCount),
@@ -1075,7 +1300,7 @@ public sealed class ClientIntakeWorkflowPersistenceTests
         /// database rather than the model: a value that reached a column but not a
         /// mapped property would still be a leak.
         /// </summary>
-        internal async Task<IReadOnlyList<string>> EveryStoredValueAsync()
+        internal async Task<IReadOnlyList<StoredValue>> EveryStoredValueAsync()
         {
             await using var context = _database.CreateContext();
             var connection = context.Database.GetDbConnection();
@@ -1096,7 +1321,7 @@ public sealed class ClientIntakeWorkflowPersistenceTests
 
             Assert.NotEmpty(tables);
 
-            var values = new List<string>();
+            var values = new List<StoredValue>();
             foreach (var table in tables)
             {
                 await using var command = connection.CreateCommand();
@@ -1106,7 +1331,7 @@ public sealed class ClientIntakeWorkflowPersistenceTests
                 {
                     for (var index = 0; index < reader.FieldCount; index++)
                     {
-                        values.Add(Render(reader, index));
+                        values.Add(Render(reader, table, index));
                     }
                 }
             }
@@ -1114,22 +1339,35 @@ public sealed class ClientIntakeWorkflowPersistenceTests
             return values;
         }
 
-        private static string Render(DbDataReader reader, int index)
+        /// <summary>
+        /// Renders one column value as text, tagged with the table and column it
+        /// came from. The value itself is rendered exactly as it always was; the
+        /// tag is what lets the short probe be scoped to the columns that can
+        /// hold taxpayer text without rewriting a single stored value.
+        /// </summary>
+        private static StoredValue Render(
+            DbDataReader reader,
+            string table,
+            int index)
         {
+            var column = reader.GetName(index);
             if (reader.IsDBNull(index))
             {
-                return string.Empty;
+                return new StoredValue(table, column, string.Empty);
             }
 
             var value = reader.GetValue(index);
-            return value switch
-            {
-                byte[] bytes => string.Concat(
-                    Convert.ToBase64String(bytes),
-                    " ",
-                    Encoding.UTF8.GetString(bytes)),
-                _ => value.ToString() ?? string.Empty,
-            };
+            return new StoredValue(
+                table,
+                column,
+                value switch
+                {
+                    byte[] bytes => string.Concat(
+                        Convert.ToBase64String(bytes),
+                        " ",
+                        Encoding.UTF8.GetString(bytes)),
+                    _ => value.ToString() ?? string.Empty,
+                });
         }
 
         public async ValueTask DisposeAsync() => await _database.DisposeAsync();
@@ -1139,6 +1377,12 @@ public sealed class ClientIntakeWorkflowPersistenceTests
         Guid FirmId,
         Guid CaseId,
         IntakeSecret SessionCredential);
+
+    /// <summary>
+    /// One value from one column of one row of one intake table, exactly as it
+    /// is stored, tagged with where it came from.
+    /// </summary>
+    internal sealed record StoredValue(string Table, string Column, string Text);
 
     /// <summary>
     /// Gives every store call its own context and its own
@@ -1441,6 +1685,33 @@ public sealed class ClientIntakeWorkflowPersistenceTests
     }
 
     // -------------------------------------------------------------- helpers
+
+    /// <summary>
+    /// The first full-strength probe carried by a stored value, or
+    /// <see langword="null"/>. Column plays no part: these probes scan the raw
+    /// text of every column of every row.
+    /// </summary>
+    private static string? FullStrengthProbeIn(StoredValue value) =>
+        FullStrengthProbes.FirstOrDefault(probe =>
+            value.Text.Contains(probe, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether a stored value is one the short probe scans at all — that is,
+    /// whether its column is on the closed <see cref="TaxpayerTextColumns"/>
+    /// allowlist.
+    /// </summary>
+    private static bool CanHoldTaxpayerText(StoredValue value) =>
+        TaxpayerTextColumns.Contains((value.Table, value.Column));
+
+    /// <summary>
+    /// Whether a stored value leaks the last three digits of the planted SIN.
+    /// The scan is scoped by column and never by content: the <b>raw</b> stored
+    /// text is what gets searched, so a leak stays visible even when it sits
+    /// inside something GUID-shaped.
+    /// </summary>
+    private static bool LeaksTheLastThreeSinDigits(StoredValue value) =>
+        CanHoldTaxpayerText(value) &&
+        value.Text.Contains(LastThreeSinDigits, StringComparison.OrdinalIgnoreCase);
 
     private static PersistedReviewRecord ReviewRecordFor(
         Guid firmId,
