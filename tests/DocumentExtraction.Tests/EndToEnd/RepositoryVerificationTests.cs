@@ -317,24 +317,166 @@ public sealed class RepositoryVerificationTests
         Assert.Empty(forbidden);
     }
 
+    // ------------------------------------------- spec 007 historical guard
+    //
+    // This guard proves a fact about history: spec 007 built the extraction
+    // contract without touching the engine or Tax Case Core. That claim is about
+    // spec 007's own lifetime, so the comparison has to end where spec 007 ended.
+    //
+    // It originally ran to the current HEAD. That silently re-asserted the claim
+    // over every later spec, so the first approved engine change after spec 007 —
+    // spec 015's FR-48 employee-copy parser rule — was attributed to spec 007,
+    // which never made it. Bounding the range fixes the attribution and removes
+    // nothing: the protected paths, the .csproj carve-out, and the "must be
+    // empty" assertion are all unchanged, and a protected file changed *inside*
+    // the range still fails this test.
+
+    private const string Spec007Directory = "specs/007-document-extraction-contract";
+
+    private static readonly string[] Spec007ProtectedPaths =
+        ["src/TaxLogicEngine", "src/TaxCases"];
+
     [Fact]
     public void Spec007ChangedNothingUnderTaxLogicEngineOrTaxCasesProduction()
     {
-        var specCommit = RunGit(
-                "log", "--diff-filter=A", "--format=%H", "--",
-                "specs/007-document-extraction-contract/prd.md")
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        Assert.Single(specCommit);
+        Assert.Empty(ChangedDuringSpec007());
+    }
 
-        var changedSourceOrResources = RunGit(
-                "diff", "--name-only", $"{specCommit[0]}^", "HEAD", "--",
-                "src/TaxLogicEngine", "src/TaxCases")
+    [Fact]
+    public void TheSpec007GuardWouldDetectAnInRangeChangeToAProtectedPath()
+    {
+        // Non-vacuity. The same range and the same mechanism, pointed at a path
+        // spec 007 genuinely did change, must report changes — otherwise the
+        // assertion above would pass because the range is empty or the pathspec
+        // is wrong, rather than because those modules were left alone.
+        var builtBySpec007 = ProtectedPathDiff(
+            $"{Spec007IntroductionCommit()}^",
+            Spec007CompletionCommit(),
+            "src/DocumentExtraction");
+
+        Assert.NotEmpty(builtBySpec007);
+        Assert.Contains(
+            builtBySpec007,
+            path => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ProtectedChangesMadeAfterSpec007CompletedAreNotAttributedToIt()
+    {
+        // The bound is load-bearing, not decorative. When the repository has
+        // moved on and changed a protected path since spec 007 finished, the
+        // unbounded comparison this guard used to make sees those changes; the
+        // bounded one does not. If nothing has changed since, there is nothing to
+        // misattribute and the guard above already covers it.
+        var sinceCompletion = ProtectedPathDiff(
+            Spec007CompletionCommit(),
+            "HEAD",
+            Spec007ProtectedPaths);
+
+        if (sinceCompletion.Length == 0)
+        {
+            return;
+        }
+
+        var unbounded = ProtectedPathDiff(
+            $"{Spec007IntroductionCommit()}^",
+            "HEAD",
+            Spec007ProtectedPaths);
+
+        Assert.NotEmpty(unbounded);
+        Assert.Empty(ChangedDuringSpec007());
+    }
+
+    [Fact]
+    public void TheSpec007HistoricalBoundariesExistAndAreDeterministic()
+    {
+        var introduction = Spec007IntroductionCommit();
+        var completion = Spec007CompletionCommit();
+
+        Assert.Matches("^[0-9a-f]{40}$", introduction);
+        Assert.Matches("^[0-9a-f]{40}$", completion);
+        Assert.NotEqual(introduction, completion);
+
+        // Both ends are real, reachable history, and the range runs forwards.
+        Assert.Equal("commit", RunGit("cat-file", "-t", introduction).Trim());
+        Assert.Equal("commit", RunGit("cat-file", "-t", completion).Trim());
+        Assert.True(IsAncestor(introduction, completion));
+        Assert.True(IsAncestor(completion, "HEAD"));
+
+        // Deterministic: resolving each boundary again yields the same commit.
+        Assert.Equal(introduction, Spec007IntroductionCommit());
+        Assert.Equal(completion, Spec007CompletionCommit());
+
+        // And the range is a real span of work, never empty.
+        Assert.NotEmpty(
+            RunGit("rev-list", $"{introduction}^..{completion}")
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static string[] ChangedDuringSpec007() => ProtectedPathDiff(
+        $"{Spec007IntroductionCommit()}^",
+        Spec007CompletionCommit(),
+        Spec007ProtectedPaths);
+
+    /// <summary>
+    /// Where spec 007 began: the commit that introduced its PRD. Its parent is
+    /// the last state of the repository before spec 007 existed.
+    /// </summary>
+    private static string Spec007IntroductionCommit() =>
+        SingleCommitThatAdded($"{Spec007Directory}/prd.md");
+
+    /// <summary>
+    /// Where spec 007 ended: the commit that recorded its final task-completion
+    /// marker. Markers are append-only and one per task, so the most recent
+    /// commit to add one under this spec's <c>status/</c> directory is the point
+    /// after which no further spec 007 work exists.
+    /// </summary>
+    private static string Spec007CompletionCommit()
+    {
+        // git log lists newest first, so the first entry is the last marker.
+        var markerCommits = RunGit(
+                "log", "--diff-filter=A", "--format=%H", "--",
+                $"{Spec007Directory}/status/")
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.NotEmpty(markerCommits);
+        return markerCommits[0];
+    }
+
+    private static string SingleCommitThatAdded(string path)
+    {
+        var commits = RunGit("log", "--diff-filter=A", "--format=%H", "--", path)
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Single(commits);
+        return commits[0];
+    }
+
+    /// <summary>
+    /// The non-project files changed under <paramref name="paths"/> between two
+    /// commits. The <c>.csproj</c> carve-out is the original guard's and is
+    /// unchanged.
+    /// </summary>
+    private static string[] ProtectedPathDiff(string from, string to, params string[] paths) =>
+        RunGit(["diff", "--name-only", from, to, "--", .. paths])
             .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(path =>
                 !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        Assert.Empty(changedSourceOrResources);
+    private static bool IsAncestor(string ancestor, string descendant)
+    {
+        using var process = System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo("git")
+            {
+                ArgumentList = { "merge-base", "--is-ancestor", ancestor, descendant },
+                WorkingDirectory = RepositoryRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            })!;
+
+        process.WaitForExit();
+        return process.ExitCode == 0;
     }
 
     // ------------------------------------------------------------------ helpers
