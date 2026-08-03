@@ -398,6 +398,153 @@ public sealed class SolutionAndRegressionTests
                 violations.Select(result => $"{result.Path}: {string.Join(", ", result.Lines)}")));
     }
 
+    // ------------------- spec 014 T04: no excluded capability entered the graph
+
+    /// <summary>
+    /// Spec 014 AC-75 and AC-77 — the intake flow stores opaque bytes. It must
+    /// not have acquired an extraction, OCR, LLM, tax-calculation, filing, or
+    /// review-manufacturing capability along the way, in source or in the
+    /// reference graph.
+    /// </summary>
+    [Theory] // spec 014 AC-75, AC-77
+    [InlineData("ClientIntake")]
+    [InlineData("TaxAI.Portal")]
+    public void NoExtractionOcrLlmOrFilingCapabilityIsNamedByTheNewSurface(string module)
+    {
+        var files = Directory
+            .EnumerateFiles(
+                Path.Combine(RepositoryRoot, "src", module),
+                "*.*",
+                SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .Where(path =>
+                path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(".razor", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.NotEmpty(files);
+
+        // Matched against executable lines only: the doc comments in this
+        // repository legitimately explain what is deliberately absent, and a
+        // substring scan cannot tell a capability from its disclaimer.
+        foreach (var path in files)
+        {
+            var executable = string.Join("\n", ExecutableLines(path));
+
+            foreach (var forbidden in new[]
+                     {
+                         "IDocumentExtractionIngress",
+                         "ExtractionEnvelope",
+                         "ValidatedExtraction",
+                         // T4CaseProcessor is deliberately NOT here. Spec 010
+                         // registers it so the container can prove it is
+                         // constructible, and no endpoint resolves it; that
+                         // separate claim is pinned by the composition-root and
+                         // boundary suites.
+                         "ReviewPackageAssembler",
+                         "AccountantReviewPackage",
+                         "Tesseract",
+                         "OpenAI",
+                         "Anthropic",
+                         "Azure.Storage",
+                         "Azure.Security",
+                         "KeyVault",
+                         "NetFile",
+                         "EfileCertified",
+                     })
+            {
+                Assert.DoesNotContain(
+                    forbidden,
+                    executable,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Spec 014 AC-81 — no source-document or intake-history retention rule was
+    /// introduced, and spec 011's review-record policy is untouched. The purge
+    /// service stays where it was: behind Tenancy's contract, implemented by
+    /// Persistence, reachable from no HTTP endpoint.
+    /// </summary>
+    [Fact] // spec 014 AC-81
+    public void NoIntakeRetentionOrPurgeRuleWasIntroduced()
+    {
+        var newSurface = new[] { "ClientIntake" }
+            .SelectMany(module => Directory.EnumerateFiles(
+                Path.Combine(RepositoryRoot, "src", module),
+                "*.cs",
+                SearchOption.AllDirectories))
+            .Concat(Directory
+                .EnumerateFiles(
+                    Path.Combine(RepositoryRoot, "src", "TaxAI.Portal"),
+                    "*.cs",
+                    SearchOption.AllDirectories)
+                .Where(path => Path.GetFileName(path)
+                    .Contains("Intake", StringComparison.OrdinalIgnoreCase)))
+            .Where(path => !IsBuildOutput(path))
+            .ToArray();
+
+        Assert.NotEmpty(newSurface);
+
+        foreach (var path in newSurface)
+        {
+            var executable = string.Join("\n", ExecutableLines(path));
+
+            foreach (var forbidden in new[]
+                     {
+                         "RetentionUntilUtc",
+                         "IReviewRecordPurgeService",
+                         "PurgeAsync",
+                         "SevenYear",
+                     })
+            {
+                Assert.DoesNotContain(
+                    forbidden,
+                    executable,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // And the existing retention authority is exactly where spec 011 left it.
+        Assert.True(File.Exists(Path.Combine(
+            RepositoryRoot,
+            "src",
+            "Persistence",
+            "Services",
+            "SqlReviewRecordPurgeService.cs")));
+    }
+
+    /// <summary>
+    /// Spec 014 AC-80 — no production content provider, Azure key ring, or
+    /// deployment configuration ships. The Development-only content adapter is
+    /// the only <c>IIntakeContentStore</c> implementation in the repository.
+    /// </summary>
+    [Fact] // spec 014 AC-80
+    public void TheOnlyContentStoreImplementationIsTheDevelopmentOnlyAdapter()
+    {
+        var implementations = Directory
+            .EnumerateFiles(
+                Path.Combine(RepositoryRoot, "src"),
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            // The contract's own declaration file is not an implementation.
+            .Where(path => Path.GetFileName(path) != "IIntakeContentStore.cs")
+            .Where(path => ExecutableLines(path).Any(line =>
+                line.Contains(": IIntakeContentStore", StringComparison.Ordinal) ||
+                line.EndsWith("IIntakeContentStore", StringComparison.Ordinal)))
+            .Select(path => Path.GetFileName(path))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[] { "DevelopmentEncryptedIntakeContentStore.cs" },
+            implementations);
+    }
+
     // ---------------------------------------------------------------- guard
 
     [Fact]

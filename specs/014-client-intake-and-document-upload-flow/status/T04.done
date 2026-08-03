@@ -1,0 +1,124 @@
+# Spec 014 — T04 complete
+
+Task:   T04 — Verify the integrated workflow and record spec completion
+Wave:   3
+PR:     #136  https://github.com/kapitaneo/TaxAI.sln/pull/136
+Branch: feat/014-w3-t04
+Implementation commit: e2a04ad
+
+## Gate — all commands, in order, after every new file was staged
+
+    git diff --check                         clean (no output)
+    dotnet build TaxAI.sln                   Build succeeded
+    dotnet test TaxAI.sln                    all 9 projects passed
+    pwsh ./scripts/Invoke-SolutionTests.ps1  gate passed (authoritative)
+
+Result: 3531 tests, 0 failed, 0 skipped, every floor met.
+
+    TaxLogicEngine.Tests         261 passed (floor 261)
+    TaxCases.Tests               337 passed (floor 337)
+    DocumentExtraction.Tests     673 passed (floor 673)
+    CaseProcessing.Tests         594 passed (floor 594)
+    CaseReview.Tests             482 passed (floor 482)
+    TaxAI.Portal.Tests           571 passed (floor 571, raised from 528)
+    Tenancy.Tests                289 passed (floor 289)
+    Persistence.Tests            167 passed (floor 167, raised from 151)
+    ClientIntake.Tests           157 passed (floor 157)
+
+No floor was lowered. No database migration was applied to any database; the
+pending-model check runs against the SQL Server model in-process and opens no
+connection.
+
+## Delivered
+
+T04 changes no product code. The diff is three new test files, two existing test
+files, the test manifest, the three active guidance documents, and the evidence
+record.
+
+- `tests/Persistence.Tests/EndToEnd/ClientIntakeWorkflowPersistenceTests.cs`
+  (new) — the real `AccountantIntakeWorkflow` and `ClientIntakeWorkflow` driving
+  the real `SqlIntakeStore` and `SqlReviewRecordRepository`, through the approved
+  `InternalsVisibleTo("Persistence.Tests")` seam, against a real relational
+  database with the real `20260730000000_AddClientIntake` migration applied. Each
+  store call gets its own context, mirroring the portal's scoped registration, so
+  no EF identity map can answer a read the database never saw.
+- `tests/TaxAI.Portal.Tests/EndToEnd/ClientIntakeAcceptanceTests.cs` (new) and
+  `ClientIntakeSecurityAcceptanceTests.cs` (new) — the real portal composition
+  over HTTP: routing, rate limiting, authentication, R-1 authorization,
+  antiforgery, the cookie protector, the multipart transport, both real
+  workflows, the real `CryptographicIntakeCredentialSource`, the real
+  `DevelopmentEncryptedIntakeContentStore`, and every Razor component. Two firms
+  run over one shared intake store, so a cross-firm read is a real cross-firm
+  read rather than a lookup in an empty dictionary.
+- Only two collaborators are substituted in the portal suite — the intake
+  metadata store and the review-record repository — because the real ones are SQL
+  Server. Those exact adapters are the ones exercised for real in the persistence
+  suite, so no part of the shipped path is represented by a double in both.
+- `tests/TaxAI.Portal.Tests/EndToEnd/SolutionAndRegressionTests.cs` gains the
+  excluded-capability, retention, and single-content-store-implementation scans.
+  `RepositoryVerificationTests.cs` gains the completed-guidance and
+  per-criterion-evidence checks and pins the portal's exact five-reference set.
+- `specs/014-client-intake-and-document-upload-flow/verification.md` (new)
+  records AC-1 through AC-99 with named tests, the authoritative gate totals, the
+  raw-byte exception stated plainly, and what remains gated.
+- `README.md`, `CLAUDE.md`, and `NEXT.md` record spec 014 as complete without
+  moving a gate.
+
+## Proven
+
+- the synthetic happy path to `Ready` and the exact review handoff, after which
+  the unchanged spec 012 review route opens;
+- safe refusal equivalence across missing, foreign, malformed, replayed, spent,
+  and revoked resources, compared on status, body, and header set;
+- accountant membership revocation and client session revocation between a
+  rendered page and the next POST, both refusing before mutation with the
+  concurrency version unchanged; store failure fails closed with no taxpayer
+  response;
+- one-way credential storage scanned against every value of every intake table,
+  neutral transport filename, encrypted outside-root bytes, and scope-derived
+  fingerprints that do not correlate across cases or firms;
+- immutable answers, submissions, audit, and review association, including
+  refused replacement and refused foreign/wrong-case records;
+- no extraction, OCR/LLM, parsing, mapping, rounding, review-manufacturing,
+  retention, or production-deployment capability in the source or runtime graph.
+  The recording review repository throws on `SaveAsync`, so a manufacture attempt
+  fails the suite rather than passing silently;
+- schema additivity: no pending model changes against the SQL Server model, no
+  `AlterColumn`/`AddColumn`/`Drop*`/`Rename*`/data-mutation operation in the
+  intake migration, every created table an intake table, and the pre-existing
+  firm, identity, and review tables intact.
+
+## The one raw-byte exception
+
+The authenticated encrypted source object outside the web root may contain a
+SIN, and nothing in this task claims otherwise. It is protected by
+unreachability: `IIntakeContentStore` declares no read member, no mapped route
+serves it under five probed URL spellings, and no staged file contains a
+plaintext probe. Every structured surface — browser models, HTML, URLs, cookies,
+headers, SQL metadata, content keys, audit, logs, exceptions, diagnostics — is
+asserted SIN-free in every form. Every taxpayer-shaped value in these suites is
+assembled at test runtime and is obviously synthetic.
+
+## Two test-expectation corrections made while writing these suites
+
+Both were wrong expectations in the new tests, not product defects:
+
+1. A masked Canadian SIN is three groups of three. The first probe used the 3-2-3
+   shape a US SSN uses, which `IntakeDisplayNameGuard` correctly does not match.
+   The probes are now `***-***-286` and `xxx-xxx-286`, both of which it rejects.
+2. A rejected upload records its attempt and returns the fixed `400` invalid
+   response, not `200`. The tests assert that, plus the fixed body.
+
+## Still gated
+
+Spec 014 completing moves no gate. No raw-content preview/read/download surface,
+production content provider, Azure key ring, or deployment configuration ships;
+the build still starts in Development only and may not be deployed anywhere that
+can receive real taxpayer data. No source-document or intake-history retention or
+purge rule was introduced and spec 011's review-record policy is unchanged. No
+extraction ingress, OCR/LLM adapter, tax calculation, T1, NETFILE/EFILE,
+taxpayer listing, value editing, review decision screen, export, provisioning,
+second interactive component, global render mode, WebAssembly project, npm tree,
+or third-party asset ships. Question F remains reserved.
+
+Merging is a human-only step. This task neither merged nor approved its own PR.

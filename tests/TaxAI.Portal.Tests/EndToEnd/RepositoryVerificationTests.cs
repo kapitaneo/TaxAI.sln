@@ -387,10 +387,8 @@ public sealed class RepositoryVerificationTests
     }
 
     [Fact]
-    public void TheHostStillDoesNotReferenceTheFrozenIntakeContract()
+    public void TheHostReferencesTheIntakeContractAndNothingBeyondIt()
     {
-        // T02 wires the backend contract, while T03 still owns every route and
-        // component that could expose it.
         var portalProject = File.ReadAllText(
             Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "TaxAI.Portal.csproj"));
 
@@ -398,6 +396,112 @@ public sealed class RepositoryVerificationTests
         Assert.Contains(
             typeof(Program).Assembly.GetReferencedAssemblies(),
             reference => reference.Name!.Equals("ClientIntake", StringComparison.OrdinalIgnoreCase));
+
+        // The exact production reference set after spec 014.
+        Assert.Equal(
+            new[]
+            {
+                "../CaseProcessing/CaseProcessing.csproj",
+                "../ClientIntake/ClientIntake.csproj",
+                "../Persistence/Persistence.csproj",
+                "../TaxLogicEngine/TaxLogicEngine.csproj",
+                "../Tenancy/Tenancy.csproj",
+            },
+            XDocument
+                .Load(Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "TaxAI.Portal.csproj"))
+                .Descendants()
+                .Where(element => element.Name.LocalName == "ProjectReference")
+                .Select(element => element.Attribute("Include")!.Value.Replace('\\', '/'))
+                .OrderBy(reference => reference, StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    // ------------------- spec 014 T04: the guidance records a completed spec
+
+    [Fact] // spec 014 AC-85
+    public void TheRootInstructionsRecordSpecFourteenAsCompleteWithItsEvidence()
+    {
+        var instructions = NormalizeWhitespace(RootInstructions);
+
+        foreach (var required in new[]
+                 {
+                     "Spec 014 (Client Intake and Document Upload Flow) is **complete**",
+                     "verification.md",
+                     "AC-1 through AC-99",
+                 })
+        {
+            Assert.Contains(required, instructions, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The gate is recorded as narrowed, never deleted.
+        foreach (var gate in new[]
+                 {
+                     "no raw-content",
+                     "deployment refusal are unchanged",
+                     "never** described as SIN-free",
+                     "remains SIN-free in every form",
+                 })
+        {
+            Assert.Contains(gate, instructions, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact] // spec 014 AC-85
+    public void TheAcceptanceEvidenceFileExistsAndCoversEveryCriterion()
+    {
+        var verification = Path.Combine(
+            RepositoryRoot,
+            "specs",
+            "014-client-intake-and-document-upload-flow",
+            "verification.md");
+
+        Assert.True(
+            File.Exists(verification),
+            "Spec 014's acceptance evidence must be recorded before completion.");
+
+        var text = File.ReadAllText(verification);
+
+        // Every criterion has its own evidence line. A missing one is the defect
+        // this check exists to catch.
+        for (var criterion = 1; criterion <= 99; criterion++)
+        {
+            Assert.Contains(
+                $"AC-{criterion} ",
+                text,
+                StringComparison.Ordinal);
+        }
+
+        // And the file names the authoritative gate rather than asserting a
+        // green run in prose alone.
+        Assert.Contains(
+            "scripts/Invoke-SolutionTests.ps1",
+            text,
+            StringComparison.Ordinal);
+    }
+
+    [Fact] // spec 014 AC-85
+    public void TheForwardRoadmapRecordsSpecFourteenAsCompleteAndTheGatesAsOpen()
+    {
+        var next = NormalizeWhitespace(
+            File.ReadAllText(Path.Combine(RepositoryRoot, "NEXT.md")));
+
+        Assert.Contains(
+            "**Spec 014 is complete.**",
+            next,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Completion of a spec never relaxes a gate.
+        foreach (var gate in new[]
+                 {
+                     "Question F",
+                     "remains reserved",
+                     "raw-document view/download",
+                     "another human-approved `tax-domain` specification",
+                     "may not be deployed anywhere that can receive real taxpayer data",
+                 })
+        {
+            Assert.Contains(gate, next, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static bool IsUnderBuildOutput(string path) =>
