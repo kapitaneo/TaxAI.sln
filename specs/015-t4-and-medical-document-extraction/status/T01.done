@@ -4,26 +4,33 @@ Task:   T01 — Employee-copy T4 parser semantics
 Wave:   1
 PR:     #139  https://github.com/kapitaneo/TaxAI.sln/pull/139
 Branch: feat/015-w1-t01
-Commit: 4c4943e0fcdb6856782497054bd4c1eba5041f91
+Commits:
+        4c4943e  feat(spec 015 T01): employee-copy T4 parser semantics
+        0c2ec5e  docs(spec 015): record T01 completion
+        e08af74  docs(spec-015): record T01 downstream test ownership
+        a9fa063  docs(spec-015): record historical guard ownership
+        ed126e0  test(spec history): bound repository guards to their specs
 
 Rebased onto origin/master (8fb69a3) before implementation, after PR #137
 (spec 015 planning) and PR #138 (persistence probe flake) merged. The branch's
 own three doc commits were already on master via #137, so nothing replayed and
 there were no conflicts.
 
-## Gate
+## Gate — run against the COMMITTED tree, at ed126e0
 
-    dotnet build TaxAI.sln                   Build succeeded. 0 Error(s)
-    dotnet test tests/TaxLogicEngine.Tests   291 passed, 0 failed, 0 skipped
-    dotnet test tests/CaseProcessing.Tests   609 passed, 0 failed, 0 skipped
-    pwsh ./scripts/Invoke-SolutionTests.ps1  gate passed (authoritative)
-    git diff --check                         clean
+    dotnet build TaxAI.sln                       Build succeeded. 0 Error(s)
+    dotnet test tests/TaxLogicEngine.Tests       291 passed, 0 failed, 0 skipped
+    dotnet test tests/CaseProcessing.Tests       609 passed, 0 failed, 0 skipped
+    dotnet test tests/TaxCases.Tests             340 passed, 0 failed, 0 skipped
+    dotnet test tests/DocumentExtraction.Tests   676 passed, 0 failed, 0 skipped
+    pwsh ./scripts/Invoke-SolutionTests.ps1      gate passed (authoritative)
+    git diff --check                             clean
 
 Result: every registered project ran, nothing skipped, every floor met.
 
     TaxLogicEngine.Tests         291 passed (floor 291, raised from 261)
-    TaxCases.Tests               337 passed (floor 337)
-    DocumentExtraction.Tests     673 passed (floor 673)
+    TaxCases.Tests               340 passed (floor 340, raised from 337)
+    DocumentExtraction.Tests     676 passed (floor 676, raised from 673)
     CaseProcessing.Tests         609 passed (floor 609, raised from 594)
     CaseReview.Tests             482 passed (floor 482)
     TaxAI.Portal.Tests           571 passed (floor 571)
@@ -32,6 +39,20 @@ Result: every registered project ran, nothing skipped, every floor met.
     ClientIntake.Tests           157 passed (floor 157)
 
 No floor was lowered.
+
+### Correction — an earlier green gate in this task was not trustworthy
+
+An earlier revision of this marker recorded a passing gate with
+TaxCases.Tests at 337 and DocumentExtraction.Tests at 673. That run was made
+while the T01 changes were still UNCOMMITTED. Two guards in those projects
+compare committed history through `HEAD`, so they could not see the change
+being shipped, and the gate was green against a state that did not contain it.
+Once 4c4943e was committed both guards failed and PR #139 was red.
+
+The root cause is fixed below, and every figure in this marker now comes from a
+run against the committed tree with a clean working directory. Any repository
+check that reads git history must be run after committing — a green result on a
+dirty tree proves nothing about what ships.
 
 ## Delivered
 
@@ -73,9 +94,49 @@ constraints. The obsolete assertion was removed and replaced with stronger
 positive coverage; no production CaseProcessing code changed; the floor was
 raised, never lowered.
 
-THE PLANNING DOCUMENTS STILL NEED AN AMENDMENT recording that T01 owns this
-downstream test file. This task deliberately changed no spec 015 planning
-document, so `tasks.md` T01 and AC-45 do not yet reflect what shipped.
+Recorded in the planning documents by commit e08af74: AC-45 names the file,
+new AC-45a bounds the change, and `tasks.md` gives T01 sole ownership of it.
+
+## Historical repository guards — second scope exception
+
+`tests/TaxCases.Tests/EndToEnd/RepositoryVerificationTests.cs` and
+`tests/DocumentExtraction.Tests/EndToEnd/RepositoryVerificationTests.cs` each
+held one guard that compared its own spec's starting boundary through the
+current repository `HEAD`. Those guards prove historical facts — spec 006 built
+Tax Case Core without touching the engine; spec 007 built the extraction
+contract without touching the engine or Tax Case Core — but running the
+comparison to `HEAD` re-asserted each claim over every later spec. FR-48's
+approved engine change is the first to land after both, so it was attributed to
+two specs that never made it, and the committed repository could not be green.
+
+EXPLICITLY AUTHORIZED BY THE HUMAN. Recorded in the planning documents by
+commit a9fa063 as the AC-45 third amendment, with T01 given sole ownership of
+both files.
+
+Each range is now closed at the end of its own spec:
+
+    spec 006   99adcad^ .. f286e16   prd.md introduced -> "mark spec 006 T10 complete"
+    spec 007   b2e217d^ .. a8198fa   prd.md introduced -> "record the T05 completion marker"
+
+Each end is derived from history rather than hardcoded: the most recent commit
+to add a task-completion marker under that spec's `status/` directory. Markers
+are append-only and one per task, so that commit is the point after which no
+further work for the spec exists. Note that "last commit touching the spec
+directory" would have been wrong for spec 006 — 56ad089 amended spec 006's
+folder on 2026-07-25, during spec 007 (PR #66), long after spec 006 finished.
+
+Nothing was removed or weakened: both protected path lists, the `.csproj`
+carve-out, and the "must be empty" assertion are unchanged, and each guard still
+fails on a protected file changed inside its own range. Verified by mutation —
+adding a path each spec did change made both guards fail. Three focused tests
+per guard prove an in-range change is still detected, that post-completion
+changes are not retroactively attributed, and that both boundaries resolve to
+real, deterministic, reachable commits spanning a non-empty range.
+
+No production `TaxCases` or `DocumentExtraction` code changed. No test was
+skipped or deleted, no empty range used, no file excluded by name, and no
+spec-015 exception added. This grants no permission to rewrite any other
+historical guard.
 
 ## Tests
 
