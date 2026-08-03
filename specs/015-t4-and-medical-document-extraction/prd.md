@@ -1349,10 +1349,49 @@ superseded rules of AC-43:
 
 1. `tests/TaxLogicEngine.Tests/Services/T4SlipParserTests.cs`;
 2. `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs` — **second
-   amendment**, see AC-45a.
+   amendment**, see AC-45a;
+3. `tests/TaxCases.Tests/EndToEnd/RepositoryVerificationTests.cs` — **third
+   amendment**, see below;
+4. `tests/DocumentExtraction.Tests/EndToEnd/RepositoryVerificationTests.cs` —
+   **third amendment**, see below.
 
 Every other existing test runs unmodified, and no test anywhere is removed,
 skipped, weakened, or rewritten to make a change pass.
+
+**Third amendment — the two historical repository guards (T01-owned).** Files 3
+and 4 each contain one guard that compares its own spec's starting boundary
+through the **current repository `HEAD`**:
+
+- `TaxCases.Tests` — `TaxLogicEngineProductionAndTests_RemainedUnchangedThroughoutSpec006`,
+  protecting `src/TaxLogicEngine` and `tests/TaxLogicEngine.Tests`;
+- `DocumentExtraction.Tests` — `Spec007ChangedNothingUnderTaxLogicEngineOrTaxCasesProduction`,
+  protecting `src/TaxLogicEngine` and `src/TaxCases`.
+
+Because the end of each comparison is `HEAD` rather than the end of the spec
+being guarded, **any** later approved change to a protected path is retroactively
+attributed to spec 006 or spec 007 and fails a guarantee about history that those
+specs did in fact honour. FR-48's approved `T4SlipParser` change is the first such
+change, so the committed repository cannot be green until the boundaries are
+closed. T01 therefore also owns these two files, and only to close those two
+boundaries. Given them after T01, Then all of the following hold:
+
+- the **spec 006 guard still proves that spec 006 itself changed nothing** under
+  `src/TaxLogicEngine` and `tests/TaxLogicEngine.Tests`;
+- the **spec 007 guard still proves that spec 007 itself changed nothing** under
+  `src/TaxLogicEngine` and `src/TaxCases`;
+- **each guard is bounded to the historical start and end of its own
+  specification** — from the commit introducing that spec's `prd.md` to the commit
+  recording that spec's final task-completion marker — and **not** to future
+  repository `HEAD`;
+- **no protected path, assertion set, or historical guarantee is removed,
+  narrowed, or weakened**; each guard still fails if a protected file was changed
+  **within** its own spec's range;
+- **no production `TaxCases` or `DocumentExtraction` change is authorized** by
+  this amendment — it is test-only;
+- **no generic permission to rewrite unrelated historical guards is granted.**
+  Only the two guards named above, and only their end boundary, are in scope. No
+  spec-015 exception, no per-file exclusion, and no empty range is permitted, and
+  neither project's `minimumTests` floor may be lowered.
 
 **AC-45a — The downstream Box 54 rejection case is superseded (T01-owned).**
 The first amendment named only the engine's own test file, but the Box 54
@@ -1992,6 +2031,14 @@ this PRD.**
       a test-only supersession with mandatory positive replacement coverage and
       an unlowered floor, and `tasks.md` gives T01 sole ownership of that file.
       No production `CaseProcessing` code is authorized.
+- [x] AC-45 third amendment, applied during T01 — the spec 006 and spec 007
+      historical repository guards compared their own spec's starting boundary
+      through the current `HEAD`, so FR-48's approved engine change was
+      retroactively attributed to those specs and the committed repository could
+      not be green. AC-45 now names both guard files; each guard is bounded to
+      the start and end of its own spec instead of `HEAD`; every protected path,
+      assertion, and historical guarantee is retained; and no production
+      `TaxCases` or `DocumentExtraction` change is authorized.
 - [x] FR-19, FR-21, AC-35, AC-38, AC-39 — reconciled with FR-37/FR-40: no
       external production provider or SDK ships, and no criterion requires one.
 - [x] Status and Definition of Done — the blocked status is removed and this PRD
