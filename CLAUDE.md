@@ -75,17 +75,18 @@ the same PR that introduces it, or the gate fails on it by design.
   `TaxLogicEngine`; its local `CLAUDE.md` owns the boundary and the no-SIN-at-
   persistence rule.
 - **`src/Persistence/`** — the infrastructure adapter and the repository's only
-  EF Core project. Its only project reference is `Tenancy`; it owns the SQL
-  Server EF model, repository-owned migrations, repositories, durable session
-  store, identity directory, purge implementation, and one registration
-  extension.
+  EF Core project. Its project references are exactly `ClientIntake`,
+  `TaxCases`, and `Tenancy`; it owns the SQL Server EF model, repository-owned
+  migrations, repositories, the firm/case-scoped intake metadata store, the
+  durable session store, identity directory, purge implementation, and one
+  registration extension.
 - **`src/TaxAI.Portal/`** — the ASP.NET Core host: the repository's only
   executable project, and its single dependency-injection composition root. Its
-  production project references are exactly `TaxLogicEngine`,
-  `CaseProcessing`, `Tenancy`, and `Persistence`. Its local `CLAUDE.md` owns the
-  one approved read-only review surface and the narrowed gate on every further
-  taxpayer-data surface. **ASP.NET Core lives here and in its test project, and
-  nowhere else.**
+  production project references are exactly `TaxLogicEngine`, `CaseProcessing`,
+  `ClientIntake`, `Tenancy`, and `Persistence`. Its local `CLAUDE.md` owns the
+  approved read-only review surface, the accountant/client intake surface, and
+  the narrowed gate on every further taxpayer-data surface. **ASP.NET Core lives
+  here and in its test project, and nowhere else.**
 - **`tests/TaxLogicEngine.Tests/`** — xUnit test project referencing the engine. Uses xunit 2.5.3, coverlet for coverage.
 - **`tests/TaxCases.Tests/`** — xUnit contract, model, service, boundary, and
   end-to-end verification for Tax Case Core.
@@ -345,10 +346,12 @@ This platform upgrade does not authorize production deployment. The same
 Canadian residency, Data Protection, secrets, TLS/exposure, operations,
 provisioning, and non-Development startup-refusal requirements remain in force.
 
-Spec 014 (Client Intake and Document Upload Flow) is **in progress**. T01
+Spec 014 (Client Intake and Document Upload Flow) is **complete**. T01
 delivered the frozen `ClientIntake` contract plus the Blazor foundation and
-review-screen migration; T02 implemented the backend; T03 exposes the approved
-HTTP and component experience:
+review-screen migration; T02 implemented the backend; T03 exposed the approved
+HTTP and component experience; T04 recorded the cross-module acceptance and
+security proof in
+`specs/014-client-intake-and-document-upload-flow/verification.md`:
 
 - **The complete in-process workflow.** `ClientIntake` now creates the
   server-scoped 2025 case/checklist, issues and atomically redeems one-time
@@ -403,13 +406,30 @@ HTTP and component experience:
 route's `405` into a `404` and adds an endpoint in the "neither explicitly
 anonymous nor authorization-required" third state spec 011 forbids.
 
-**T03 does not complete spec 014 acceptance verification.** It proves the
-HTTP/component behavior with controlled collaborators. T04 owns the final
-cross-module AC-1…AC-99 proof and completion record. No raw-content
+**T04 closed the acceptance and security proof, and changed no product code.**
+It added only cross-module tests and the evidence record. Two suites carry it:
+`Persistence.Tests/EndToEnd/ClientIntakeWorkflowPersistenceTests.cs` drives the
+real workflows through the real `SqlIntakeStore` and `SqlReviewRecordRepository`
+against a real relational database with the real migration applied, and
+`TaxAI.Portal.Tests/EndToEnd/ClientIntakeAcceptanceTests.cs` plus
+`ClientIntakeSecurityAcceptanceTests.cs` drive the real portal composition,
+workflows, cryptographic credential source, Development encrypted content
+adapter, and every component over HTTP. Only the two SQL-Server-backed
+collaborators are substituted in the portal suite, and their relational
+counterparts are the ones exercised for real in the persistence suite.
+
+**AC-1 through AC-99 are recorded, per criterion, in
+`specs/014-client-intake-and-document-upload-flow/verification.md`.**
+
+**The gates are unchanged and remain in force.** No raw-content
 preview/download, extraction, parsing, tax processing, review manufacture,
 production content provider, retention/purge path, or deployment authorization
 ships. The review and identity schema, public review/persistence contracts, and
-deployment refusal are unchanged.
+deployment refusal are unchanged. The one raw-byte exception is still the
+authenticated encrypted source object outside web root: it may contain a SIN,
+it is **never** described as SIN-free, and no query, route, log, or diagnostic
+can reach it. Every structured surface — browser model, HTML, URL, cookie,
+header, SQL metadata, audit, log, and error — remains SIN-free in every form.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

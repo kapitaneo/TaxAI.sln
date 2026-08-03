@@ -157,6 +157,11 @@ recorded minimum test floor. It first runs the .NET 10 preflight, which verifies
 the exact SDK, every solution TFM, the direct package matrix, and local EF tool
 manifest.
 
+Each completed specification records its acceptance evidence under
+`specs/NNN-<slug>/verification.md`, naming the tests and commands that prove
+each criterion. The client intake and document upload flow is recorded in
+`specs/014-client-intake-and-document-upload-flow/verification.md`.
+
 To verify the EF model without connecting to a database, supply a process-only
 synthetic SQL Server connection string that requires encryption and certificate
 validation, then run:
@@ -182,7 +187,7 @@ No CI/CD definition is currently tracked. Any future pipeline must install SDK
 version checks, solution restore, build, raw tests, the PowerShell execution
 gate, pending-model verification with a non-production synthetic secret,
 Release publish, and `git diff --check`. It must preserve zero failed/skipped
-tests, all eight manifest floors, and the approved warning ceiling.
+tests, every manifest floor, and the approved warning ceiling.
 
 ## Azure deployment remains blocked
 

@@ -243,19 +243,41 @@
 The encrypted opaque source object outside web root remains the sole potentially
 SIN-bearing exception. No raw-content read/download route, production content
 provider, retention/purge path, extraction, tax processing, review construction,
-or deployment authorization ships. T03 verifies the HTTP/component layer with
-controlled collaborators; final cross-module AC-1…AC-99 evidence belongs to T04.
+or deployment authorization ships.
+
+- Spec 014 T04 — cross-module acceptance and security proof:
+  - the real workflows drive the real `SqlIntakeStore` and
+    `SqlReviewRecordRepository` against a real relational database with the real
+    migration applied, and the real portal composition, credential source,
+    Development encrypted content adapter, and components are driven over HTTP;
+  - the synthetic happy path runs end to end: an R-1 accountant creates one 2025
+    case, issues one link, the client confirms, redeems, answers, uploads
+    signature-valid T4 and medical files, and submits; the accountant sees exact
+    progress and associates one exact existing review record, after which the
+    unchanged review route opens;
+  - two firms over one shared store prove identical safe refusals for missing,
+    foreign, malformed, replayed, spent, and revoked resources, with no unscoped
+    read and no cross-case duplicate oracle;
+  - accountant membership revocation and client session revocation between a
+    rendered page and the next operation both refuse before any mutation;
+  - the raw credential is stored one-way, the transport filename is neutral, the
+    source bytes are encrypted outside web root, fingerprints are scope-derived,
+    and answers, submissions, audit, and the review association are immutable;
+  - AC-1…AC-99 evidence and the authoritative gate totals are recorded in
+    `specs/014-client-intake-and-document-upload-flow/verification.md`;
+  - T04 changed no production C# file, component, asset, reference, package,
+    migration, snapshot, or schema.
 
 ## Next
 
-Spec 014 T04 remains. It adds only the cross-module acceptance/security proof,
-records AC-1…AC-99 evidence and authoritative test totals, and updates guidance
-to mark the specification complete. It must not begin until T03's `.done`
-marker is on `master`; T03 does not claim final acceptance verification.
+**Spec 014 is complete.** No spec 014 task remains.
 
-The first taxpayer-data surface is complete under spec 012's review allowlist;
-T03 adds the separately approved intake surface. Both are limited to their
-approved browser allowlists.
+There is no approved next specification. The next one a human approves should
+start from the gates below, not from an assumption that any of them moved.
+
+The first taxpayer-data surface is complete under spec 012's review allowlist,
+and spec 014 adds the separately approved intake surface. Both are limited to
+their approved browser allowlists.
 Any expansion, raw-document view/download, stored-package deletion, firm or
 membership provisioning, taxpayer listing, review decisions, export, or
 additional taxpayer-data surface requires another human-approved `tax-domain`
