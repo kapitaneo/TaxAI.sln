@@ -366,12 +366,16 @@ public sealed class T4CaseProcessorTests
         Assert.Empty(recording.RequestedYears);
     }
 
+    // Box 54 was a third case here until spec 015 T01. The CRA does not put the
+    // payroll account number on the copies given to employees, so the engine no
+    // longer requires it and there is no error left for this processor to carry.
+    // Its absence is now covered positively, below, by an employee copy that
+    // reaches processing successfully.
     [Theory]
     [InlineData(T4BoxCodes.SocialInsuranceNumber, "Box 12")] // AC-15
     [InlineData(T4BoxCodes.DentalBenefits, "Box 45")]        // AC-16
-    [InlineData(T4BoxCodes.EmployerAccountNumber, "Box 54")] // AC-17
     public void Process_MissingRequiredBox_CarriesTheParsersErrorVerbatim(
-        string omittedBoxCode, string expectedField) // AC-15, AC-16, AC-17
+        string omittedBoxCode, string expectedField) // AC-15, AC-16
     {
         var boxes = RequiredBoxes().Where(box => box.Code != omittedBoxCode).ToList();
         var payload = Payload(boxes: boxes);
@@ -382,6 +386,161 @@ public sealed class T4CaseProcessorTests
         AssertCarriesParserErrorsVerbatim(result, payload);
         Assert.Contains(result.Errors, error => error.Field == expectedField);
         Assert.Empty(recording.RequestedYears);
+    }
+
+    // ======================================== employee-copy T4 (spec 015 T01)
+    //
+    // The document a client uploads is the copy the employer gave the employee.
+    // Since spec 015 T01 the engine accepts it without Box 54 and without
+    // addresses. These prove the change reaches *this* module: a real employee
+    // copy must complete the whole pipeline, and every rule that stayed required
+    // must still arrive here as the engine's own error, verbatim and in order.
+
+    [Fact]
+    public void Process_ValidEmployeeCopyWithoutBox54_ReachesProcessingSuccessfully()
+    {
+        var result = new T4CaseProcessor(Embedded)
+            .Process(Validated(EmployeeCopyPayload()));
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Errors);
+        Assert.NotNull(result.Value!.Slip);
+        Assert.NotNull(result.Value.Mapping);
+        Assert.NotEmpty(result.Value.Mapping.Lines);
+    }
+
+    [Fact]
+    public void Process_EmployeeCopy_SlipAndMappingAreStillExactlyTheEnginesOwn()
+    {
+        // The processor invents nothing for an employee copy either: both halves
+        // still have to equal what the engine produces when called directly.
+        var payload = EmployeeCopyPayload();
+
+        var processed = new T4CaseProcessor(Embedded).Process(Validated(payload));
+        var parsedDirectly = new T4SlipParser().Parse(payload);
+
+        Assert.True(parsedDirectly.IsSuccess);
+        var mappedDirectly = new T4LineMapper(Embedded).Map(new[] { parsedDirectly.Value! });
+
+        Assert.True(processed.IsSuccess);
+        Assert.True(mappedDirectly.IsSuccess);
+        AssertSlipsEqual(parsedDirectly.Value!, processed.Value!.Slip);
+        AssertMappingsEqual(mappedDirectly.Value!, processed.Value.Mapping);
+    }
+
+    [Fact]
+    public void Process_EmployeeCopyWithoutBox54_InventsNoAccountNumber()
+    {
+        // The requirement was removed, not replaced by a default. A placeholder
+        // reaching here would put a fabricated employer identifier into a filing.
+        var result = new T4CaseProcessor(Embedded)
+            .Process(Validated(EmployeeCopyPayload()));
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value!.Slip.EmployerAccountNumber);
+    }
+
+    [Fact]
+    public void Process_EmployeeCopyWithBox54Present_StillCarriesItThrough()
+    {
+        // Optional does not mean discarded.
+        var boxes = EmployeeCopyBoxes();
+        boxes.Add(new T4RawBox(T4BoxCodes.EmployerAccountNumber, "123456789RP0001"));
+
+        var result = new T4CaseProcessor(Embedded)
+            .Process(Validated(EmployeeCopyPayload(boxes: boxes)));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("123456789RP0001", result.Value!.Slip.EmployerAccountNumber);
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "")]
+    [InlineData("   ", "   ")]
+    [InlineData(null, "2 HOME AVE, OTTAWA ON")]
+    [InlineData("1 WAY ST, OTTAWA ON", null)]
+    public void Process_EmployeeCopyWithoutAddresses_ReachesProcessingUnsubstituted(
+        string? employerAddress,
+        string? employeeAddress)
+    {
+        var result = new T4CaseProcessor(Embedded).Process(Validated(
+            EmployeeCopyPayload(
+                employerAddress: employerAddress,
+                employeeAddress: employeeAddress)));
+
+        Assert.True(result.IsSuccess);
+        // Carried through exactly as extracted — never defaulted or copied across.
+        Assert.Equal(employerAddress, result.Value!.Slip.EmployerAddress);
+        Assert.Equal(employeeAddress, result.Value.Slip.EmployeeAddress);
+    }
+
+    [Fact]
+    public void Process_EmployeeCopy_EchoesAttributionAndCoheresYears()
+    {
+        var extraction = Validated(EmployeeCopyPayload());
+
+        var result = new T4CaseProcessor(Embedded).Process(extraction);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(extraction.TaxYear, result.Value!.TaxYear);
+        Assert.Equal(result.Value.Slip.Year, result.Value.TaxYear);
+        Assert.Equal("doc-1", result.Value.DocumentId, StringComparer.Ordinal);
+        Assert.Equal("firm-1", result.Value.FirmId, StringComparer.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("missing Box 12", "Box 12")]
+    [InlineData("missing Box 45", "Box 45")]
+    [InlineData("missing employer name", nameof(T4RawInput.EmployerName))]
+    [InlineData("missing employee name", nameof(T4RawInput.EmployeeName))]
+    public void Process_EmployeeCopyBreakingAStillRequiredRule_CarriesTheParsersErrorVerbatim(
+        string defect,
+        string expectedField)
+    {
+        // Relaxing Box 54 and the addresses relaxed nothing else. Each of these
+        // must still arrive as the engine's own error, in the engine's own order,
+        // and must still stop the pipeline before the mapping provider.
+        var payload = EmployeeCopyWithDefect(defect);
+        var recording = new RecordingProvider();
+
+        var result = new T4CaseProcessor(recording).Process(Validated(payload));
+
+        AssertCarriesParserErrorsVerbatim(result, payload);
+        Assert.Contains(result.Errors, error => error.Field == expectedField);
+        Assert.Empty(recording.RequestedYears);
+    }
+
+    [Fact]
+    public void Process_EmployeeCopyWithAWrongPayloadYear_CarriesTheParsersYearErrorVerbatim()
+    {
+        // Spec 007's gate will not mint a 2024 envelope, so the payload's own
+        // year rule is reached the way stage 3 is proved elsewhere in this file:
+        // an extraction whose year is supported, carrying a 2024 payload. The
+        // tax-year rule is untouched by spec 015 T01 and must still fail closed
+        // with the engine's own error, and with no adjacent-year fallback.
+        var payload = EmployeeCopyPayload(year: 2024);
+        var recording = new RecordingProvider();
+
+        var result = new T4CaseProcessor(recording)
+            .Process(ExtractionWithYear(2025, payload));
+
+        AssertCarriesParserErrorsVerbatim(result, payload);
+        Assert.Contains(result.Errors, error => error.Field == nameof(T4RawInput.Year));
+        Assert.Empty(recording.RequestedYears);
+    }
+
+    [Fact]
+    public void Process_EmployeeCopyMissingBox12_StillNeverEchoesTheSin()
+    {
+        var payload = EmployeeCopyWithDefect("missing Box 12");
+
+        var result = new T4CaseProcessor(Embedded).Process(Validated(payload));
+
+        Assert.True(result.IsFailure);
+        Assert.All(
+            result.Errors,
+            error => Assert.DoesNotContain("046454286", error.Message, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -693,6 +852,56 @@ public sealed class T4CaseProcessorTests
         boxes.AddRange(extraBoxes);
         return Payload(boxes: boxes);
     }
+
+    /// <summary>
+    /// The boxes a real employee copy carries: Box 12 and Box 45, which are still
+    /// required, plus tax content — and no Box 54, which the CRA does not put on
+    /// the copies given to employees (spec 015 T01).
+    /// </summary>
+    private static List<T4RawBox> EmployeeCopyBoxes() => new()
+    {
+        new(T4BoxCodes.SocialInsuranceNumber, "046454286"),
+        new(T4BoxCodes.DentalBenefits, "1"),
+        new(T4BoxCodes.EmploymentIncome, "52000.00"),
+        new(T4BoxCodes.IncomeTaxDeducted, "8000.00"),
+    };
+
+    /// <summary>
+    /// An employee copy as uploaded: no Box 54 and no addresses by default.
+    /// </summary>
+    private static T4RawInput EmployeeCopyPayload(
+        int? year = 2025,
+        string? employerName = "ACME CORP",
+        string? employeeName = "DOE, JANE",
+        string? employerAddress = null,
+        string? employeeAddress = null,
+        IEnumerable<T4RawBox>? boxes = null) =>
+        new()
+        {
+            Year = year,
+            EmployerName = employerName,
+            EmployerAddress = employerAddress,
+            EmployeeName = employeeName,
+            EmployeeAddress = employeeAddress,
+            Boxes = (boxes ?? EmployeeCopyBoxes()).ToList(),
+        };
+
+    /// <summary>
+    /// An employee copy breaking exactly one rule that spec 015 T01 left in force.
+    /// </summary>
+    private static T4RawInput EmployeeCopyWithDefect(string defect) => defect switch
+    {
+        "missing Box 12" => EmployeeCopyPayload(
+            boxes: EmployeeCopyBoxes()
+                .Where(box => box.Code != T4BoxCodes.SocialInsuranceNumber)),
+        "missing Box 45" => EmployeeCopyPayload(
+            boxes: EmployeeCopyBoxes()
+                .Where(box => box.Code != T4BoxCodes.DentalBenefits)),
+        "missing employer name" => EmployeeCopyPayload(employerName: null),
+        "missing employee name" => EmployeeCopyPayload(employeeName: null),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(defect), defect, "Unknown employee-copy defect."),
+    };
 
     private static ExtractionEnvelope EnvelopeFor(
         T4RawInput? payload,
