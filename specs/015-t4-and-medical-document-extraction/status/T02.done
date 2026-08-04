@@ -1,0 +1,164 @@
+# Spec 015 — T02 complete
+
+Task:   T02 — Extraction foundation and deterministic in-process intelligence
+Wave:   2
+PR:     #140  https://github.com/kapitaneo/TaxAI.sln/pull/140
+Branch: feat/015-w2-t02
+Commits:
+        9c08d10  feat(spec 015 T02): extraction foundation and deterministic in-process intelligence
+
+Branched from master at d91965c (the merge of PR #139, spec 015 T01). Fast
+forwarded and verified green before implementation began: all nine registered
+projects ran, nothing skipped, every floor met.
+
+## Gate — run against the COMMITTED tree, at 9c08d10
+
+    dotnet build TaxAI.sln                          Build succeeded. 0 Error(s), 0 Warning(s)
+    dotnet test tests/ExtractionWorkflow.Tests      169 passed, 0 failed, 0 skipped
+    dotnet test tests/DocumentIntelligence.Tests     65 passed, 0 failed, 0 skipped
+    dotnet test tests/TaxAI.Portal.Tests            571 passed, 0 failed, 0 skipped
+    pwsh ./scripts/Invoke-SolutionTests.ps1         gate passed (authoritative)
+    git diff --check                                clean
+
+Result: every registered project ran, nothing skipped, every floor met.
+
+    TaxLogicEngine.Tests         291 passed (floor 291)
+    TaxCases.Tests               340 passed (floor 340)
+    DocumentExtraction.Tests     676 passed (floor 676)
+    CaseProcessing.Tests         609 passed (floor 609)
+    CaseReview.Tests             482 passed (floor 482)
+    TaxAI.Portal.Tests           571 passed (floor 571)
+    Tenancy.Tests                289 passed (floor 289)
+    Persistence.Tests            171 passed (floor 171)
+    ClientIntake.Tests           157 passed (floor 157)
+    ExtractionWorkflow.Tests     169 passed (floor 169, new this task)
+    DocumentIntelligence.Tests    65 passed (floor  65, new this task)
+
+No floor was lowered. `TaxAI.Portal.Tests` stays at 571: the baseline-test change
+replaces an assertion inside an existing test, so the executed count is unchanged.
+
+## What was delivered
+
+`src/ExtractionWorkflow/` — the deterministic coordination module's foundation:
+the document-intelligence and extraction-only content-read ports plus
+`ExtractionSourceLease`; the safe result shapes (`ExtractionVersion`,
+`ExtractionBoxValue`, `ClassificationOutcome`, `FieldValidationOutcome`,
+`MedicalEvidenceVersion`, `CurrencyDeclaration`); the untrusted provider results;
+the closed field, error, and enum vocabularies; and `ExtractionPayloadBuilder`,
+the single in-memory `T4RawInput` assembly path.
+
+`src/DocumentIntelligence/` — `DeterministicDocumentIntelligenceProvider`, its
+fail-closed options guard, and the Development/test-only registration extension.
+
+Nothing in either project is a stub: no `NotImplementedException`, no empty
+project, no unused public contract, and no unused project reference.
+
+## The invariants that are types, not filters
+
+- `ExtractionBoxValue` refuses `T4BoxCodes.SocialInsuranceNumber` at
+  construction, in every spelling, and exposes no public constructor or factory
+  returning an instance.
+- `CorrectionField` declares no Box 12 member, and no member naming the
+  server-derived tax year, the firm/case/participant/document/content-key scope,
+  a CRA line, or a validation result.
+- `ExtractionPayloadBuilder.Build` hands the assembled payload to a continuation
+  and never returns it, so Box 12 exists only for the duration of one call and
+  reaches no result shape, `ToString()`, error message, or serialization.
+
+## Repository registrations — the authorized amendment
+
+Four new project paths cannot exist without joining two closed registries, and
+neither file was in T02's original list. `tasks.md` was amended narrowly to
+record the ownership, exactly as spec 014 T01 did for the same defect.
+
+`scripts/Assert-DotNet10Toolchain.ps1` — added exactly four paths to
+`$approvedProjects`:
+
+        src/DocumentIntelligence/DocumentIntelligence.csproj
+        src/ExtractionWorkflow/ExtractionWorkflow.csproj
+        tests/DocumentIntelligence.Tests/DocumentIntelligence.Tests.csproj
+        tests/ExtractionWorkflow.Tests/ExtractionWorkflow.Tests.csproj
+
+The closed registry is preserved and every existing SDK, target-framework,
+solution-membership, xunit.v3, test-package, and framework-package check is
+unweakened. Nothing was removed.
+
+`tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` — the exact
+assertion "the modules added since the spec 013 baseline are exactly
+`[ClientIntake]`" was **replaced**, not extended. Extending it would make every
+future approved module break a historical .NET 10 baseline test that has nothing
+to say about it — the closed-set trap this repository has now hit three times.
+The replacement asserts, individually and openly:
+
+- `ClientIntake`, `ExtractionWorkflow`, and `DocumentIntelligence` are each
+  declared exactly once at their approved path, in the solution file and among
+  the production project names;
+- each is genuinely post-baseline, so this list cannot become a way to exempt a
+  baseline assembly from the signature comparison;
+- every baseline production project is still declared — an assertion that fails
+  if one disappeared, never because one was added;
+- no total or permanently closed set of solution projects is asserted.
+
+Every baseline signature, friend-assembly, embedded-resource, migration-byte, and
+test-floor comparison in that file is byte-for-byte unchanged, and no production
+`TaxAI.Portal` code was touched.
+
+## Project references
+
+`src/ExtractionWorkflow/ExtractionWorkflow.csproj` declares exactly the three
+references T02's own working code consumes:
+
+        ../DocumentExtraction/DocumentExtraction.csproj
+        ../TaxLogicEngine/TaxLogicEngine.csproj
+        ../Tenancy/Tenancy.csproj
+
+`CaseProcessing`, `CaseReview`, and `ClientIntake` are deliberately **not**
+pre-added for later waves: a reference no code names is an unused reference.
+`tasks.md` now gives T04 and T05 sequential ownership of this file so each adds
+the reference it is first to consume. `BoundaryTests` enforces both halves — the
+declared set, and that every declared reference appears in the compiled
+assembly's reference list.
+
+## Boundaries verified
+
+- No OCR, LLM, document-intelligence, cloud, or HTTP-client package in any
+  project in the repository. `DocumentIntelligence` declares exactly one package,
+  `Microsoft.Extensions.DependencyInjection.Abstractions` 10.0.10, for its single
+  registration extension.
+- No repository-owned assembly reachable from either module names a
+  `System.Net.*` assembly, no executable line names a network API, and the whole
+  classify-and-extract flow completes without pulling in a networking assembly.
+  The end-to-end run with outbound access actually blocked belongs to T07.
+- No executable line in either module logs, caches, or writes a provider payload
+  or a source byte.
+- No CRA line-number literal, box→line table, box-code-keyed tax decision, rate,
+  threshold, arithmetic operator on a tax value, `Math.Round`, `double`, `float`,
+  or mapping-resource read. The `decimal` token appears only as confidence.
+- No supported-year list, current-year concept, adjacent-year fallback, or
+  four-digit tax-year literal in either module.
+- No clock, environment, current-user, `HttpContext`, `Guid.NewGuid`, or
+  randomness read: instants and actor references are parameters.
+- Every public instance type is a sealed class, never a record, with a
+  hand-written `ToString()` emitting counts, closed enum values, and presence
+  flags only. Every identifier, taxpayer-text, and content-key property is
+  `[JsonIgnore]`.
+- A planted `123456789` reaches no result shape, `ToString()`, error message, or
+  serialization; a nine-consecutive-digit sweep is the assertion.
+- The only executable mention of the SIN box in either module is the invariant
+  that refuses it, and it names the engine's own constant so the two cannot drift.
+- Each new project is asserted exactly once at its approved path, never as part
+  of a closed project set.
+
+## Not in this task, and absent from the tree
+
+No `IExtractionStore`, EF entity, or migration (T03). No ingest workflow,
+`DocumentExtractionIngress`, medical validator, duplicate detector, or projection
+(T04). No review workflow, correction, override, or acceptance path (T05). No
+HTTP route, component, content-reader implementation, or composition-root wiring
+(T06). No verification record (T07).
+
+No production document-intelligence provider, no network egress, no
+source-content preview, download, print, email, or export path, no retention or
+purge path, and no deployment authorization. The spec 011 deployment refusal, the
+spec 012 review route, the twelve spec 014 intake routes, the existing
+migrations, and every existing public contract are untouched.
