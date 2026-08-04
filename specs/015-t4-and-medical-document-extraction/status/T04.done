@@ -1,0 +1,93 @@
+# Spec 015 — T04 complete
+
+**Task:** T04 — Firm-scoped extraction and duplicate workflow.
+
+**PR:** https://github.com/kapitaneo/TaxAI.sln/pull/142
+(base `feat/015-w3-t03`, because that PR is still open; merge T03 first)
+
+**Branch:** `feat/015-w4-t04`
+
+**Commit:** e39336f1b152cfd6e2bc38e2259af0a14a98c1e3
+
+**Test command:**
+
+```
+pwsh ./scripts/Invoke-SolutionTests.ps1
+```
+
+**Result:** pass — every registered project ran, none skipped, no failures, and
+every floor met.
+
+| Project | Passed | Floor |
+|---|---|---|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 571 | 571 |
+| Tenancy.Tests | 289 | 289 |
+| Persistence.Tests | 236 | 236 |
+| **ExtractionWorkflow.Tests** | **307** | **307** (raised from 204 in this pass) |
+| DocumentIntelligence.Tests | 65 | 65 |
+
+**Files created**
+
+- `src/ExtractionWorkflow/Contracts/IExtractionIngestWorkflow.cs`
+- `src/ExtractionWorkflow/Models/ExtractionCommands.cs`
+- `src/ExtractionWorkflow/Models/ExtractionViews.cs`
+- `src/ExtractionWorkflow/Services/DocumentExtractionIngress.cs`
+- `src/ExtractionWorkflow/Services/ExtractionIngestWorkflow.cs`
+- `src/ExtractionWorkflow/Services/MedicalEvidenceValidator.cs`
+- `src/ExtractionWorkflow/Services/DuplicateCandidateDetector.cs`
+- `src/ExtractionWorkflow/Services/ExtractionProjection.cs`
+- `src/ExtractionWorkflow/Services/ExtractionWorkflowOptionsGuard.cs`
+- `tests/ExtractionWorkflow.Tests/Ingest/IngestWorkflowTests.cs`
+- `tests/ExtractionWorkflow.Tests/Ingest/IngestFailClosedTests.cs`
+- `tests/ExtractionWorkflow.Tests/Ingest/ScopeAndTenancyTests.cs`
+- `tests/ExtractionWorkflow.Tests/Ingest/DuplicateDetectorTests.cs`
+- `tests/ExtractionWorkflow.Tests/Ingest/MedicalEvidenceValidatorTests.cs`
+- `tests/ExtractionWorkflow.Tests/Ingest/IngestPiiTests.cs`
+
+**Files changed**
+
+- `src/ExtractionWorkflow/ExtractionWorkflow.csproj` — adds exactly the two
+  references T04 is the first to consume: `CaseProcessing` and `ClientIntake`.
+  `CaseReview` is still absent because no code names it yet.
+- `scripts/test-projects.json` — `ExtractionWorkflow.Tests` floor 204 → 307.
+
+**One edit outside the task's file list, recorded deliberately**
+
+- `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` is not in T04's list, but two
+  of its assertions are exact sets of `ExtractionWorkflow`'s project references,
+  and T04's own `[AMENDED]` note directs adding the two references above. Rule 6
+  could not otherwise be met. The change is the same additive registration T01,
+  T02, and T03 were each amended to make; every other assertion in the file —
+  the forbidden-token sweeps, the SIN-box invariant file list, the
+  no-infrastructure checks, the solution presence-and-uniqueness assertions, and
+  the comment-filter guard — is unchanged.
+
+**`[ASSUMED]` Class B decisions, for one-pass human override**
+
+1. `IExtractionIngestWorkflow` declares only the members T04 implements.
+   `architecture.md` sketches classification-override and duplicate-resolution
+   on this interface, but T05 owns those policies and does not own this file;
+   declaring them here would leave an unimplemented contract, which rule 2
+   forbids. They belong on `IExtractionReviewWorkflow`.
+2. Two read members ship here (`GetDocumentAsync`, `GetCaseAsync`). T06 needs
+   "the two read surfaces" and no other task's file list declares a read
+   contract; projecting in the portal would be the UI deriving state. Both are
+   implemented and tested in this pass, which also keeps `ExtractionProjection`
+   genuinely consumed.
+3. `ExtractionWorkflowOptions.ProviderCallLimit` is the one configured value —
+   a fail-closed bound on one provider call, never a quality signal, and not a
+   confidence bound. No confidence bound exists anywhere in this feature.
+4. Classification and extraction each take their own content lease, because the
+   port documents that a provider consumes the stream once from its current
+   position. Nothing seeks or buffers source bytes in the coordination module,
+   and every lease is disposed before the operation returns.
+
+**Gate unchanged.** T04 ships no HTTP route, no UI component, no registration in
+the composition root, no migration, no production content reader, no production
+document-intelligence provider, no correction or acceptance path, no review
+record, and no deployment authorization. Each belongs to a later task.
