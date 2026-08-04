@@ -54,6 +54,7 @@ public sealed class PersistenceBoundaryTests
             new[]
             {
                 "../ClientIntake/ClientIntake.csproj",
+                "../ExtractionWorkflow/ExtractionWorkflow.csproj",
                 "../TaxCases/TaxCases.csproj",
                 "../Tenancy/Tenancy.csproj",
             },
@@ -215,6 +216,7 @@ public sealed class PersistenceBoundaryTests
             {
                 "20260730000000_AddClientIntake.Designer.cs",
                 "20260730000000_AddClientIntake.cs",
+                "20260803000000_AddDocumentExtraction.Designer.cs",
                 "IntakeModelConfiguration.cs",
                 "TaxAiDbContextModelSnapshot.cs",
             },

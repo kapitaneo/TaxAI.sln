@@ -358,11 +358,12 @@ public sealed class RepositoryVerificationTests
         Assert.Single(migrations, path =>
             Path.GetFileName(path) == "20260730000000_AddClientIntake.Designer.cs");
 
-        // Persistence receives only the two explicit T02 inward references.
+        // Persistence receives only the approved inward references.
         Assert.Equal(
             new[]
             {
                 "../ClientIntake/ClientIntake.csproj",
+                "../ExtractionWorkflow/ExtractionWorkflow.csproj",
                 "../TaxCases/TaxCases.csproj",
                 "../Tenancy/Tenancy.csproj",
             },

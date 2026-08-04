@@ -12,6 +12,15 @@ public sealed class ModelShapeTests
 {
     private static readonly Type[] ExpectedEntityTypes =
     [
+        typeof(ExtractionAcceptanceEntity),
+        typeof(ExtractionAuditEventEntity),
+        typeof(ExtractionBoxValueEntity),
+        typeof(ExtractionClassificationOverrideEntity),
+        typeof(ExtractionCorrectionEntity),
+        typeof(ExtractionDuplicateCandidateEntity),
+        typeof(ExtractionDuplicateResolutionEntity),
+        typeof(ExtractionFieldOutcomeEntity),
+        typeof(ExtractionVersionEntity),
         typeof(IntakeAnswerVersionEntity),
         typeof(IntakeAuditEventEntity),
         typeof(IntakeCaseEntity),
@@ -24,6 +33,7 @@ public sealed class ModelShapeTests
         typeof(IntakeSubmissionDocumentEntity),
         typeof(IntakeSubmissionEntity),
         typeof(IntakeUploadAttemptEntity),
+        typeof(MedicalEvidenceVersionEntity),
         typeof(AuthenticationSession),
         typeof(Firm),
         typeof(FirmMembership),

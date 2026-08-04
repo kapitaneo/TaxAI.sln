@@ -33,6 +33,45 @@ public sealed class UpgradeBaselineContractTests
         "013-dotnet-10-platform-upgrade",
         "baselines");
 
+    /// <summary>
+    /// Project references added since the spec 013 baseline, each approved by
+    /// the specification that added it. One reviewable line per reference, never
+    /// a closed set of everything a project may ever reference.
+    /// </summary>
+    private static readonly (string Project, string Reference)[] ApprovedPostBaselineReferences =
+    [
+        // Spec 014 — the client intake contract.
+        ("Persistence", "src/ClientIntake/ClientIntake.csproj"),
+        ("Persistence", "src/TaxCases/TaxCases.csproj"),
+        ("TaxAI.Portal", "src/ClientIntake/ClientIntake.csproj"),
+
+        // Spec 015 T03 — the extraction store's contracts and storage records.
+        ("Persistence", "src/ExtractionWorkflow/ExtractionWorkflow.csproj"),
+    ];
+
+    /// <summary>
+    /// Namespaces whose types may appear in a baseline assembly after the
+    /// baseline was taken, each approved by the specification that added them.
+    /// The baseline's own signatures stay compared byte-for-byte; this governs
+    /// only what may be added beside them.
+    /// </summary>
+    private static readonly string[] ApprovedPostBaselinePersistencePrefixes =
+    [
+        // Spec 014 — client intake metadata.
+        "Persistence.Configurations.Intake",
+        "Persistence.Entities.Intake",
+        "Persistence.Migrations.AddClientIntake",
+        "Persistence.Repositories.SqlIntakeStore",
+
+        // Spec 015 T03 — append-only extraction persistence.
+        "Persistence.Configurations.Extraction",
+        "Persistence.Configurations.MedicalEvidence",
+        "Persistence.Entities.Extraction",
+        "Persistence.Entities.MedicalEvidence",
+        "Persistence.Migrations.AddDocumentExtraction",
+        "Persistence.Repositories.SqlExtractionStore",
+    ];
+
     [Fact]
     public void RepositoryGraphMigrationBytesAndFloorsMatchTheApprovedBaseline()
     {
@@ -67,28 +106,29 @@ public sealed class UpgradeBaselineContractTests
 
             Assert.Equal(project.Name, current.Name);
             Assert.Equal(project.AssemblyName, current.AssemblyName);
+            // Every reference the baseline recorded is still declared. This is
+            // the half that must never loosen: a baseline reference that
+            // disappeared would be a dependency the upgrade quietly dropped.
             Assert.All(
                 project.ProjectReferences,
                 reference => Assert.Contains(reference, current.ProjectReferences));
+
             var additiveReferences = current.ProjectReferences
                 .Except(project.ProjectReferences, StringComparer.Ordinal)
                 .OrderBy(reference => reference, StringComparer.Ordinal)
                 .ToArray();
-            Assert.Equal(
-                project.Name switch
-                {
-                    "Persistence" =>
-                    [
-                        "src/ClientIntake/ClientIntake.csproj",
-                        "src/TaxCases/TaxCases.csproj",
-                    ],
-                    "TaxAI.Portal" =>
-                    [
-                        "src/ClientIntake/ClientIntake.csproj",
-                    ],
-                    _ => [],
-                },
-                additiveReferences);
+
+            // Each post-baseline reference is approved individually rather than
+            // as an exact set. The exact spelling meant every later approved
+            // module change failed a historical .NET 10 baseline test that has
+            // nothing to say about it; naming each one keeps the review — an
+            // unapproved reference still fails here — without freezing the
+            // graph against additions nobody has proposed yet.
+            Assert.All(
+                additiveReferences,
+                reference => Assert.Contains(
+                    (project.Name, reference),
+                    ApprovedPostBaselineReferences));
         }
 
         foreach (var (name, floor) in baseline.TestFloors)
@@ -215,21 +255,15 @@ public sealed class UpgradeBaselineContractTests
                     .Except(expected.Signatures, StringComparer.Ordinal)
                     .ToArray();
                 Assert.NotEmpty(persistenceAdditions);
+
+                // Each approved namespace is one reviewable entry. An addition
+                // outside them — a leaked identity type, a second store, a
+                // review-model change — still fails here.
                 Assert.All(
                     persistenceAdditions,
                     signature => Assert.True(
-                        signature.Contains(
-                            "Persistence.Configurations.Intake",
-                            StringComparison.Ordinal) ||
-                        signature.Contains(
-                            "Persistence.Entities.Intake",
-                            StringComparison.Ordinal) ||
-                        signature.Contains(
-                            "Persistence.Migrations.AddClientIntake",
-                            StringComparison.Ordinal) ||
-                        signature.Contains(
-                            "Persistence.Repositories.SqlIntakeStore",
-                            StringComparison.Ordinal),
+                        ApprovedPostBaselinePersistencePrefixes.Any(prefix =>
+                            signature.Contains(prefix, StringComparison.Ordinal)),
                         $"Unapproved Persistence addition: {signature}"));
                 continue;
             }

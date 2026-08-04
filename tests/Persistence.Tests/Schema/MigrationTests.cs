@@ -35,6 +35,7 @@ public sealed class MigrationTests
             {
                 "20260729021907_InitialPersistence",
                 "20260730000000_AddClientIntake",
+                "20260803000000_AddDocumentExtraction",
             },
             migrations.Migrations.Keys);
         Assert.NotNull(migrations.ModelSnapshot);
@@ -43,6 +44,8 @@ public sealed class MigrationTests
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_InitialPersistence.Designer.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddClientIntake.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddClientIntake.Designer.cs"));
+        Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddDocumentExtraction.cs"));
+        Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddDocumentExtraction.Designer.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*ModelSnapshot.cs"));
     }
 

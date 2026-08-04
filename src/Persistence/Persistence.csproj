@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClientIntake\ClientIntake.csproj" />
+    <ProjectReference Include="..\ExtractionWorkflow\ExtractionWorkflow.csproj" />
     <ProjectReference Include="..\TaxCases\TaxCases.csproj" />
     <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
   </ItemGroup>

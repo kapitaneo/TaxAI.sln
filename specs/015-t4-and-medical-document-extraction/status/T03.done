@@ -1,0 +1,190 @@
+# Spec 015 — T03 complete
+
+Task:   T03 — Append-only extraction persistence
+Wave:   3
+PR:     #141  https://github.com/kapitaneo/TaxAI.sln/pull/141
+Branch: feat/015-w3-t03
+Commits:
+        12a04ae  feat(spec 015 T03): append-only extraction persistence
+
+Branched from master at 17e186d (the merge of PR #140, spec 015 T02). Verified
+green before implementation began: all eleven registered projects ran, nothing
+skipped, every floor met, on the first gate run.
+
+## Gate — run against the COMMITTED tree, at 12a04ae
+
+    dotnet build TaxAI.sln                          Build succeeded. 0 Error(s)
+    dotnet test tests/ExtractionWorkflow.Tests      204 passed, 0 failed, 0 skipped
+    dotnet test tests/Persistence.Tests             236 passed, 0 failed, 0 skipped
+    dotnet test tests/TaxAI.Portal.Tests            571 passed, 0 failed, 0 skipped
+    pwsh ./scripts/Invoke-SolutionTests.ps1         gate passed (authoritative)
+    git diff --check                                clean
+
+Result: every registered project ran, nothing skipped, every floor met.
+
+    TaxLogicEngine.Tests         291 passed (floor 291)
+    TaxCases.Tests               340 passed (floor 340)
+    DocumentExtraction.Tests     676 passed (floor 676)
+    CaseProcessing.Tests         609 passed (floor 609)
+    CaseReview.Tests             482 passed (floor 482)
+    TaxAI.Portal.Tests           571 passed (floor 571)
+    Tenancy.Tests                289 passed (floor 289)
+    Persistence.Tests            236 passed (floor 236, raised from 171)
+    ClientIntake.Tests           157 passed (floor 157)
+    ExtractionWorkflow.Tests     204 passed (floor 204, raised from 169)
+    DocumentIntelligence.Tests    65 passed (floor  65)
+
+No floor was lowered. `TaxAI.Portal.Tests` stays at 571: the two guards rewritten
+there change assertions inside existing tests, so the executed count is unchanged.
+
+## The port and its storage records
+
+`ExtractionWorkflow` gains `IExtractionStore` — eight append members and two
+firm-scoped reads — plus the storage record shapes and the parallel structural
+audit vocabulary. `ExtractionAuditKind` is a **parallel** enum; no member was
+added to the merged `ClientIntake.Models.IntakeAuditKind`.
+
+Records: `ExtractionAuditEventRecord`, `ExtractionCorrectionRecord`,
+`ClassificationOverrideRecord`, `DuplicateCandidateRecord`,
+`DuplicateResolutionRecord`, `ExtractionAcceptanceRecord`,
+`StoredDocumentExtraction`, `StoredCaseExtractions`, and the
+`StoredExtractionProvenance` factory. Vocabularies: `ExtractionAuditKind`,
+`ExtractionActorKind`, `DuplicateResolutionKind`, `ExtractionAcceptanceScope`,
+`ExtractionStoreWriteCode`.
+
+`StoredExtractionProvenance` exists so the storage adapter never names a
+`DocumentExtraction` type: `Persistence`'s boundary forbids that token, and a
+boundary that depends on nobody typing a namespace is not a boundary.
+
+## Entity and table inventory — ten tables, one migration
+
+| Entity | Table |
+|---|---|
+| `ExtractionVersionEntity` | `ExtractionVersions` |
+| `ExtractionBoxValueEntity` | `ExtractionBoxValues` |
+| `ExtractionFieldOutcomeEntity` | `ExtractionFieldOutcomes` |
+| `MedicalEvidenceVersionEntity` | `MedicalEvidenceVersions` |
+| `ExtractionCorrectionEntity` | `ExtractionCorrections` |
+| `ExtractionClassificationOverrideEntity` | `ExtractionClassificationOverrides` |
+| `ExtractionDuplicateCandidateEntity` | `ExtractionDuplicateCandidates` |
+| `ExtractionDuplicateResolutionEntity` | `ExtractionDuplicateResolutions` |
+| `ExtractionAcceptanceEntity` | `ExtractionAcceptances` |
+| `ExtractionAuditEventEntity` | `ExtractionAuditEvents` |
+
+Migration identifier: **`20260803000000_AddDocumentExtraction`**. It creates ten
+tables and drops the same ten. It contains no `AlterTable`, `AlterColumn`,
+`AddColumn`, `DropColumn`, `RenameTable`, `RenameColumn`, `InsertData`,
+`UpdateData`, `DeleteData`, or raw `Sql` operation, and touches no table outside
+the ten. `20260729021907_InitialPersistence` and `20260730000000_AddClientIntake`
+are byte-unchanged; the model snapshot diff is purely additive and keeps its
+`internal sealed partial` house form.
+
+## Persistence project references
+
+    ../ClientIntake/ClientIntake.csproj
+    ../ExtractionWorkflow/ExtractionWorkflow.csproj      (added by this task)
+    ../TaxCases/TaxCases.csproj
+    ../Tenancy/Tenancy.csproj
+
+Package references are unchanged: the two pinned EF Core SQL Server packages.
+`Persistence` remains the only EF Core project.
+
+## What the schema cannot hold
+
+- **No SIN in any form.** `ExtractionBoxValue` refuses the SIN box at
+  construction, so no box row can carry one; `ExtractionCorrectionRecord`
+  refuses a correction naming that box; `CorrectionField` has no Box 12 member.
+  A planted `123456789` reaches no column and no read shape.
+- **No address column.** An address is persisted only as an opaque correction
+  value the closed field vocabulary identifies — never in an audit row, never in
+  a dedicated column. `PiiSchemaTests`' `Address` fragment ban holds.
+- **No source reference and no content key.** The key that reaches the encrypted
+  source object stays in the intake metadata that already holds it, so no query,
+  index, or diagnostic here can reach content. No `byte[]` column exists.
+- **No token, claim, presence, prompt, payload, fingerprint, or file name**
+  column, and no free text in any audit row: every audit column is a closed enum
+  value, an opaque identifier, a sequence, or an instant.
+- **No tax year.** No extraction table declares a `TaxYear` column, a tax-year
+  check constraint, or a year authority of any kind.
+- Every enum is stored as an integer; the currency is `CurrencyIsKnown` plus
+  `CurrencyCodeAsPrinted`, two explicit scalar columns rather than a converted
+  complex value; the medical date and amount are stored as printed text.
+- Every row carries the exclusive seven-year `RetentionUntilUtc` the **existing**
+  `RetentionPolicy` computes. No second retention authority is declared.
+
+## Append-only and firm-scoped
+
+Every store member appends. The contract declares no update, delete, upsert,
+save, replace, or purge member, and the implementation issues no `Update`,
+`Remove`, `ExecuteUpdate`, or `ExecuteDelete` call. A second version leaves the
+prior row byte-unchanged; a re-appended version number loses on the primary key
+and commits nothing partial; a duplicate resolution leaves its determination row
+untouched and a second decision on one candidate is refused by the database.
+
+Every member takes a `TrustedFirmId` first with no omitting overload, and every
+member is additionally case-scoped. A foreign-firm read and a missing row are
+both `null`; a foreign-firm write is `NotFound` and stores nothing.
+
+## The eight authorized downstream guards
+
+Three stay **closed, additive registration only**:
+
+- `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs` — adds
+  `ExtractionWorkflow` to the exact reference set, and registers the new
+  migration designer file in the approved tax-year-literal inventory, because a
+  designer snapshot re-emits the whole model including the existing
+  `[TaxYear] = 2025` intake constraint. That registration authorizes nothing
+  further: no extraction production file contains a tax-year literal.
+- `tests/Persistence.Tests/Schema/MigrationTests.cs` — adds exactly the one new
+  migration to the ordered inventory.
+- `tests/Persistence.Tests/Schema/ModelShapeTests.cs` — adds the ten entities to
+  `ExpectedEntityTypes`; the inventory stays explicit and closed and the
+  exactly-one-dedicated-configuration assertion is intact.
+
+Four are **opened without losing their guarantee**, each mutation-checked:
+
+- `tests/Persistence.Tests/Upgrade/EfUpgradeBaselineTests.cs` — the comparison is
+  now scoped by the tables the stored spec 013 baseline itself records, not by a
+  `.Intake` name filter that spec 015 would have had to extend. Every baseline
+  table, column, key, index, and relationship is still compared byte-for-byte.
+  *Mutation: shortening a baseline column and separately renaming a baseline
+  table each fail it.*
+- `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` — the exact
+  post-baseline reference set and type-prefix set become individually reviewable
+  lists naming `ExtractionWorkflow` and the extraction namespaces. Baseline
+  signatures, friend assemblies, embedded resources, migration bytes, and floors
+  are untouched. *Mutation: an unapproved project reference and an unapproved
+  internal type each fail it.*
+- `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` — the exact total file
+  inventory becomes a required set: each T02 and T03 file exists exactly once at
+  its approved path. *Mutation: moving `IExtractionStore.cs` fails it.*
+- `tests/ExtractionWorkflow.Tests/Models/ResultShapeTests.cs` — the exact total
+  public-type inventory becomes rule-based sweeps over every public type: sealed
+  class, never a record, hand-written `ToString()`, no post-construction
+  mutation, no mutable collection, no raw-byte or stream carrier outside the
+  lease, factories hiding invariant-bearing constructors. *Mutation: a settable
+  property and a `byte[]` property each fail it.*
+
+Two of the eight — `RepositoryVerificationTests.cs` and the three Persistence
+guards above — needed only the one-line registration each.
+
+## Not in this task, and absent from the tree
+
+No ingest workflow, `DocumentExtractionIngress`, medical validator, duplicate
+detector, or projection (T04). No review workflow, correction, override, or
+acceptance path (T05). No HTTP route, component, content-reader implementation,
+or composition-root wiring beyond the one store registration (T06). No
+verification record (T07).
+
+No provider invocation, no review-record creation, no case acceptance workflow,
+no retention or purge path, and no deployment authorization. The spec 011
+deployment refusal, the spec 012 review route, the twelve spec 014 intake
+routes, the two existing migrations, and every existing public contract are
+unchanged.
+
+## One thing left for its owning task
+
+`tests/ExtractionWorkflow.Tests/Services/ExtractionPayloadBuilderTests.cs:67`
+emits a pre-existing `CS8620` tuple-nullability warning. It is present on
+`master` at 17e186d and is not caused by this task, and the file belongs to T02,
+so it was left untouched rather than edited outside this task's ownership.
