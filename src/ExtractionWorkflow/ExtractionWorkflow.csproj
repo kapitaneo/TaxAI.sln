@@ -17,6 +17,8 @@
        CaseProcessing     the existing T4 chain, reached only through
                           T4CaseProcessor.Process (added by T04, the first task
                           whose code names it);
+       CaseReview         the existing fail-closed review assembler (added by
+                          T05, the first task whose code names it);
        ClientIntake       the server-stored case and its document metadata,
                           read through IIntakeStore.FindAsync (added by T04, the
                           first task whose code names it);
@@ -35,6 +37,7 @@
        declares ports; infrastructure implements them. -->
   <ItemGroup>
     <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
+    <ProjectReference Include="..\CaseReview\CaseReview.csproj" />
     <ProjectReference Include="..\ClientIntake\ClientIntake.csproj" />
     <ProjectReference Include="..\DocumentExtraction\DocumentExtraction.csproj" />
     <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />

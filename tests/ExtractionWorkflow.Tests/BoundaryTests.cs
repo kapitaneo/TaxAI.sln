@@ -125,12 +125,14 @@ public sealed class BoundaryTests
         // unused reference, and the task that first consumes one adds it then.
         // T04 is the first task whose code names CaseProcessing (the existing T4
         // chain) and ClientIntake (the server-stored case), so both join here in
-        // the same pass that consumes them. CaseReview is still absent because
-        // nothing names it yet.
+        // the same pass that consumes them. T05 is the first task whose code
+        // names CaseReview (the existing review assembler), so it joins in the
+        // same pass that consumes it.
         Assert.Equal(
             new[]
             {
                 "../CaseProcessing/CaseProcessing.csproj",
+                "../CaseReview/CaseReview.csproj",
                 "../ClientIntake/ClientIntake.csproj",
                 "../DocumentExtraction/DocumentExtraction.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
@@ -282,6 +284,7 @@ public sealed class BoundaryTests
                 new[]
                 {
                     "CaseProcessing",
+                    "CaseReview",
                     "ClientIntake",
                     "DocumentExtraction",
                     "TaxCases",

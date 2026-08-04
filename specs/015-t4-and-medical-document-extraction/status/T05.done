@@ -1,0 +1,56 @@
+# Spec 015 — T05 complete
+
+**Task:** T05 — Corrections, overrides, acceptance, and T4 review creation.
+
+**Branch:** `feat/015-w5-t05`
+
+**Implementation commit:** ce5fcb320c3d16ac6e174d0f874346f27f061649
+
+**Test command:**
+
+```
+pwsh ./scripts/Invoke-SolutionTests.ps1
+```
+
+**Result:** pass on the clean committed tree at the implementation commit —
+every registered project ran, none skipped, no failures, and every floor met.
+
+| Project | Passed | Floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 571 | 571 |
+| Tenancy.Tests | 289 | 289 |
+| Persistence.Tests | 236 | 236 |
+| ClientIntake.Tests | 157 | 157 |
+| **ExtractionWorkflow.Tests** | **356** | **356** |
+| DocumentIntelligence.Tests | 65 | 65 |
+
+The `ExtractionWorkflow.Tests` floor was raised from 308 to 356 in this task;
+no floor was lowered.
+
+## Delivered
+
+- Closed-vocabulary, append-only T4 and medical corrections that re-read source
+  content, rebuild the effective payload, and re-enter the existing validation,
+  parser, mapping, processing, and review gates.
+- Explicit, immutable classification overrides retaining the automated result,
+  with only T4 and medical targets.
+- Explicit duplicate decisions that retain both documents.
+- Separate exact-version document acceptance and explicit case finalization.
+- Finalization assembles all accepted T4 documents, projects and saves exactly
+  one versioned review record, and uses the existing one-time intake association.
+- Medical evidence remains outside the T4 review record; no review record is
+  created before explicit case finalization.
+- The approved `CaseReview` dependency was added to both closed boundary
+  allowlists under the narrow T05 ownership amendment; all prior dependencies
+  remain required and no other dependency was authorized.
+
+## Scope held
+
+No T06 route, Razor component, browser projection, authorization behaviour,
+content-reader implementation, or portal composition-root wiring was added. No
+T07 verification-only behaviour was started.
