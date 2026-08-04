@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- This project exists to hold a dependency boundary, and in this spec there
+       is nothing behind it. It is the only project that would ever be permitted
+       an OCR, LLM, document-intelligence, or cloud SDK reference, and it
+       declares none: taxpayer source bytes do not leave this process, so no
+       external provider, HTTP client, or cloud package ships. A boundary with no
+       SDK behind it is the correct outcome here.
+
+       The one package is the dependency-injection abstraction the single
+       registration extension needs, pinned to the repository's 10.0.10 line. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExtractionWorkflow\ExtractionWorkflow.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -145,7 +145,36 @@ tested state — which a contract wave, by construction, does not.
   planted SIN reaches no result shape, `ToString()`, error message, or
   serialization; and each new project is asserted exactly once at its approved
   path, never as part of a closed project set. **Nothing in either project may be
-  a stub at completion.** — files: `TaxAI.sln`, `scripts/test-projects.json`,
+  a stub at completion.**
+  **[AMENDED] T02 also owns the two repository registrations that the four new
+  project paths cannot exist without:** `scripts/Assert-DotNet10Toolchain.ps1`
+  and `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs`. The
+  original file list omitted both, but each holds a closed set that a new module
+  must join, so rule 6 could not be met without them — the same defect spec 014
+  T01 hit and the same additive fix. In the preflight script, and only for this:
+  **add exactly the four new approved project paths** to `$approvedProjects`,
+  preserving the closed registry and every existing SDK, target-framework,
+  solution-membership, and package-version check unweakened. In the baseline
+  test, and only for this: **replace the exact "modules added since spec 013
+  equal `[ClientIntake]`" assertion with open, individually reviewable
+  assertions** that `ClientIntake`, `ExtractionWorkflow`, and
+  `DocumentIntelligence` are each present exactly once at their approved path,
+  that each is genuinely post-baseline, and that every baseline production
+  project is still declared — **asserting no total or permanently closed set of
+  solution projects**, per the rule that a repository test asserts its own
+  projects exactly once rather than freezing the solution. Every baseline
+  signature, friend-assembly, embedded-resource, migration-byte, and floor
+  comparison stays byte-for-byte. Change **no production `TaxAI.Portal` code**,
+  and **do not lower `TaxAI.Portal.Tests`'s floor** — the replacement changes an
+  assertion inside an existing test, so the executed count is unchanged.
+  **[AMENDED] `src/ExtractionWorkflow/ExtractionWorkflow.csproj` carries only the
+  references T02's own working code consumes** — `TaxLogicEngine`,
+  `DocumentExtraction`, and `Tenancy`. A reference no code names is an unused
+  reference, which rule 2 forbids, so `CaseProcessing`, `CaseReview`, and
+  `ClientIntake` are **not** pre-added here for later waves. Ownership of this
+  one file is sequential across waves: T04 and T05 each add the reference they
+  first consume, in the same pass that consumes it. — files: `TaxAI.sln`,
+  `scripts/test-projects.json`,
   `src/ExtractionWorkflow/ExtractionWorkflow.csproj`,
   `src/ExtractionWorkflow/CLAUDE.md`,
   `src/ExtractionWorkflow/Models/ExtractionWorkflowFields.cs`,
@@ -171,7 +200,10 @@ tested state — which a contract wave, by construction, does not.
   `tests/DocumentIntelligence.Tests/DocumentIntelligence.Tests.csproj`,
   `tests/DocumentIntelligence.Tests/DeterministicProviderTests.cs`,
   `tests/DocumentIntelligence.Tests/FailClosedTests.cs`,
-  `tests/DocumentIntelligence.Tests/NoEgressTests.cs` — depends on: none
+  `tests/DocumentIntelligence.Tests/NoEgressTests.cs`,
+  `scripts/Assert-DotNet10Toolchain.ps1` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs`
+  **[AMENDED]** — depends on: none
   *(sequenced after T01 only so the parser change stays isolated for review and
   the two tasks do not both edit `scripts/test-projects.json`)*
 
@@ -249,7 +281,14 @@ tested state — which a contract wave, by construction, does not.
   fields without judging them; SIN and SIN-derived values are never duplicate
   inputs; Box 54 is not required for comparison; and two distinct same-employer T4s
   are not duplicates. Raise `ExtractionWorkflow.Tests`'s floor in the same pass. —
-  files: `src/ExtractionWorkflow/Contracts/IExtractionIngestWorkflow.cs`,
+  **[AMENDED]** T04 also owns `src/ExtractionWorkflow/ExtractionWorkflow.csproj`
+  for one purpose: adding the project references it is the first to consume —
+  `CaseProcessing` for the existing T4 chain and `ClientIntake` for the
+  server-stored case. T02 left the file carrying only what T02's own code names,
+  because a reference no code names is an unused reference. Add no reference this
+  task does not consume, and remove none. — files:
+  `src/ExtractionWorkflow/ExtractionWorkflow.csproj` **[AMENDED]**,
+  `src/ExtractionWorkflow/Contracts/IExtractionIngestWorkflow.cs`,
   `src/ExtractionWorkflow/Services/DocumentExtractionIngress.cs`,
   `src/ExtractionWorkflow/Services/ExtractionIngestWorkflow.cs`,
   `src/ExtractionWorkflow/Services/MedicalEvidenceValidator.cs`,
@@ -299,7 +338,12 @@ tested state — which a contract wave, by construction, does not.
   through the existing assembler invariants unrelaxed; no reopen, replace,
   reassociate, delete, post-correct, or "latest" path exists and a second
   association fails closed; and medical evidence never enters the record. Raise
-  `ExtractionWorkflow.Tests`'s floor in the same pass. — files:
+  `ExtractionWorkflow.Tests`'s floor in the same pass.
+  **[AMENDED]** T05 also owns `src/ExtractionWorkflow/ExtractionWorkflow.csproj`
+  for one purpose: adding the `CaseReview` project reference it is the first to
+  consume, for the existing review assembler. Add no reference this task does not
+  consume, and remove none. — files:
+  `src/ExtractionWorkflow/ExtractionWorkflow.csproj` **[AMENDED]**,
   `src/ExtractionWorkflow/Contracts/IExtractionReviewWorkflow.cs`,
   `src/ExtractionWorkflow/Services/ExtractionReviewWorkflow.cs`,
   `src/ExtractionWorkflow/Services/ClassificationOverridePolicy.cs`,
@@ -436,10 +480,20 @@ T06 replaces the registration rather than filling a hole. This is the single sea
 where declaration and production implementation are in different tasks, and it is
 deliberate.
 
-**3 — Every production path is owned by exactly one task.** No file appears in
-two tasks. `scripts/test-projects.json` is edited by six tasks (T01–T06), but
-each is in its own wave, so no two ever touch it concurrently; T07 does not touch
-it at all. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
+**3 — Every production path is owned by exactly one task at a time.** No file is
+edited by two tasks in the same wave. `scripts/test-projects.json` is edited by
+six tasks (T01–T06), but each is in its own wave, so no two ever touch it
+concurrently; T07 does not touch it at all. **[AMENDED]**
+`src/ExtractionWorkflow/ExtractionWorkflow.csproj` is likewise sequential: T02
+creates it carrying only what T02's code consumes, and T04 and T05 each add the
+one reference they are first to consume. Sequential ownership across waves is the
+correct shape here — the alternative, pre-declaring references for a later wave,
+ships unused references and is what rule 2 forbids. **[AMENDED]**
+`scripts/Assert-DotNet10Toolchain.ps1` and
+`tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` are owned by
+**T02 alone**, for the mechanical registration of the four new project paths
+only; no other task may edit them, and T02 changes no production `TaxAI.Portal`
+code. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
 is owned by **T01 alone**, for the AC-45a supersession only; no other task may
 edit it, and T01 changes no production `CaseProcessing` code. **[AMENDED]** The
 same holds for `tests/TaxCases.Tests/EndToEnd/RepositoryVerificationTests.cs` and

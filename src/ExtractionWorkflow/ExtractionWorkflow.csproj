@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Exactly what this module's working code consumes today, all inward:
+
+       TaxLogicEngine     the raw payload (T4RawInput/T4RawBox), T4BoxCodes, and
+                          the existing ParseResult/ValidationError vocabulary;
+       DocumentExtraction the existing ExtractionProvenance — no second
+                          provenance record is declared anywhere;
+       Tenancy            TrustedFirmId, so a content read cannot be handed a
+                          route value, plus the one existing UTC-instant guard.
+
+       Nothing is pre-added for a later wave. The architecture's wider dependency
+       set is real, but a reference no code names is an unused reference: the
+       task that first consumes CaseProcessing, CaseReview, or ClientIntake adds
+       it then, and sequential ownership of this file across waves is how that
+       stays honest.
+
+       Deliberately absent: Persistence, TaxAI.Portal, DocumentIntelligence, and
+       every EF Core, ASP.NET Core, cloud, OCR, and LLM package. This module
+       declares ports; infrastructure implements them. -->
+  <ItemGroup>
+    <ProjectReference Include="..\DocumentExtraction\DocumentExtraction.csproj" />
+    <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
+    <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
+  </ItemGroup>
+
+</Project>

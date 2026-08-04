@@ -136,11 +136,9 @@ public sealed class UpgradeBaselineContractTests
         // later spec is captured and named here instead of being written into it.
         //
         // Replaces spec 013's "the assembly name sets are equal", superseded by
-        // spec 014 T01. The exact additive set is strictly stronger than merely
-        // dropping that assertion: every baseline assembly's signatures, friend
-        // assemblies, and embedded resources are still compared byte-for-byte, and
-        // a second unapproved new module now fails here rather than passing
-        // silently.
+        // spec 014 T01. Every baseline assembly's signatures, friend assemblies,
+        // and embedded resources are still compared byte-for-byte below, so the
+        // historical guarantee is untouched.
         var baselineNames = baseline.Assemblies
             .Select(assembly => assembly.Name)
             .ToHashSet(StringComparer.Ordinal);
@@ -151,12 +149,49 @@ public sealed class UpgradeBaselineContractTests
             baseline.Assemblies.Select(assembly => assembly.Name),
             actual.Assemblies.Select(assembly => assembly.Name));
 
-        Assert.Equal(
-            new[] { "ClientIntake" },
-            ProductionProjectNames()
-                .Where(name => !baselineNames.Contains(name))
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .ToArray());
+        // Each post-baseline module is asserted individually, exactly once at its
+        // approved path.
+        //
+        // Spec 014 T01 wrote this as one exact set — "the modules added since the
+        // baseline are exactly [ClientIntake]" — which reads as a tighter rule but
+        // is the closed-set trap this repository has now hit three times: it makes
+        // every approved future module break a historical .NET 10 baseline test
+        // that has nothing to say about it. Spec 015 states the rule directly: a
+        // repository test asserts its own projects exactly once at their approved
+        // paths and never a closed total. Each entry below is one reviewable line,
+        // added by the spec that introduced the module, and an unapproved module
+        // is caught where approval actually lives — the toolchain preflight's
+        // closed registry, which no project may skip.
+        var solutionText = File.ReadAllText(Path.Combine(RepositoryRoot, "TaxAI.sln"));
+        var productionProjects = ProductionProjectNames();
+
+        foreach (var (module, projectPath) in new[]
+                 {
+                     ("ClientIntake", "src/ClientIntake/ClientIntake.csproj"),
+                     ("ExtractionWorkflow", "src/ExtractionWorkflow/ExtractionWorkflow.csproj"),
+                     ("DocumentIntelligence", "src/DocumentIntelligence/DocumentIntelligence.csproj"),
+                 })
+        {
+            // Genuinely later than the baseline: a module named here must not be
+            // one the baseline already froze, or this list would quietly become a
+            // way to exempt a baseline assembly from the comparison above.
+            Assert.DoesNotContain(module, baselineNames);
+
+            Assert.Equal(
+                1,
+                productionProjects.Count(candidate =>
+                    string.Equals(candidate, module, StringComparison.Ordinal)));
+
+            Assert.Equal(
+                1,
+                CountOccurrences(solutionText, $"\"{projectPath.Replace('/', '\\')}\""));
+        }
+
+        // The baseline's own production projects are all still declared. Open,
+        // not closed: it fails if one disappeared, never because one was added.
+        Assert.All(
+            baseline.Assemblies.Select(assembly => assembly.Name),
+            name => Assert.Contains(name, productionProjects));
 
         foreach (var expected in baseline.Assemblies)
         {
