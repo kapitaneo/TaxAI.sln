@@ -420,42 +420,6 @@ public sealed class IngestWorkflowTests
         Assert.Equal(1, auditEvent.Sequence);
     }
 
-    // ------------------------------------------------------------- reads
-
-    [Fact]
-    public async Task TheDocumentReadProjectsCurrentStateWithoutTouchingContentOrTheProvider()
-    {
-        var harness = IngestHarness.Create();
-        await harness.ExtractAsync();
-
-        harness.Provider.Reset();
-        harness.Content.Reset();
-
-        var view = await harness.Workflow.GetDocumentAsync(
-            IngestHarness.Firm, IngestHarness.CaseId, IngestHarness.DocumentId, default);
-
-        Assert.Equal(ExtractionResultCode.Success, view.Code);
-        Assert.Equal(1, view.Value!.ExtractionVersionCount);
-        Assert.Equal(0, harness.Content.OpenCallCount);
-        Assert.False(harness.Provider.ClassificationRequested);
-    }
-
-    [Fact]
-    public async Task TheCaseReadProjectsEveryDocumentAndTheCaseAcceptanceFact()
-    {
-        var harness = IngestHarness.Create();
-        await harness.ExtractAsync();
-
-        var view = await harness.Workflow.GetCaseAsync(
-            IngestHarness.Firm, IngestHarness.CaseId, default);
-
-        Assert.Equal(ExtractionResultCode.Success, view.Code);
-        Assert.Equal(IngestHarness.CaseId, view.Value!.CaseId);
-        Assert.Single(view.Value.Documents);
-
-        // No machine output arrives accepted, at either scope.
-        Assert.False(view.Value.IsCaseAccepted);
-    }
 }
 
 // ============================================================== the harness
@@ -1163,11 +1127,16 @@ internal sealed class StubContentReader : IExtractionContentReader
             ?? System.Text.Encoding.UTF8.GetBytes(IngestHarness.SourceMarker);
     }
 
-    internal int OpenCallCount { get; private set; }
+    internal int OpenCallCount => OpenCalls.Count;
 
     internal List<ExtractionSourceLease> Leases { get; } = new();
 
-    internal void Reset() => OpenCallCount = 0;
+    internal List<(TrustedFirmId Firm, Guid CaseId, Guid DocumentId, string ContentKey)>
+        OpenCalls { get; } = new();
+
+    internal int? RefuseOpenCall { get; set; }
+
+    internal byte[]? SecondOpenContent { get; set; }
 
     public Task<ExtractionSourceLease?> OpenAsync(
         TrustedFirmId firm,
@@ -1176,17 +1145,22 @@ internal sealed class StubContentReader : IExtractionContentReader
         string contentKey,
         CancellationToken cancellationToken)
     {
-        OpenCallCount++;
+        OpenCalls.Add((firm, caseId, documentId, contentKey));
 
         if (!firm.Equals(_firm) ||
             caseId != _caseId ||
             documentId != _documentId ||
-            !string.Equals(contentKey, _contentKey, StringComparison.Ordinal))
+            !string.Equals(contentKey, _contentKey, StringComparison.Ordinal) ||
+            OpenCallCount == RefuseOpenCall)
         {
             return Task.FromResult<ExtractionSourceLease?>(null);
         }
 
-        var lease = ExtractionSourceLease.Create(new MemoryStream(_content, writable: false));
+        var source = OpenCallCount == 2 && SecondOpenContent is not null
+            ? SecondOpenContent
+            : _content;
+
+        var lease = ExtractionSourceLease.Create(new MemoryStream(source, writable: false));
         Leases.Add(lease);
 
         return Task.FromResult<ExtractionSourceLease?>(lease);

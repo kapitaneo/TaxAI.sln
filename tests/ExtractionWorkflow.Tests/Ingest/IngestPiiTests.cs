@@ -172,7 +172,7 @@ public sealed class IngestPiiTests
 
         await harness.ExtractAsync();
 
-        Assert.NotEmpty(harness.Content.Leases);
+        Assert.Equal(2, harness.Content.Leases.Count);
         Assert.All(harness.Content.Leases, lease => Assert.True(lease.IsDisposed));
         Assert.All(
             harness.Content.Leases,
@@ -233,7 +233,6 @@ public sealed class IngestPiiTests
                  {
                      typeof(DocumentExtractionOutcome),
                      typeof(DocumentExtractionView),
-                     typeof(CaseExtractionView),
                      typeof(ExtractionVersion),
                  })
         {

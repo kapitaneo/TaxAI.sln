@@ -133,73 +133,6 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
         }
     }
 
-    /// <inheritdoc />
-    public async Task<ExtractionResult<DocumentExtractionView>> GetDocumentAsync(
-        TrustedFirmId firm,
-        Guid caseId,
-        Guid documentId,
-        CancellationToken cancellationToken)
-    {
-        if (!ExtractionWorkflowOptionsGuard.ValidScope(firm, caseId) ||
-            documentId == Guid.Empty)
-        {
-            return ExtractionResult<DocumentExtractionView>.Failure(
-                ExtractionResultCode.NotFound);
-        }
-
-        try
-        {
-            var stored = await _store
-                .FindDocumentAsync(firm, caseId, documentId, cancellationToken)
-                .ConfigureAwait(false);
-
-            return stored is null
-                ? ExtractionResult<DocumentExtractionView>.Failure(ExtractionResultCode.NotFound)
-                : ExtractionResult<DocumentExtractionView>.Success(
-                    ExtractionProjection.Document(stored));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return ExtractionResult<DocumentExtractionView>.Failure(
-                ExtractionResultCode.NotFound);
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task<ExtractionResult<CaseExtractionView>> GetCaseAsync(
-        TrustedFirmId firm,
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        if (!ExtractionWorkflowOptionsGuard.ValidScope(firm, caseId))
-        {
-            return ExtractionResult<CaseExtractionView>.Failure(ExtractionResultCode.NotFound);
-        }
-
-        try
-        {
-            var stored = await _store
-                .FindCaseAsync(firm, caseId, cancellationToken)
-                .ConfigureAwait(false);
-
-            return stored is null
-                ? ExtractionResult<CaseExtractionView>.Failure(ExtractionResultCode.NotFound)
-                : ExtractionResult<CaseExtractionView>.Success(ExtractionProjection.Case(stored));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return ExtractionResult<CaseExtractionView>.Failure(ExtractionResultCode.NotFound);
-        }
-    }
-
     /// <summary>Fixed type identity — this type carries no caller or taxpayer data.</summary>
     public override string ToString() => nameof(ExtractionIngestWorkflow);
 
@@ -263,75 +196,107 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
             return Refused(ExtractionResultCode.NotFound);
         }
 
-        ProviderClassificationResult? claimed;
+        byte[]? classifiedContent = null;
 
         await using (classificationLease.ConfigureAwait(false))
         {
-            claimed = await BoundedAsync(
-                    token => _provider.ClassifyAsync(classificationLease.Content, token),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                // Classification and extraction use separate leases because a
+                // provider consumes a stream once from its current position.
+                // Keep this bounded in-memory copy only while the lease is live
+                // so the second read can be proved to be the same immutable
+                // source before any version or audit event is appended.
+                classifiedContent = await ReadSourceAsync(
+                        classificationLease.Content, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (classifiedContent is null)
+                {
+                    return Refused(ExtractionResultCode.Invalid);
+                }
+
+                ProviderClassificationResult? claimed;
+
+                using (var source = new MemoryStream(classifiedContent, writable: false))
+                {
+                    claimed = await BoundedAsync(
+                            token => _provider.ClassifyAsync(source, token),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                if (!ClassificationOutcome.TryAutomated(
+                        claimed?.Classification, out var automated))
+                {
+                    return Refused(ExtractionResultCode.Invalid);
+                }
+
+                // An override already recorded for this document governs which
+                // path runs; absent one, the automated classification controls.
+                // Both values are retained so a disagreement can be shown
+                // rather than resolved silently.
+                var classification = ExtractionProjection.Effective(
+                    automated!, storedDocument);
+
+                return classification.EffectiveClassification switch
+                {
+                    DocumentClassification.T4Slip => await ExtractT4Async(
+                            firm,
+                            accountantActorReference,
+                            command,
+                            storedCase,
+                            documentMetadata,
+                            caseExtractions,
+                            storedDocument,
+                            classification,
+                            claimed!,
+                            classifiedContent,
+                            retentionUntilUtc,
+                            sequence,
+                            nowUtc,
+                            cancellationToken)
+                        .ConfigureAwait(false),
+
+                    DocumentClassification.MedicalExpenseEvidence =>
+                        await ExtractMedicalAsync(
+                                firm,
+                                accountantActorReference,
+                                command,
+                                storedCase,
+                                documentMetadata,
+                                caseExtractions,
+                                storedDocument,
+                                classification,
+                                claimed!,
+                                classifiedContent,
+                                retentionUntilUtc,
+                                sequence,
+                                nowUtc,
+                                cancellationToken)
+                            .ConfigureAwait(false),
+
+                    // Nothing recognized it, and no accountant said otherwise.
+                    // No payload, no envelope, no processed extraction, no
+                    // evidence version: one audit event, and that is the whole
+                    // outcome.
+                    _ => await RefuseUnrecognizedAsync(
+                            firm,
+                            accountantActorReference,
+                            command,
+                            classification,
+                            retentionUntilUtc,
+                            sequence,
+                            nowUtc,
+                            cancellationToken)
+                        .ConfigureAwait(false),
+                };
+            }
+            finally
+            {
+                ClearSource(classifiedContent);
+            }
         }
-
-        if (!ClassificationOutcome.TryAutomated(claimed?.Classification, out var automated))
-        {
-            return Refused(ExtractionResultCode.Invalid);
-        }
-
-        // An override already recorded for this document governs which path
-        // runs; absent one, the automated classification controls. Both values
-        // are retained so a disagreement can be shown rather than resolved
-        // silently.
-        var classification = ExtractionProjection.Effective(automated!, storedDocument);
-
-        return classification.EffectiveClassification switch
-        {
-            DocumentClassification.T4Slip => await ExtractT4Async(
-                    firm,
-                    accountantActorReference,
-                    command,
-                    storedCase,
-                    documentMetadata,
-                    caseExtractions,
-                    storedDocument,
-                    classification,
-                    claimed!,
-                    retentionUntilUtc,
-                    sequence,
-                    nowUtc,
-                    cancellationToken)
-                .ConfigureAwait(false),
-
-            DocumentClassification.MedicalExpenseEvidence => await ExtractMedicalAsync(
-                    firm,
-                    accountantActorReference,
-                    command,
-                    storedCase,
-                    documentMetadata,
-                    caseExtractions,
-                    storedDocument,
-                    classification,
-                    claimed!,
-                    retentionUntilUtc,
-                    sequence,
-                    nowUtc,
-                    cancellationToken)
-                .ConfigureAwait(false),
-
-            // Nothing recognized it, and no accountant said otherwise. No
-            // payload, no envelope, no processed extraction, no evidence
-            // version: one audit event, and that is the whole outcome.
-            _ => await RefuseUnrecognizedAsync(
-                    firm,
-                    accountantActorReference,
-                    command,
-                    classification,
-                    retentionUntilUtc,
-                    sequence,
-                    nowUtc,
-                    cancellationToken)
-                .ConfigureAwait(false),
-        };
     }
 
     // ------------------------------------------------------------- the T4 path
@@ -346,6 +311,7 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
         StoredDocumentExtraction? storedDocument,
         ClassificationOutcome classification,
         ProviderClassificationResult claimed,
+        byte[] classifiedContent,
         DateTimeOffset retentionUntilUtc,
         long sequence,
         DateTimeOffset nowUtc,
@@ -366,13 +332,30 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
         }
 
         ProviderT4Result? providerResult;
-
+        byte[]? extractedContent = null;
         await using (lease.ConfigureAwait(false))
         {
-            providerResult = await BoundedAsync(
-                    token => _provider.ExtractT4Async(lease.Content, token),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                extractedContent = await ReadSourceAsync(lease.Content, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (extractedContent is null ||
+                    !classifiedContent.AsSpan().SequenceEqual(extractedContent))
+                {
+                    return Refused(ExtractionResultCode.Invalid);
+                }
+
+                using var source = new MemoryStream(extractedContent, writable: false);
+                providerResult = await BoundedAsync(
+                        token => _provider.ExtractT4Async(source, token),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                ClearSource(extractedContent);
+            }
         }
 
         // Step 3 — assemble the payload, gate it, and run the existing chain.
@@ -509,6 +492,7 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
         StoredDocumentExtraction? storedDocument,
         ClassificationOutcome classification,
         ProviderClassificationResult claimed,
+        byte[] classifiedContent,
         DateTimeOffset retentionUntilUtc,
         long sequence,
         DateTimeOffset nowUtc,
@@ -529,13 +513,30 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
         }
 
         ProviderMedicalResult? providerResult;
-
+        byte[]? extractedContent = null;
         await using (lease.ConfigureAwait(false))
         {
-            providerResult = await BoundedAsync(
-                    token => _provider.ExtractMedicalAsync(lease.Content, token),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                extractedContent = await ReadSourceAsync(lease.Content, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (extractedContent is null ||
+                    !classifiedContent.AsSpan().SequenceEqual(extractedContent))
+                {
+                    return Refused(ExtractionResultCode.Invalid);
+                }
+
+                using var source = new MemoryStream(extractedContent, writable: false);
+                providerResult = await BoundedAsync(
+                        token => _provider.ExtractMedicalAsync(source, token),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                ClearSource(extractedContent);
+            }
         }
 
         if (providerResult is null)
@@ -751,6 +752,41 @@ public sealed class ExtractionIngestWorkflow : IExtractionIngestWorkflow
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return null;
+        }
+    }
+
+    private Task<byte[]?> ReadSourceAsync(
+        Stream source,
+        CancellationToken cancellationToken) =>
+        BoundedAsync(
+            token => CopySourceAsync(source, token),
+            cancellationToken);
+
+    private static async Task<byte[]?> CopySourceAsync(
+        Stream source,
+        CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+
+        try
+        {
+            await source.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+            return buffer.ToArray();
+        }
+        finally
+        {
+            if (buffer.TryGetBuffer(out var allocated) && allocated.Array is not null)
+            {
+                Array.Clear(allocated.Array);
+            }
+        }
+    }
+
+    private static void ClearSource(byte[]? source)
+    {
+        if (source is not null)
+        {
+            Array.Clear(source);
         }
     }
 

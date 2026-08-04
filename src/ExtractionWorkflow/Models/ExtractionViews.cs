@@ -142,60 +142,6 @@ public sealed class DocumentExtractionView
 }
 
 /// <summary>
-/// One case's extraction state, projected from its append-only history.
-/// </summary>
-public sealed class CaseExtractionView
-{
-    private readonly DocumentExtractionView[] _documents;
-
-    /// <exception cref="ArgumentNullException"><paramref name="documents"/> is absent.</exception>
-    /// <exception cref="ArgumentException">The case identifier is absent or an entry is absent.</exception>
-    public CaseExtractionView(
-        Guid caseId,
-        IReadOnlyList<DocumentExtractionView> documents,
-        bool isCaseAccepted)
-    {
-        ArgumentNullException.ThrowIfNull(documents);
-
-        if (caseId == Guid.Empty)
-        {
-            throw new ArgumentException("The identifier is absent.", nameof(caseId));
-        }
-
-        var copy = documents.ToArray();
-
-        if (Array.Exists(copy, document => document is null))
-        {
-            throw new ArgumentException("A collection entry is absent.", nameof(documents));
-        }
-
-        _documents = copy;
-        CaseId = caseId;
-        IsCaseAccepted = isCaseAccepted;
-    }
-
-    [JsonIgnore]
-    public Guid CaseId { get; }
-
-    public IReadOnlyList<DocumentExtractionView> Documents => _documents;
-
-    /// <summary>
-    /// Whether the one explicit case-level acceptance has happened. It is a
-    /// separate act from accepting a document, and only it may lead to a review
-    /// record.
-    /// </summary>
-    public bool IsCaseAccepted { get; }
-
-    /// <summary>Fixed structural facts only.</summary>
-    public override string ToString() =>
-        string.Format(
-            CultureInfo.InvariantCulture,
-            "CaseExtractionView(Documents: {0}, CaseAccepted: {1})",
-            _documents.Length,
-            IsCaseAccepted);
-}
-
-/// <summary>
 /// What one ingest run did, and what the engine said about it.
 /// <para>
 /// The engine's <see cref="ValidationError"/>s are carried <b>verbatim and in

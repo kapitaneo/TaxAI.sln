@@ -4,7 +4,7 @@ using Tenancy.Models;
 namespace ExtractionWorkflow.Contracts;
 
 /// <summary>
-/// Everything an authenticated accountant may do to start, re-run, or read one
+/// Everything an authenticated accountant may do to start or re-run one
 /// firm-scoped extraction.
 /// <para>
 /// Every member takes a <see cref="TrustedFirmId"/> as its first argument, and
@@ -58,25 +58,5 @@ public interface IExtractionIngestWorkflow
         Guid accountantActorReference,
         ExtractDocumentCommand command,
         DateTimeOffset nowUtc,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Projects one firm-scoped document's current state from its append-only
-    /// history. Read-only: it opens no lease, calls no provider, and appends
-    /// nothing.
-    /// </summary>
-    Task<ExtractionResult<DocumentExtractionView>> GetDocumentAsync(
-        TrustedFirmId firm,
-        Guid caseId,
-        Guid documentId,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Projects one firm-scoped case's extraction state. Read-only, on the same
-    /// terms.
-    /// </summary>
-    Task<ExtractionResult<CaseExtractionView>> GetCaseAsync(
-        TrustedFirmId firm,
-        Guid caseId,
         CancellationToken cancellationToken);
 }

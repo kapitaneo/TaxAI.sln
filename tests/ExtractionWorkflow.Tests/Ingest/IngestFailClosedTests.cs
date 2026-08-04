@@ -174,6 +174,43 @@ public sealed class IngestFailClosedTests
     }
 
     [Fact]
+    public async Task ARefusedSecondContentReadLeavesNoPartialPersistence()
+    {
+        var harness = IngestHarness.Create();
+        harness.Content.RefuseOpenCall = 2;
+
+        var result = await harness.ExtractAsync();
+
+        Assert.Equal(ExtractionResultCode.NotFound, result.Code);
+        Assert.True(harness.Provider.ClassificationRequested);
+        Assert.False(harness.Provider.T4Requested);
+        Assert.Equal(2, harness.Content.OpenCallCount);
+        Assert.Equal(0, harness.Store.WriteCount);
+        Assert.Empty(harness.Store.Versions);
+        Assert.Empty(harness.Store.MedicalVersions);
+        Assert.Empty(harness.Store.AuditEvents);
+    }
+
+    [Fact]
+    public async Task ContentThatDiffersBetweenTheTwoReadsFailsClosed()
+    {
+        var harness = IngestHarness.Create();
+        harness.Content.SecondOpenContent =
+            System.Text.Encoding.UTF8.GetBytes("DIFFERENT-SOURCE-CONTENT");
+
+        var result = await harness.ExtractAsync();
+
+        Assert.Equal(ExtractionResultCode.Invalid, result.Code);
+        Assert.True(harness.Provider.ClassificationRequested);
+        Assert.False(harness.Provider.T4Requested);
+        Assert.Equal(2, harness.Content.OpenCallCount);
+        Assert.Equal(0, harness.Store.WriteCount);
+        Assert.Empty(harness.Store.Versions);
+        Assert.Empty(harness.Store.MedicalVersions);
+        Assert.Empty(harness.Store.AuditEvents);
+    }
+
+    [Fact]
     public async Task AStoreThatRefusesLeavesNothingClaimedAsRecorded()
     {
         var harness = IngestHarness.Create();

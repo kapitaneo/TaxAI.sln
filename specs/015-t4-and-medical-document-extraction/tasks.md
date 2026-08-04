@@ -351,7 +351,12 @@ tested state — which a contract wave, by construction, does not.
   `CaseProcessing` for the existing T4 chain and `ClientIntake` for the
   server-stored case. T02 left the file carrying only what T02's own code names,
   because a reference no code names is an unused reference. Add no reference this
-  task does not consume, and remove none. — files:
+  task does not consume, and remove none.
+  **[AMENDED]** T04 also owns
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` narrowly to register those
+  two approved, now-consumed project references in the exact reference and
+  compiled-reference guards. Preserve every other boundary assertion unchanged;
+  this grants no broader rewrite of the T02/T03 guard. — files:
   `src/ExtractionWorkflow/ExtractionWorkflow.csproj` **[AMENDED]**,
   `src/ExtractionWorkflow/Contracts/IExtractionIngestWorkflow.cs`,
   `src/ExtractionWorkflow/Services/DocumentExtractionIngress.cs`,
@@ -368,6 +373,7 @@ tested state — which a contract wave, by construction, does not.
   `tests/ExtractionWorkflow.Tests/Ingest/DuplicateDetectorTests.cs`,
   `tests/ExtractionWorkflow.Tests/Ingest/MedicalEvidenceValidatorTests.cs`,
   `tests/ExtractionWorkflow.Tests/Ingest/IngestPiiTests.cs`,
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` **[AMENDED]**,
   `scripts/test-projects.json` — depends on: T03
 
 ---
@@ -556,12 +562,14 @@ correct shape here — the alternative, pre-declaring references for a later wav
 ships unused references and is what rule 2 forbids. **[AMENDED]**
 `scripts/Assert-DotNet10Toolchain.ps1` is owned by **T02 alone**, for the
 mechanical registration of the four new project paths only. **[AMENDED]** The
-eight downstream guards listed in T03 are owned by **T03 alone**, each for the
-registration of that task's approved additions only, and
-`tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` is the one
-guard both tasks touch — sequentially, in different waves, T02 for the four new
-project paths and T03 for the `Persistence` reference and the new extraction
-types. Neither task changes production `TaxAI.Portal` code. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
+eight downstream guards listed in T03 are owned by **T03** for the registration
+of that task's approved additions. Seven remain T03-only;
+`tests/ExtractionWorkflow.Tests/BoundaryTests.cs` is sequentially owned by T03
+and T04, with T04 limited to registering the two references its production code
+first consumes. `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs`
+is the one other guard with sequential ownership — T02 for the four new project
+paths and T03 for the `Persistence` reference and the new extraction types.
+Neither task changes production `TaxAI.Portal` code. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
 is owned by **T01 alone**, for the AC-45a supersession only; no other task may
 edit it, and T01 changes no production `CaseProcessing` code. **[AMENDED]** The
 same holds for `tests/TaxCases.Tests/EndToEnd/RepositoryVerificationTests.cs` and

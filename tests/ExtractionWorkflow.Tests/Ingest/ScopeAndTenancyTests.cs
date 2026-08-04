@@ -150,6 +150,17 @@ public sealed class ScopeAndTenancyTests
     }
 
     [Fact]
+    public void TheT04IngestContractContainsOnlyTheOperationT04Consumes()
+    {
+        Assert.Equal(
+            new[] { nameof(IExtractionIngestWorkflow.ExtractAsync) },
+            typeof(IExtractionIngestWorkflow)
+                .GetMethods()
+                .Select(method => method.Name)
+                .ToArray());
+    }
+
+    [Fact]
     public void TheWorkflowNamesNoClockEnvironmentCurrentUserOrHttpContext()
     {
         var assembly = typeof(ExtractionResultCode).Assembly;
@@ -177,45 +188,31 @@ public sealed class ScopeAndTenancyTests
             parameter => parameter.ParameterType == typeof(DateTimeOffset));
     }
 
-    [Fact]
-    public async Task ARefusedReadIsIndistinguishableForEveryScopeMismatch()
+    [Theory]
+    [InlineData(DocumentClassification.T4Slip)]
+    [InlineData(DocumentClassification.MedicalExpenseEvidence)]
+    public async Task BothSupportedPathsApplyTheFullStoredScopeToBothContentReads(
+        DocumentClassification classification)
     {
         var harness = IngestHarness.Create();
-        await harness.ExtractAsync();
+        harness.Provider.Classification = classification;
 
-        var foreignFirm = await harness.Workflow.GetDocumentAsync(
-            IngestHarness.OtherFirm, IngestHarness.CaseId, IngestHarness.DocumentId, default);
+        var result = await harness.ExtractAsync();
 
-        var otherCase = await harness.Workflow.GetDocumentAsync(
-            IngestHarness.Firm,
-            new Guid("88888888-8888-8888-8888-888888888888"),
-            IngestHarness.DocumentId,
-            default);
+        Assert.Equal(ExtractionResultCode.Success, result.Code);
+        Assert.Collection(
+            harness.Content.OpenCalls,
+            AssertFullScope,
+            AssertFullScope);
 
-        var otherDocument = await harness.Workflow.GetDocumentAsync(
-            IngestHarness.Firm,
-            IngestHarness.CaseId,
-            new Guid("99999999-9999-9999-9999-999999999999"),
-            default);
-
-        foreach (var refusal in new[] { foreignFirm, otherCase, otherDocument })
+        static void AssertFullScope(
+            (TrustedFirmId Firm, Guid CaseId, Guid DocumentId, string ContentKey) call)
         {
-            Assert.Equal(ExtractionResultCode.NotFound, refusal.Code);
-            Assert.Null(refusal.Value);
+            Assert.Equal(IngestHarness.Firm, call.Firm);
+            Assert.Equal(IngestHarness.CaseId, call.CaseId);
+            Assert.Equal(IngestHarness.DocumentId, call.DocumentId);
+            Assert.Equal(IngestHarness.ContentKey, call.ContentKey);
         }
-    }
-
-    [Fact]
-    public async Task TheCaseReadIsFirmScopedToo()
-    {
-        var harness = IngestHarness.Create();
-        await harness.ExtractAsync();
-
-        var refused = await harness.Workflow.GetCaseAsync(
-            IngestHarness.OtherFirm, IngestHarness.CaseId, default);
-
-        Assert.Equal(ExtractionResultCode.NotFound, refused.Code);
-        Assert.Null(refused.Value);
     }
 
     [Fact]

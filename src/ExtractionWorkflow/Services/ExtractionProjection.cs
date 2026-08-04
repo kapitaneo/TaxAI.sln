@@ -161,32 +161,6 @@ public static class ExtractionProjection
             HasUnresolvedDuplicateCandidate(stored));
     }
 
-    /// <summary>Projects one case's extraction state.</summary>
-    /// <exception cref="ArgumentNullException"><paramref name="stored"/> is null.</exception>
-    public static CaseExtractionView Case(StoredCaseExtractions stored)
-    {
-        ArgumentNullException.ThrowIfNull(stored);
-
-        var documents = new List<DocumentExtractionView>(stored.Documents.Count);
-
-        foreach (var document in stored.Documents)
-        {
-            documents.Add(Document(document));
-        }
-
-        var accepted = false;
-
-        foreach (var acceptance in stored.CaseAcceptances)
-        {
-            if (acceptance.Scope == ExtractionAcceptanceScope.Case)
-            {
-                accepted = true;
-            }
-        }
-
-        return new CaseExtractionView(stored.CaseId, documents, accepted);
-    }
-
     /// <summary>
     /// Whether a human accepted the document's latest version.
     /// <para>
