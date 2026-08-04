@@ -17,6 +17,15 @@ namespace TaxLogicEngine.Services;
 /// other than 2025 fails closed — never coerced, never an adjacent-year fallback
 /// (CLAUDE.md per-tax-year rule).
 /// </para>
+/// <para>
+/// Shaped for the <b>employee copy</b> (spec 015). A client-supplied T4 is the copy
+/// the employer gave the employee, and the CRA instructs employers to enter the
+/// payroll account number in Box 54 on their own copy and the CRA copy only — not
+/// on the copies given to employees. Box 54 is therefore <b>not required</b>, and
+/// the employer/employee addresses are optional metadata that a scan may omit or
+/// garble. Nothing is invented in their place: an absent Box 54 or address stays
+/// absent. Box 12, Box 45, and both display names remain required.
+/// </para>
 /// </summary>
 public sealed class T4SlipParser
 {
@@ -118,6 +127,11 @@ public sealed class T4SlipParser
         }
     }
 
+    // Only the two display names are required. Employer and employee addresses are
+    // optional metadata (spec 015): a photographed or cropped employee copy commonly
+    // omits or garbles them, and refusing the slip over an address would reject a
+    // return whose tax content is complete. An absent address is carried through as
+    // absent — never defaulted, inferred, or substituted.
     private static void ValidateRequiredIdentification(T4RawInput input, List<ValidationError> errors)
     {
         if (string.IsNullOrWhiteSpace(input.EmployerName))
@@ -125,34 +139,33 @@ public sealed class T4SlipParser
             errors.Add(new ValidationError(nameof(T4RawInput.EmployerName), "Employer name is required."));
         }
 
-        if (string.IsNullOrWhiteSpace(input.EmployerAddress))
-        {
-            errors.Add(new ValidationError(nameof(T4RawInput.EmployerAddress), "Employer address is required."));
-        }
-
         if (string.IsNullOrWhiteSpace(input.EmployeeName))
         {
             errors.Add(new ValidationError(nameof(T4RawInput.EmployeeName), "Employee name is required."));
         }
-
-        if (string.IsNullOrWhiteSpace(input.EmployeeAddress))
-        {
-            errors.Add(new ValidationError(nameof(T4RawInput.EmployeeAddress), "Employee address is required."));
-        }
     }
 
-    // A1 required-present boxes (grounded in the RC4120 identification area + Box 45).
-    // Message for Box 12 never echoes the SIN value.
+    // Required-present boxes on the employee copy: Box 12 and Box 45.
+    //
+    // Box 54 is deliberately absent from this list (spec 015, superseding the spec 003
+    // [CONFIRM] decision that presumed the employer/filing-side copy). canada.ca,
+    // "T4 slip – Information for employers", retrieved 2026-08-03: the employer enters
+    // the 15-character payroll account number on their own copy and the copy sent to
+    // the CRA only, and does not enter it on the copies given to employees. Requiring
+    // it here would reject every legitimate client-supplied slip. When Box 54 *is*
+    // present it still flows through to T4Slip.EmployerAccountNumber unchanged.
+    //
+    // Box 45 stays required for 2025. Same page: indicating employer-offered dental
+    // benefits is mandatory for calendar year 2023 and after, and the Health Canada
+    // administrative policy allowing it to be left out when code 1 applies covers
+    // calendar years 2023 and 2024 only — so it does not reach 2025.
+    //
+    // The Box 12 message never echoes the SIN value.
     private static void ValidateRequiredBoxes(T4RawInput input, List<ValidationError> errors)
     {
         if (!HasValue(input, T4BoxCodes.SocialInsuranceNumber))
         {
             errors.Add(new ValidationError("Box 12", "Box 12 (SIN) is required."));
-        }
-
-        if (!HasValue(input, T4BoxCodes.EmployerAccountNumber))
-        {
-            errors.Add(new ValidationError("Box 54", "Box 54 (employer account number) is required."));
         }
 
         if (!HasValue(input, T4BoxCodes.DentalBenefits))

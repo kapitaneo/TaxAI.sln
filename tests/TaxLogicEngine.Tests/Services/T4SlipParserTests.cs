@@ -14,7 +14,10 @@ public class T4SlipParserTests
 {
     private readonly T4SlipParser _parser = new();
 
-    // The three A1 required-present boxes, valid.
+    // A fully populated identification set: Box 12 and Box 45 (required), plus Box 54,
+    // which is optional since spec 015 but still parsed and surfaced when a slip
+    // carries it. Employee-copy behaviour — Box 54 and the addresses absent — is
+    // covered in T4SlipParserEmployeeCopyTests.
     private static List<T4RawBox> RequiredBoxes() => new()
     {
         new(T4BoxCodes.SocialInsuranceNumber, "123456789"),
@@ -157,11 +160,12 @@ public class T4SlipParserTests
         Assert.True(HasError(result, nameof(T4RawInput.EmployeeName)));
     }
 
-    // ---- A1 required boxes: 12, 54, 45 ----------------------------------
+    // ---- Required boxes on the employee copy: 12 and 45 ------------------
+    // Box 54 was required until spec 015 and is now optional; its absence is
+    // asserted to produce no error at all in T4SlipParserEmployeeCopyTests.
 
     [Theory]
     [InlineData(T4BoxCodes.SocialInsuranceNumber, "Box 12")]
-    [InlineData(T4BoxCodes.EmployerAccountNumber, "Box 54")]
     [InlineData(T4BoxCodes.DentalBenefits, "Box 45")]
     public void Parse_MissingRequiredBox_FailsClosed(string codeToOmit, string expectedField)
     {
@@ -320,15 +324,19 @@ public class T4SlipParserTests
 
         Assert.True(result.IsFailure);
         Assert.NotNull(result.Errors);
-        // Year + 4 identification fields + Box 12 + Box 54 + Box 45 = 8 required items.
+        // Year + 2 display names + Box 12 + Box 45 = 5 required items (spec 015).
         Assert.True(HasError(result, nameof(T4RawInput.Year)));
         Assert.True(HasError(result, nameof(T4RawInput.EmployerName)));
-        Assert.True(HasError(result, nameof(T4RawInput.EmployerAddress)));
         Assert.True(HasError(result, nameof(T4RawInput.EmployeeName)));
-        Assert.True(HasError(result, nameof(T4RawInput.EmployeeAddress)));
         Assert.True(HasError(result, "Box 12"));
-        Assert.True(HasError(result, "Box 54"));
         Assert.True(HasError(result, "Box 45"));
+
+        // And exactly those five: the three rules spec 015 retired must not come
+        // back as errors on the emptiest possible slip.
+        Assert.False(HasError(result, nameof(T4RawInput.EmployerAddress)));
+        Assert.False(HasError(result, nameof(T4RawInput.EmployeeAddress)));
+        Assert.False(HasError(result, "Box 54"));
+        Assert.Equal(5, result.Errors.Count);
     }
 
     [Fact]

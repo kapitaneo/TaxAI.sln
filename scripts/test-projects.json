@@ -14,10 +14,10 @@
     "would notice failing to run."
   ],
   "projects": [
-    { "name": "TaxLogicEngine.Tests", "minimumTests": 261, "establishedBy": "spec 005" },
-    { "name": "TaxCases.Tests", "minimumTests": 337, "establishedBy": "spec 006" },
-    { "name": "DocumentExtraction.Tests", "minimumTests": 673, "establishedBy": "spec 007" },
-    { "name": "CaseProcessing.Tests", "minimumTests": 594, "establishedBy": "spec 008" },
+    { "name": "TaxLogicEngine.Tests", "minimumTests": 291, "establishedBy": "spec 015 T01" },
+    { "name": "TaxCases.Tests", "minimumTests": 340, "establishedBy": "spec 015 T01" },
+    { "name": "DocumentExtraction.Tests", "minimumTests": 676, "establishedBy": "spec 015 T01" },
+    { "name": "CaseProcessing.Tests", "minimumTests": 609, "establishedBy": "spec 015 T01" },
     { "name": "CaseReview.Tests", "minimumTests": 482, "establishedBy": "spec 009" },
     { "name": "TaxAI.Portal.Tests", "minimumTests": 571, "establishedBy": "spec 014 T04" },
     { "name": "Tenancy.Tests", "minimumTests": 289, "establishedBy": "spec 011 T21" },
