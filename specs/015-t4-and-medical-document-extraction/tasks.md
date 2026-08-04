@@ -413,7 +413,18 @@ tested state — which a contract wave, by construction, does not.
   **[AMENDED]** T05 also owns `src/ExtractionWorkflow/ExtractionWorkflow.csproj`
   for one purpose: adding the `CaseReview` project reference it is the first to
   consume, for the existing review assembler. Add no reference this task does not
-  consume, and remove none. — files:
+  consume, and remove none.
+  **[AMENDED — T05 boundary-guard ownership]** T05 also owns
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` only because T05 is the first
+  task that adds and consumes the approved `CaseReview` dependency. T05 may add
+  `CaseReview` exactly once to the approved `ExtractionWorkflow`
+  project-reference allowlist and exactly once to the approved compiled-assembly
+  dependency allowlist. All previously approved references remain required; no
+  other reference is authorized, and both allowlists remain closed. This
+  amendment authorizes no reverse dependency and authorizes no ASP.NET Core, EF
+  Core, SQL, filesystem, network, provider SDK, OCR, LLM, cloud, or HTTP-client
+  dependency in `ExtractionWorkflow`. It does not authorize T06 portal behaviour
+  or any T07 verification-only behaviour. — files:
   `src/ExtractionWorkflow/ExtractionWorkflow.csproj` **[AMENDED]**,
   `src/ExtractionWorkflow/Contracts/IExtractionReviewWorkflow.cs`,
   `src/ExtractionWorkflow/Services/ExtractionReviewWorkflow.cs`,
@@ -426,6 +437,7 @@ tested state — which a contract wave, by construction, does not.
   `tests/ExtractionWorkflow.Tests/Review/AcceptanceAndFinalizationTests.cs`,
   `tests/ExtractionWorkflow.Tests/Review/ReviewRecordCreationTests.cs`,
   `tests/ExtractionWorkflow.Tests/Review/ReviewPiiTests.cs`,
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` **[AMENDED]**,
   `scripts/test-projects.json` — depends on: T04
 
 ---
