@@ -123,9 +123,15 @@ public sealed class BoundaryTests
     {
         // Not the architecture's eventual set: a reference no code names is an
         // unused reference, and the task that first consumes one adds it then.
+        // T04 is the first task whose code names CaseProcessing (the existing T4
+        // chain) and ClientIntake (the server-stored case), so both join here in
+        // the same pass that consumes them. CaseReview is still absent because
+        // nothing names it yet.
         Assert.Equal(
             new[]
             {
+                "../CaseProcessing/CaseProcessing.csproj",
+                "../ClientIntake/ClientIntake.csproj",
                 "../DocumentExtraction/DocumentExtraction.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
                 "../Tenancy/Tenancy.csproj",
@@ -273,7 +279,15 @@ public sealed class BoundaryTests
             referenced,
             name => Assert.Contains(
                 name,
-                new[] { "DocumentExtraction", "TaxLogicEngine", "Tenancy" }));
+                new[]
+                {
+                    "CaseProcessing",
+                    "ClientIntake",
+                    "DocumentExtraction",
+                    "TaxCases",
+                    "TaxLogicEngine",
+                    "Tenancy",
+                }));
     }
 
     // --------------------------------------------- solution and gate registration

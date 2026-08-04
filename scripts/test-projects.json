@@ -23,7 +23,7 @@
     { "name": "Tenancy.Tests", "minimumTests": 289, "establishedBy": "spec 011 T21" },
     { "name": "Persistence.Tests", "minimumTests": 236, "establishedBy": "spec 015 T03" },
     { "name": "ClientIntake.Tests", "minimumTests": 157, "establishedBy": "spec 014 T02" },
-    { "name": "ExtractionWorkflow.Tests", "minimumTests": 204, "establishedBy": "spec 015 T03" },
+    { "name": "ExtractionWorkflow.Tests", "minimumTests": 308, "establishedBy": "spec 015 T04" },
     { "name": "DocumentIntelligence.Tests", "minimumTests": 65, "establishedBy": "spec 015 T02" }
   ]
 }
