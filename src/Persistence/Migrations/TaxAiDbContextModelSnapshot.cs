@@ -25,6 +25,379 @@ namespace Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Persistence.Entities.ExtractionAcceptanceEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AcceptanceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AcceptedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("AcceptedVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorKind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ActorReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("int");
+
+                    b.HasKey("FirmId", "CaseId", "AcceptanceId");
+
+                    b.HasIndex("FirmId", "CaseId", "Scope", "AcceptedAtUtc");
+
+                    b.ToTable("ExtractionAcceptances", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionAuditEventEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorKind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ActorReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("FirmId", "CaseId", "EventId");
+
+                    b.HasIndex("FirmId", "CaseId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("ExtractionAuditEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionBoxValueEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BoxCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .UseCollation("Latin1_General_BIN2");
+
+                    b.Property<string>("PrintedValue")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "DocumentId", "Version", "Ordinal");
+
+                    b.ToTable("ExtractionBoxValues", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionClassificationOverrideEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OverrideId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorKind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ActorReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AutomatedClassification")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("OverriddenAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("OverriddenClassification")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "OverrideId");
+
+                    b.HasIndex("FirmId", "CaseId", "DocumentId", "OverriddenAtUtc");
+
+                    b.ToTable("ExtractionClassificationOverrides", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionCorrectionEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CorrectionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorKind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ActorReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BoxCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .UseCollation("Latin1_General_BIN2");
+
+                    b.Property<string>("CorrectedValue")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Field")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PrecedingVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PriorValue")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("SuppliedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "CorrectionId");
+
+                    b.HasIndex("FirmId", "CaseId", "DocumentId", "SuppliedAtUtc");
+
+                    b.ToTable("ExtractionCorrections", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionDuplicateCandidateEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComparedDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("DetectedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "CandidateId");
+
+                    b.HasIndex("FirmId", "CaseId", "DocumentId", "ComparedDocumentId")
+                        .IsUnique();
+
+                    b.ToTable("ExtractionDuplicateCandidates", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionDuplicateResolutionEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ResolutionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ActorKind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ActorReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Resolution")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("ResolvedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "ResolutionId");
+
+                    b.HasIndex("FirmId", "CaseId", "CandidateId")
+                        .IsUnique();
+
+                    b.ToTable("ExtractionDuplicateResolutions", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionFieldOutcomeEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FieldKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .UseCollation("Latin1_General_BIN2");
+
+                    b.Property<int>("OutcomeKind")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "DocumentId", "Version", "Ordinal");
+
+                    b.ToTable("ExtractionFieldOutcomes", (string)null);
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionVersionEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AcceptanceState")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AutomatedClassification")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Confidence")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<string>("EmployeeDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("EmployerDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ExtractionVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("OverriddenAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("OverriddenClassification")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("OverrideActorReference")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PrecedingVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProviderLabel")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .UseCollation("Latin1_General_BIN2");
+
+                    b.Property<DateTimeOffset>("RecordedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("FirmId", "CaseId", "DocumentId", "Version");
+
+                    b.HasIndex("FirmId", "ExtractionVersionId")
+                        .IsUnique();
+
+                    b.ToTable("ExtractionVersions", (string)null);
+                });
+
             modelBuilder.Entity("Persistence.Entities.IntakeAnswerVersionEntity", b =>
                 {
                     b.Property<Guid>("FirmId")
@@ -429,6 +802,82 @@ namespace Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Persistence.Entities.MedicalEvidenceVersionEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AcceptanceState")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Confidence")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<string>("CurrencyCodeAsPrinted")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<bool>("CurrencyIsKnown")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("GrossAmountAsPrinted")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("MedicalEvidenceVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PatientDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("PrecedingVersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProviderDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProviderLabel")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .UseCollation("Latin1_General_BIN2");
+
+                    b.Property<string>("ReceiptReference")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTimeOffset>("RecordedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("RetentionUntilUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ServiceDateAsPrinted")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("FirmId", "CaseId", "DocumentId", "Version");
+
+                    b.HasIndex("FirmId", "MedicalEvidenceVersionId")
+                        .IsUnique();
+
+                    b.ToTable("MedicalEvidenceVersions", (string)null);
+                });
+
             modelBuilder.Entity("Tenancy.Models.AuthenticationSession", b =>
                 {
                     b.Property<Guid>("SessionId")
@@ -760,6 +1209,87 @@ namespace Persistence.Migrations
                     b.ToTable("PortalUsers", (string)null);
                 });
 
+            modelBuilder.Entity("Persistence.Entities.ExtractionAcceptanceEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionAuditEventEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionBoxValueEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.ExtractionVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId", "DocumentId", "Version")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionClassificationOverrideEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionCorrectionEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionDuplicateCandidateEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionDuplicateResolutionEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.ExtractionDuplicateCandidateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId", "CandidateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionFieldOutcomeEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.ExtractionVersionEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Persistence.Entities.IntakeAnswerVersionEntity", b =>
                 {
                     b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
@@ -882,6 +1412,15 @@ namespace Persistence.Migrations
                     b.HasOne("Persistence.Entities.IntakeExpectedItemEntity", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "CaseId", "ExpectedItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.MedicalEvidenceVersionEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

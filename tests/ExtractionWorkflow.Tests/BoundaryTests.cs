@@ -46,21 +46,42 @@ public sealed class BoundaryTests
         RepositoryRoot, "tests", "DocumentIntelligence.Tests", "DocumentIntelligence.Tests.csproj");
 
     /// <summary>
-    /// The coordination module's complete production source set. Named rather
-    /// than counted, so the scanner guard can prove the walk saw each one.
+    /// The files each wave is required to have put in the coordination module,
+    /// with the path each belongs at.
+    /// <para>
+    /// This is a <b>required set, not a total one</b>. The list it replaced was
+    /// an exact inventory of everything under <c>src/ExtractionWorkflow/</c>,
+    /// which meant the module's own next wave broke it by adding a file the plan
+    /// had always called for. What is worth guarding is that each approved file
+    /// is present exactly once where it belongs, and that nothing forbidden
+    /// appears in any of them — both of which survive a later addition.
+    /// </para>
     /// </summary>
-    private static readonly string[] ExpectedWorkflowFiles =
+    private static readonly (string Task, string RelativePath)[] RequiredWorkflowFiles =
+    {
+        ("T02", "Models/ExtractionEnums.cs"),
+        ("T02", "Models/ExtractionWorkflowFields.cs"),
+        ("T02", "Models/ExtractionWorkflowErrors.cs"),
+        ("T02", "Models/ProviderResults.cs"),
+        ("T02", "Models/ExtractionVersion.cs"),
+        ("T02", "Models/ExtractionBoxValue.cs"),
+        ("T02", "Models/MedicalEvidenceVersion.cs"),
+        ("T02", "Contracts/IDocumentIntelligenceProvider.cs"),
+        ("T02", "Contracts/IExtractionContentReader.cs"),
+        ("T02", "Services/ExtractionPayloadBuilder.cs"),
+        ("T03", "Contracts/IExtractionStore.cs"),
+        ("T03", "Models/ExtractionStorageRecords.cs"),
+    };
+
+    /// <summary>
+    /// The files that may name the box the module refuses to represent. Each is
+    /// listed for one reason — it is where that refusal is implemented — rather
+    /// than as a total inventory.
+    /// </summary>
+    private static readonly string[] FilesThatEnforceTheSinBoxInvariant =
     {
         "ExtractionBoxValue.cs",
-        "ExtractionEnums.cs",
-        "ExtractionPayloadBuilder.cs",
-        "ExtractionVersion.cs",
-        "ExtractionWorkflowErrors.cs",
-        "ExtractionWorkflowFields.cs",
-        "IDocumentIntelligenceProvider.cs",
-        "IExtractionContentReader.cs",
-        "MedicalEvidenceVersion.cs",
-        "ProviderResults.cs",
+        "ExtractionStorageRecords.cs",
     };
 
     private static readonly string[] ExpectedIntelligenceFiles =
@@ -381,7 +402,7 @@ public sealed class BoundaryTests
     }
 
     [Fact]
-    public void TheOnlyExecutableMentionOfTheSinBoxIsTheInvariantThatRefusesIt()
+    public void TheOnlyExecutableMentionsOfTheSinBoxAreTheInvariantsThatRefuseIt()
     {
         var mention = new Regex(
             @"SocialInsurance|\bSin\b|\bSIN\b",
@@ -394,8 +415,18 @@ public sealed class BoundaryTests
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        // One file, and it is the type that cannot represent the SIN box.
-        Assert.Equal(new[] { "ExtractionBoxValue.cs" }, files);
+        // Only where the refusal is implemented: the box value that cannot
+        // represent the SIN box, and the correction record that refuses to name
+        // it. Any other file mentioning it is a file doing something with it.
+        Assert.All(
+            files,
+            file => Assert.Contains(file, FilesThatEnforceTheSinBoxInvariant));
+
+        // And both refusals are actually there — a vanished invariant would
+        // otherwise pass this for free.
+        Assert.Equal(
+            FilesThatEnforceTheSinBoxInvariant.OrderBy(name => name, StringComparer.Ordinal),
+            files);
     }
 
     [Fact]
@@ -440,15 +471,56 @@ public sealed class BoundaryTests
 
     // -------------------------------------------------------------- guards
 
+    [Theory]
+    [MemberData(nameof(RequiredWorkflowFileData))]
+    public void EachRequiredWorkflowFileExistsExactlyOnceAtItsApprovedPath(
+        string owningTask,
+        string relativePath)
+    {
+        var expected = Path.Combine(
+            WorkflowRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        Assert.True(
+            File.Exists(expected),
+            $"{owningTask} requires {relativePath}, which is not at its approved path.");
+
+        // Exactly once: the same file name appearing under a second folder is a
+        // second answer about where the module keeps that contract.
+        Assert.Equal(
+            1,
+            ProductionSourceFiles(WorkflowRoot)
+                .Count(path => string.Equals(
+                    Path.GetFileName(path),
+                    Path.GetFileName(relativePath),
+                    StringComparison.Ordinal)));
+    }
+
+    public static TheoryData<string, string> RequiredWorkflowFileData()
+    {
+        var data = new TheoryData<string, string>();
+
+        foreach (var (owningTask, relativePath) in RequiredWorkflowFiles)
+        {
+            data.Add(owningTask, relativePath);
+        }
+
+        return data;
+    }
+
     [Fact]
     public void TheScannerSeesEveryProductionFileAndStillMatchesAKnownPattern()
     {
         // Without this, a broken walk or an over-eager comment filter would make
-        // every negative assertion above pass for free.
-        Assert.Equal(
-            ExpectedWorkflowFiles,
-            ProductionSourceFiles(WorkflowRoot).Select(Path.GetFileName)
-                .OrderBy(name => name, StringComparer.Ordinal).ToArray());
+        // every negative assertion above pass for free. It asserts coverage of
+        // the required files rather than a total inventory, so a later approved
+        // file does not fail it merely by existing.
+        var scanned = ProductionSourceFiles(WorkflowRoot)
+            .Select(Path.GetFileName)
+            .ToArray();
+
+        Assert.All(
+            RequiredWorkflowFiles,
+            required => Assert.Contains(Path.GetFileName(required.RelativePath), scanned));
 
         Assert.Equal(
             ExpectedIntelligenceFiles,

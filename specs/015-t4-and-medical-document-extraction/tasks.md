@@ -232,7 +232,64 @@ tested state — which a contract wave, by construction, does not.
   payload, or audit free text; every row carries the exclusive seven-year
   `RetentionUntilUtc` from the **existing** `RetentionPolicy` with no second
   retention authority declared; and the pending-model check is clean. Raise
-  `Persistence.Tests`'s floor in the same pass. — files:
+  `Persistence.Tests`'s floor in the same pass.
+  **[AMENDED] T03 also owns the eight downstream guards that the approved
+  persistence reference, migration, entities, ports, and storage records cannot
+  exist without.** Each holds a set that a new module must join; none was in the
+  original file list, so rule 6 could not be met without them. They may change
+  **only** to register those approved T03 additions, and every original
+  architectural and historical guarantee they carry is preserved.
+
+  Three stay **closed, with additive registration only**:
+  `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs` and
+  `tests/TaxAI.Portal.Tests/EndToEnd/RepositoryVerificationTests.cs` add
+  `ExtractionWorkflow` to `Persistence`'s exact inward reference set, permitting
+  no other reference, reverse dependency, provider SDK, ASP.NET Core reference,
+  or EF Core reference outside `Persistence`;
+  `tests/Persistence.Tests/Schema/MigrationTests.cs` adds exactly the one new
+  additive migration to the ordered inventory, keeping every assertion that
+  existing migrations are unchanged, identifiers unique and ordered, the new
+  migration additive, and no existing table or column rewritten or removed;
+  and `tests/Persistence.Tests/Schema/ModelShapeTests.cs` adds every new
+  extraction entity to `ExpectedEntityTypes` and to its configuration coverage,
+  **keeping the mapped-entity inventory explicit and closed and the
+  exactly-one-dedicated-configuration assertion intact** — it is not converted to
+  an open set, no entity is removed, and convention-only mapping stays forbidden.
+
+  Four become **open to future approved additions** while keeping their real
+  guarantees. `tests/Persistence.Tests/Upgrade/EfUpgradeBaselineTests.cs`
+  replaces name-based `.Intake` filtering with a comparison grounded in the
+  stored spec 013 baseline: every baseline entity and relational artefact is
+  still compared, a changed or vanished baseline table, column, key, index,
+  relationship, type, nullability, or mapping still fails, and separately
+  approved post-baseline entities are permitted without a growing exclusion list
+  and without pretending they belonged to the baseline — they are asserted by
+  T03's own schema tests instead.
+  `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` keeps the
+  baseline signatures closed and unchanged, and replaces the exact sets of
+  allowable post-baseline `Persistence` references and type prefixes with
+  individually reviewable assertions naming `ExtractionWorkflow` and the new
+  extraction persistence types, asserting no total or permanently closed set of
+  future `Persistence` types.
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` drops the exact total file
+  inventory of `src/ExtractionWorkflow/`, asserting instead that each required
+  T02 foundational file and each T03 file exists exactly once at its approved
+  path and that no forbidden dependency appears — not a broad name heuristic.
+  `tests/ExtractionWorkflow.Tests/Models/ResultShapeTests.cs` drops the exact
+  total public-instance-type inventory, keeping the shape and safety guarantees
+  as rule-based assertions over every applicable public type and adding explicit
+  assertions for the new storage records.
+
+  **Two recorded consequences.** `PersistenceBoundaryTests.cs` may register the
+  new migration designer file in its approved tax-year-literal file inventory,
+  because a designer snapshot re-emits the whole model including the existing
+  `[TaxYear] = 2025` intake check constraint. That registration authorizes
+  nothing further: **no new extraction table declares a `TaxYear` column, a
+  tax-year check constraint, or an independent year authority, and no tax-year
+  literal may appear in new extraction production code.**
+
+  **No production file outside this task's list changes**, and no new task,
+  wave, or correction task is created. — files:
   `src/ExtractionWorkflow/Contracts/IExtractionStore.cs`,
   `src/ExtractionWorkflow/Models/ExtractionStorageRecords.cs`,
   `src/Persistence/Entities/ExtractionEntities.cs`,
@@ -247,6 +304,14 @@ tested state — which a contract wave, by construction, does not.
   `tests/Persistence.Tests/Repositories/SqlExtractionStoreTests.cs`,
   `tests/Persistence.Tests/Schema/ExtractionSchemaTests.cs`,
   `tests/Persistence.Tests/Schema/ExtractionMigrationTests.cs`,
+  `tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs` **[AMENDED]**,
+  `tests/Persistence.Tests/Schema/MigrationTests.cs` **[AMENDED]**,
+  `tests/Persistence.Tests/Schema/ModelShapeTests.cs` **[AMENDED]**,
+  `tests/Persistence.Tests/Upgrade/EfUpgradeBaselineTests.cs` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/EndToEnd/RepositoryVerificationTests.cs` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` **[AMENDED]**,
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` **[AMENDED]**,
+  `tests/ExtractionWorkflow.Tests/Models/ResultShapeTests.cs` **[AMENDED]**,
   `scripts/test-projects.json` — depends on: T02
 
 ---
@@ -489,11 +554,14 @@ creates it carrying only what T02's code consumes, and T04 and T05 each add the
 one reference they are first to consume. Sequential ownership across waves is the
 correct shape here — the alternative, pre-declaring references for a later wave,
 ships unused references and is what rule 2 forbids. **[AMENDED]**
-`scripts/Assert-DotNet10Toolchain.ps1` and
-`tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` are owned by
-**T02 alone**, for the mechanical registration of the four new project paths
-only; no other task may edit them, and T02 changes no production `TaxAI.Portal`
-code. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
+`scripts/Assert-DotNet10Toolchain.ps1` is owned by **T02 alone**, for the
+mechanical registration of the four new project paths only. **[AMENDED]** The
+eight downstream guards listed in T03 are owned by **T03 alone**, each for the
+registration of that task's approved additions only, and
+`tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` is the one
+guard both tasks touch — sequentially, in different waves, T02 for the four new
+project paths and T03 for the `Persistence` reference and the new extraction
+types. Neither task changes production `TaxAI.Portal` code. **[AMENDED]** `tests/CaseProcessing.Tests/Services/T4CaseProcessorTests.cs`
 is owned by **T01 alone**, for the AC-45a supersession only; no other task may
 edit it, and T01 changes no production `CaseProcessing` code. **[AMENDED]** The
 same holds for `tests/TaxCases.Tests/EndToEnd/RepositoryVerificationTests.cs` and

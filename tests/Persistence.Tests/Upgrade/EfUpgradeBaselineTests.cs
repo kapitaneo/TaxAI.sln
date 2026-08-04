@@ -69,18 +69,92 @@ public sealed class EfUpgradeBaselineTests
     {
         using var context = RelationalTestContext.CreateSqlServerContext();
         var current = CanonicalRelationalSchema(context);
+        var path = Path.Combine(BaselineRoot, "relational-schema.json");
+        var baselineText = NormalizeNewlines(File.ReadAllText(path));
+
+        // The comparison is scoped by the baseline itself rather than by a name
+        // filter. Spec 014 excluded ".Intake" and spec 015 would have had to add
+        // ".Extraction" beside it — a list that grows once per module until
+        // somebody excludes a baseline table by accident and nobody notices.
+        //
+        // Deriving the scope from the stored baseline keeps every guarantee that
+        // filter had and drops the maintenance: every baseline table, column,
+        // key, index, and relationship is still compared byte-for-byte, a
+        // baseline table that changed still fails, and a baseline table that
+        // *vanished* still fails, because its entries would simply be missing
+        // from the comparison.
+        var baselineTables = TableNames(
+            JsonSerializer.Deserialize<CanonicalManifest>(baselineText, JsonOptions)!.Entries);
+
+        Assert.NotEmpty(baselineTables);
+
         var actual = current with
         {
             Entries = current.Entries
-                .Where(entry => !entry.Contains(".Intake", StringComparison.Ordinal))
+                .Where(entry => baselineTables.Contains(TableOf(entry)))
                 .ToArray(),
         };
-        var path = Path.Combine(BaselineRoot, "relational-schema.json");
 
-        Assert.Equal(
-            NormalizeNewlines(File.ReadAllText(path)),
-            Serialize(actual));
+        Assert.Equal(baselineText, Serialize(actual));
     }
+
+    [Fact]
+    public void PostBaselineTablesAreOutsideTheBaselineRatherThanExcludedFromIt()
+    {
+        // The scope above is only honest if a post-baseline table genuinely is
+        // absent from the baseline. Without this, a filter bug that silently
+        // dropped a baseline table would look exactly like a table that arrived
+        // later.
+        using var context = RelationalTestContext.CreateSqlServerContext();
+        var path = Path.Combine(BaselineRoot, "relational-schema.json");
+        var baselineTables = TableNames(
+            JsonSerializer.Deserialize<CanonicalManifest>(
+                NormalizeNewlines(File.ReadAllText(path)), JsonOptions)!.Entries);
+
+        var currentTables = TableNames(CanonicalRelationalSchema(context).Entries);
+
+        // Every baseline table is still in the model.
+        Assert.All(baselineTables, table => Assert.Contains(table, currentTables));
+
+        // The approved post-baseline tables are present and are not baseline
+        // tables. Each is asserted individually rather than as a closed set, and
+        // each is proved in full by the schema tests of the task that added it.
+        foreach (var table in new[]
+                 {
+                     "<default>.IntakeCases",
+                     "<default>.ExtractionVersions",
+                     "<default>.ExtractionBoxValues",
+                     "<default>.ExtractionFieldOutcomes",
+                     "<default>.MedicalEvidenceVersions",
+                     "<default>.ExtractionCorrections",
+                     "<default>.ExtractionClassificationOverrides",
+                     "<default>.ExtractionDuplicateCandidates",
+                     "<default>.ExtractionDuplicateResolutions",
+                     "<default>.ExtractionAcceptances",
+                     "<default>.ExtractionAuditEvents",
+                 })
+        {
+            Assert.Contains(table, currentTables);
+            Assert.DoesNotContain(table, baselineTables);
+        }
+    }
+
+    /// <summary>
+    /// The table each canonical entry belongs to. Every entry kind —
+    /// <c>table</c>, <c>column</c>, <c>primary-key</c>, <c>unique</c>,
+    /// <c>index</c>, <c>foreign-key</c> — carries it in the same position.
+    /// </summary>
+    private static string TableOf(string entry)
+    {
+        var parts = entry.Split('|');
+        return parts.Length > 1 ? parts[1] : string.Empty;
+    }
+
+    private static HashSet<string> TableNames(IEnumerable<string> entries) =>
+        entries
+            .Where(entry => entry.StartsWith("table|", StringComparison.Ordinal))
+            .Select(TableOf)
+            .ToHashSet(StringComparer.Ordinal);
 
     [Fact]
     public void InitialMigrationDdlMatchesTheApprovedNet8BaselineExactly()

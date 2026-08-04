@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DocumentExtraction.Models;
@@ -62,12 +63,18 @@ public sealed class ResultShapeTests
     }
 
     [Fact]
-    public void ThePublicInstanceTypeInventoryIsTheOneThisTaskShips()
+    public void TheSweepSeesEveryTypeEachWaveWasRequiredToShip()
     {
-        // Without this, the sweep above would pass for free if the walk broke.
-        Assert.Equal(
+        // A required set, not a total one. The exact inventory this replaced
+        // meant the module's own next wave broke it by adding the storage
+        // records the plan had always called for; what the sweeps above need is
+        // proof that the walk found the types, not that nothing was ever added.
+        var found = PublicInstanceTypes().Select(type => type.Name).ToArray();
+
+        Assert.All(
             new[]
             {
+                // T02 — the extraction foundation.
                 nameof(ClassificationOutcome),
                 nameof(CurrencyDeclaration),
                 nameof(ExtractionBoxValue),
@@ -79,8 +86,301 @@ public sealed class ResultShapeTests
                 nameof(ProviderClassificationResult),
                 nameof(ProviderMedicalResult),
                 nameof(ProviderT4Result),
+
+                // T03 — the append-only storage records.
+                nameof(ExtractionAuditEventRecord),
+                nameof(ExtractionCorrectionRecord),
+                nameof(ClassificationOverrideRecord),
+                nameof(DuplicateCandidateRecord),
+                nameof(DuplicateResolutionRecord),
+                nameof(ExtractionAcceptanceRecord),
+                nameof(StoredDocumentExtraction),
+                nameof(StoredCaseExtractions),
             },
-            PublicInstanceTypes().Select(type => type.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
+            required => Assert.Contains(required, found));
+    }
+
+    [Fact]
+    public void NoPublicPropertyCanBeChangedAfterConstruction()
+    {
+        var offenders = new List<string>();
+
+        foreach (var type in PublicInstanceTypes())
+        {
+            foreach (var property in type.GetProperties(
+                         BindingFlags.Instance | BindingFlags.Public))
+            {
+                if (property.SetMethod is not { } setter)
+                {
+                    continue;
+                }
+
+                // Init-only is construction, not mutation. Anything else means a
+                // value someone already holds can change underneath them, which
+                // is not what "immutable version" can mean.
+                var initOnly = setter.ReturnParameter
+                    .GetRequiredCustomModifiers()
+                    .Contains(typeof(IsExternalInit));
+
+                if (!initOnly)
+                {
+                    offenders.Add($"{type.Name}.{property.Name}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0, string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void NoPublicPropertyExposesAMutableCollection()
+    {
+        var offenders = new List<string>();
+
+        foreach (var type in PublicInstanceTypes())
+        {
+            foreach (var property in type.GetProperties(
+                         BindingFlags.Instance | BindingFlags.Public))
+            {
+                var propertyType = property.PropertyType;
+
+                if (propertyType == typeof(string) || !propertyType.IsGenericType)
+                {
+                    // An array would also be mutable, and none is declared.
+                    if (propertyType.IsArray)
+                    {
+                        offenders.Add($"{type.Name}.{property.Name}");
+                    }
+
+                    continue;
+                }
+
+                var definition = propertyType.GetGenericTypeDefinition();
+
+                if (definition == typeof(List<>) ||
+                    definition == typeof(ICollection<>) ||
+                    definition == typeof(IList<>) ||
+                    definition == typeof(Dictionary<,>))
+                {
+                    offenders.Add($"{type.Name}.{property.Name}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0, string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void NoPublicTypeCarriesRawContentOrAProviderPayload()
+    {
+        var offenders = new List<string>();
+
+        foreach (var type in PublicInstanceTypes())
+        {
+            foreach (var property in type.GetProperties(
+                         BindingFlags.Instance | BindingFlags.Public))
+            {
+                if (property.PropertyType == typeof(byte[]) ||
+                    property.PropertyType == typeof(ReadOnlyMemory<byte>))
+                {
+                    offenders.Add($"{type.Name}.{property.Name}");
+                }
+
+                // The lease is the one place a stream may appear: it exists to
+                // bound the lifetime of exactly one, and it is not a result
+                // shape anything stores.
+                if (typeof(Stream).IsAssignableFrom(property.PropertyType) &&
+                    type != typeof(ExtractionSourceLease))
+                {
+                    offenders.Add($"{type.Name}.{property.Name}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0, string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void EveryTypeWithAnInvariantHidesItsConstructorBehindAFactory()
+    {
+        // Where a value has a rule about what it may hold, the rule is enforced
+        // on the only way in. These four have one; the version records validate
+        // in their public constructors instead, which is checked elsewhere.
+        foreach (var type in new[]
+                 {
+                     typeof(ExtractionBoxValue),
+                     typeof(ClassificationOutcome),
+                     typeof(FieldValidationOutcome),
+                     typeof(CurrencyDeclaration),
+                 })
+        {
+            Assert.Empty(type.GetConstructors(BindingFlags.Instance | BindingFlags.Public));
+        }
+    }
+
+    // ------------------------------------------------- the storage records
+
+    [Fact]
+    public void AnAuditRecordCarriesOnlyStructuralFacts()
+    {
+        var audit = new ExtractionAuditEventRecord(
+            Guid.NewGuid(),
+            1,
+            ExtractionAuditKind.ExtractionRecorded,
+            ExtractionActorKind.Accountant,
+            Guid.NewGuid(),
+            Instant);
+
+        Assert.Equal(
+            new[]
+            {
+                "ActorKind", "ActorReference", "EventId", "Kind", "OccurredAtUtc", "Sequence",
+            },
+            typeof(ExtractionAuditEventRecord)
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+
+        Assert.Equal(
+            "ExtractionAuditEventRecord(Sequence: 1, Kind: ExtractionRecorded, ActorKind: Accountant)",
+            audit.ToString());
+    }
+
+    [Theory]
+    [InlineData("Amount")]
+    [InlineData("Date")]
+    [InlineData("BoxCode")]
+    [InlineData("Line")]
+    [InlineData("Provider")]
+    [InlineData("Patient")]
+    [InlineData("FileName")]
+    [InlineData("ContentKey")]
+    [InlineData("Fingerprint")]
+    [InlineData("Prompt")]
+    [InlineData("Text")]
+    [InlineData("Note")]
+    public void AnAuditRecordCannotCarryTaxpayerContent(string forbidden)
+    {
+        Assert.DoesNotContain(
+            typeof(ExtractionAuditEventRecord)
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Select(property => property.Name),
+            name => name.Contains(forbidden, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ACorrectionRecordRefusesTheExcludedBox()
+    {
+        // Unrepresentable rather than filtered: the vocabulary has no Box 12
+        // member, and a box-code correction naming it is refused outright.
+        Assert.DoesNotContain(
+            Enum.GetNames<CorrectionField>(),
+            name => name.Contains("Box12", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Throws<ArgumentException>(() => new ExtractionCorrectionRecord(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            CorrectionField.T4BoxValue,
+            "12",
+            null,
+            "123456789",
+            ExtractionActorKind.Accountant,
+            Guid.NewGuid(),
+            Instant,
+            Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void AnOverrideRecordRefusesAnUnsupportedTarget()
+    {
+        Assert.Throws<ArgumentException>(() => new ClassificationOverrideRecord(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            DocumentClassification.T4Slip,
+            DocumentClassification.Unsupported,
+            ExtractionActorKind.Accountant,
+            Guid.NewGuid(),
+            Instant));
+    }
+
+    [Fact]
+    public void ADuplicateCandidateRefusesToPairADocumentWithItself()
+    {
+        var documentId = Guid.NewGuid();
+
+        Assert.Throws<ArgumentException>(() => new DuplicateCandidateRecord(
+            Guid.NewGuid(), documentId, documentId, Instant));
+    }
+
+    [Fact]
+    public void ACaseAcceptanceNamesNoDocumentAndADocumentAcceptanceNamesOne()
+    {
+        Assert.Throws<ArgumentException>(() => new ExtractionAcceptanceRecord(
+            Guid.NewGuid(),
+            ExtractionAcceptanceScope.Case,
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            ExtractionActorKind.Accountant,
+            Guid.NewGuid(),
+            Instant));
+
+        Assert.Throws<ArgumentException>(() => new ExtractionAcceptanceRecord(
+            Guid.NewGuid(),
+            ExtractionAcceptanceScope.Document,
+            null,
+            null,
+            ExtractionActorKind.Accountant,
+            Guid.NewGuid(),
+            Instant));
+    }
+
+    [Fact]
+    public void EveryStorageRecordRefusesANonUtcInstant()
+    {
+        var local = new DateTimeOffset(2026, 8, 3, 14, 30, 0, TimeSpan.FromHours(-4));
+
+        Assert.Throws<ArgumentException>(() => new ExtractionAuditEventRecord(
+            Guid.NewGuid(),
+            1,
+            ExtractionAuditKind.ExtractionRecorded,
+            ExtractionActorKind.Accountant,
+            Guid.NewGuid(),
+            local));
+
+        Assert.Throws<ArgumentException>(() => new DuplicateCandidateRecord(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), local));
+    }
+
+    [Fact]
+    public void AStoredHistoryCopiesItsCollections()
+    {
+        var acceptances = new List<ExtractionAcceptanceRecord>
+        {
+            new(
+                Guid.NewGuid(),
+                ExtractionAcceptanceScope.Document,
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                ExtractionActorKind.Accountant,
+                Guid.NewGuid(),
+                Instant),
+        };
+
+        var stored = new StoredDocumentExtraction(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            acceptances);
+
+        acceptances.Clear();
+
+        Assert.Single(stored.Acceptances);
     }
 
     [Theory]
