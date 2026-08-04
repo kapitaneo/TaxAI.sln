@@ -3,11 +3,11 @@
 **Task:** T04 — Firm-scoped extraction and duplicate workflow.
 
 **PR:** https://github.com/kapitaneo/TaxAI.sln/pull/142
-(base `feat/015-w3-t03`, because that PR is still open; merge T03 first)
+(base `master`; T03 merged in PR #141 before this final review)
 
 **Branch:** `feat/015-w4-t04`
 
-**Commit:** e39336f1b152cfd6e2bc38e2259af0a14a98c1e3
+**Commit:** bf2508411ce413761497c09a4a67c44c20f3d09f
 
 **Test command:**
 
@@ -28,7 +28,7 @@ every floor met.
 | TaxAI.Portal.Tests | 571 | 571 |
 | Tenancy.Tests | 289 | 289 |
 | Persistence.Tests | 236 | 236 |
-| **ExtractionWorkflow.Tests** | **307** | **307** (raised from 204 in this pass) |
+| **ExtractionWorkflow.Tests** | **308** | **308** (raised from 204 in this pass) |
 | DocumentIntelligence.Tests | 65 | 65 |
 
 **Files created**
@@ -54,18 +54,25 @@ every floor met.
 - `src/ExtractionWorkflow/ExtractionWorkflow.csproj` — adds exactly the two
   references T04 is the first to consume: `CaseProcessing` and `ClientIntake`.
   `CaseReview` is still absent because no code names it yet.
-- `scripts/test-projects.json` — `ExtractionWorkflow.Tests` floor 204 → 307.
+- `scripts/test-projects.json` — `ExtractionWorkflow.Tests` floor 204 → 308.
 
-**One edit outside the task's file list, recorded deliberately**
+**Final review corrections**
 
-- `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` is not in T04's list, but two
-  of its assertions are exact sets of `ExtractionWorkflow`'s project references,
-  and T04's own `[AMENDED]` note directs adding the two references above. Rule 6
-  could not otherwise be met. The change is the same additive registration T01,
-  T02, and T03 were each amended to make; every other assertion in the file —
-  the forbidden-token sweeps, the SIN-box invariant file list, the
-  no-infrastructure checks, the solution presence-and-uniqueness assertions, and
-  the comment-filter guard — is unchanged.
+- `tasks.md` now assigns
+  `tests/ExtractionWorkflow.Tests/BoundaryTests.cs` narrowly to T04 for the two
+  approved `CaseProcessing` and `ClientIntake` registrations. Every other
+  boundary assertion remains unchanged.
+- `IExtractionIngestWorkflow.GetDocumentAsync` and `GetCaseAsync`, plus the
+  otherwise-unused `CaseExtractionView`, were removed because completed T04 code
+  did not consume them. T06 may introduce the read contract it actually needs in
+  the same pass that consumes it.
+- The two-read path now compares the complete source bytes before extraction.
+  A refused second read or changed content fails closed before the extraction
+  provider, store append, or audit append. Both reads use the same four-part
+  server-stored scope, every lease is disposed before return, and in-memory
+  source copies are cleared while their leases remain live.
+- `scripts/test-projects.json` records the final
+  `ExtractionWorkflow.Tests` floor of 308.
 
 **`[ASSUMED]` Class B decisions, for one-pass human override**
 
@@ -74,18 +81,14 @@ every floor met.
    on this interface, but T05 owns those policies and does not own this file;
    declaring them here would leave an unimplemented contract, which rule 2
    forbids. They belong on `IExtractionReviewWorkflow`.
-2. Two read members ship here (`GetDocumentAsync`, `GetCaseAsync`). T06 needs
-   "the two read surfaces" and no other task's file list declares a read
-   contract; projecting in the portal would be the UI deriving state. Both are
-   implemented and tested in this pass, which also keeps `ExtractionProjection`
-   genuinely consumed.
-3. `ExtractionWorkflowOptions.ProviderCallLimit` is the one configured value —
+2. `ExtractionWorkflowOptions.ProviderCallLimit` is the one configured value —
    a fail-closed bound on one provider call, never a quality signal, and not a
    confidence bound. No confidence bound exists anywhere in this feature.
-4. Classification and extraction each take their own content lease, because the
-   port documents that a provider consumes the stream once from its current
-   position. Nothing seeks or buffers source bytes in the coordination module,
-   and every lease is disposed before the operation returns.
+3. Classification and extraction each take their own content lease because the
+   provider consumes a stream once from its current position. The workflow keeps
+   bounded in-memory copies only for the duration of the synchronous operation,
+   compares them before extraction, clears them while the leases are live, and
+   disposes both leases before returning.
 
 **Gate unchanged.** T04 ships no HTTP route, no UI component, no registration in
 the composition root, no migration, no production content reader, no production
