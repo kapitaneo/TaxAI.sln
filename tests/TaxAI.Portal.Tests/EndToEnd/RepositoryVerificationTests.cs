@@ -388,7 +388,7 @@ public sealed class RepositoryVerificationTests
     }
 
     [Fact]
-    public void TheHostReferencesTheIntakeContractAndNothingBeyondIt()
+    public void TheHostReferencesOnlyItsApprovedInwardContractsAndAdapters()
     {
         var portalProject = File.ReadAllText(
             Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "TaxAI.Portal.csproj"));
@@ -404,6 +404,8 @@ public sealed class RepositoryVerificationTests
             {
                 "../CaseProcessing/CaseProcessing.csproj",
                 "../ClientIntake/ClientIntake.csproj",
+                "../DocumentIntelligence/DocumentIntelligence.csproj",
+                "../ExtractionWorkflow/ExtractionWorkflow.csproj",
                 "../Persistence/Persistence.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
                 "../Tenancy/Tenancy.csproj",

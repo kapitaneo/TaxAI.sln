@@ -1,0 +1,23 @@
+@using TaxAI.Portal.Components.Pages
+
+<section aria-labelledby="medical-evidence-heading">
+    <h2 id="medical-evidence-heading">Medical expense evidence</h2>
+    <p class="notice">Structured evidence only. No tax treatment is determined here.</p>
+    <dl class="summary">
+        <div><dt>Service date as printed</dt><dd>@Fact(Model.ServiceDateAsPrinted)</dd></div>
+        <div><dt>Gross amount as printed</dt><dd>@Fact(Model.GrossAmountAsPrinted)</dd></div>
+        <div><dt>Currency as printed</dt><dd>@Fact(Model.CurrencyAsPrinted)</dd></div>
+        <div><dt>Provider</dt><dd>@Fact(Model.ProviderDisplayName)</dd></div>
+        <div><dt>Patient</dt><dd>@Fact(Model.PatientDisplayName)</dd></div>
+        <div><dt>Receipt reference</dt><dd>@Fact(Model.ReceiptReference)</dd></div>
+    </dl>
+</section>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public MedicalEvidencePanelModel Model { get; set; } = default!;
+
+    private static string Fact(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not provided" : value;
+}

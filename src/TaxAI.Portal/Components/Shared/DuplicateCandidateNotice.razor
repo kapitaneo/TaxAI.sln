@@ -1,0 +1,36 @@
+@using ExtractionWorkflow.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxAI.Portal.Components.Pages
+
+<aside class="notice" aria-label="Probable duplicate">
+    <strong>Probable duplicate requires a decision.</strong>
+    <p>Both documents remain present. Choose how this candidate should be recorded.</p>
+    <div class="actions">
+        <form method="post" action="@Action">
+            <AntiforgeryToken />
+            <input type="hidden"
+                   name="resolution"
+                   value="@DuplicateResolutionKind.DistinctDocuments" />
+            <button type="submit" class="secondary">Keep as distinct documents</button>
+        </form>
+        <form method="post" action="@Action">
+            <AntiforgeryToken />
+            <input type="hidden"
+                   name="resolution"
+                   value="@DuplicateResolutionKind.ConfirmedDuplicate" />
+            <button type="submit">Confirm duplicate</button>
+        </form>
+    </div>
+</aside>
+
+@code {
+    [Parameter]
+    public Guid CaseId { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public DuplicateCandidateModel Candidate { get; set; } = default!;
+
+    private string Action =>
+        $"/intake-cases/{CaseId:D}/extractions/duplicates/{Candidate.CandidateId:D}";
+}

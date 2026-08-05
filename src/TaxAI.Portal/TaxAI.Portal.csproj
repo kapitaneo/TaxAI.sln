@@ -22,14 +22,17 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.10" />
   </ItemGroup>
 
-  <!-- Dependencies point inward, and are exactly these four. Persistence owns
+  <!-- Dependencies point inward. Persistence owns
        the ORM and exposes one registration extension, which is why adding
-       storage to this host adds no ORM package to this file. The modules behind
-       Tenancy and Persistence — the case, extraction, and review modules — are
-       reached through their contracts and are never referenced here directly. -->
+       storage to this host adds no ORM package to this file. ExtractionWorkflow
+       supplies the accountant use cases and DocumentIntelligence supplies the
+       deterministic Development adapter; both references are consumed by the
+       composition root and the extraction-only browser projection. -->
   <ItemGroup>
     <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
     <ProjectReference Include="..\ClientIntake\ClientIntake.csproj" />
+    <ProjectReference Include="..\DocumentIntelligence\DocumentIntelligence.csproj" />
+    <ProjectReference Include="..\ExtractionWorkflow\ExtractionWorkflow.csproj" />
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
     <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
     <ProjectReference Include="..\Tenancy\Tenancy.csproj" />

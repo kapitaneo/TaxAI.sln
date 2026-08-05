@@ -1,0 +1,28 @@
+@using TaxAI.Portal.Components.Pages
+
+@if (Rows.Count == 0)
+{
+    <p class="empty">No structural field outcomes were recorded.</p>
+}
+else
+{
+    <div class="table-wrap">
+        <table>
+            <thead>
+            <tr><th scope="col">Field</th><th scope="col">Outcome</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var row in Rows)
+            {
+                <tr><td>@row.Field</td><td>@row.Outcome</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public IReadOnlyList<ExtractionFieldRowModel> Rows { get; set; } = default!;
+}

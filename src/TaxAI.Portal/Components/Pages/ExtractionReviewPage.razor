@@ -1,0 +1,188 @@
+@using System.Globalization
+@using ExtractionWorkflow.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxAI.Portal.Components.Shared
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Extraction review | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">Accountant extraction review</p>
+    <h1>Document extraction</h1>
+
+    <ClassificationDisagreementNotice
+        DeclaredCategory="Model.DeclaredCategory"
+        AutomatedClassification="Model.AutomatedClassification" />
+
+    <dl class="summary">
+        <div><dt>Checklist category</dt><dd>@Model.DeclaredCategory</dd></div>
+        <div><dt>Checklist position</dt><dd>@Model.DeclaredOrdinal</dd></div>
+        <div><dt>Automated classification</dt><dd>@Model.AutomatedClassification</dd></div>
+        <div><dt>Effective classification</dt><dd>@Model.EffectiveClassification</dd></div>
+        <div><dt>Human override</dt><dd>@(Model.IsClassificationOverridden ? "Yes" : "No")</dd></div>
+        <div><dt>Acceptance</dt><dd>@Model.AcceptanceState</dd></div>
+        <div><dt>Latest version</dt><dd>@VersionText</dd></div>
+        <div><dt>Corrections</dt><dd>@Model.CorrectionCount</dd></div>
+        <div><dt>Provider</dt><dd>@Fact(Model.ProviderLabel)</dd></div>
+        <div><dt>Confidence</dt><dd>@Fact(Model.Confidence)</dd></div>
+    </dl>
+
+    <div class="actions">
+        <form method="post" action="@ExtractAction">
+            <AntiforgeryToken />
+            <button type="submit">Run extraction</button>
+        </form>
+        <form method="post" action="@AcceptAction">
+            <AntiforgeryToken />
+            <button type="submit" class="secondary">Accept current version</button>
+        </form>
+    </div>
+
+    <section aria-labelledby="classification-heading">
+        <h2 id="classification-heading">Classification override</h2>
+        <form method="post" action="@ClassificationAction" class="intake-form compact">
+            <AntiforgeryToken />
+            <label for="classification">Effective classification</label>
+            <select id="classification" name="targetClassification" required>
+                <option value="@DocumentClassification.T4Slip">T4 slip</option>
+                <option value="@DocumentClassification.MedicalExpenseEvidence">Medical expense evidence</option>
+            </select>
+            <button type="submit">Record classification</button>
+        </form>
+    </section>
+
+    @if (Model.T4 is { } t4)
+    {
+        <section aria-labelledby="t4-heading">
+            <h2 id="t4-heading">T4 extraction</h2>
+            <dl class="summary">
+                <div><dt>Employer</dt><dd>@Fact(t4.EmployerDisplayName)</dd></div>
+                <div><dt>Employee</dt><dd>@Fact(t4.EmployeeDisplayName)</dd></div>
+                <div><dt>Employer address</dt><dd>@Fact(t4.EmployerAddress)</dd></div>
+                <div><dt>Employee address</dt><dd>@Fact(t4.EmployeeAddress)</dd></div>
+            </dl>
+            @if (t4.Boxes.Count == 0)
+            {
+                <p class="empty">No retained T4 boxes.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th scope="col">Box</th><th scope="col">Value as printed</th></tr></thead>
+                        <tbody>
+                        @foreach (var box in t4.Boxes)
+                        {
+                            <tr><td>@box.Code</td><td>@Fact(box.Value)</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+
+    @if (Model.Medical is { } medical)
+    {
+        <MedicalEvidencePanel Model="medical" />
+    }
+
+    <section aria-labelledby="outcomes-heading">
+        <h2 id="outcomes-heading">Structural field outcomes</h2>
+        <ExtractionFieldTable Rows="Model.FieldOutcomes" />
+    </section>
+
+    @foreach (var candidate in Model.DuplicateCandidates)
+    {
+        <DuplicateCandidateNotice CaseId="CaseId" Candidate="candidate" />
+    }
+
+    <section aria-labelledby="correction-heading">
+        <h2 id="correction-heading">Record one correction</h2>
+        <p>Every accepted correction creates a new immutable extraction version and runs the existing validation chain again.</p>
+        <form method="post" action="@CorrectionAction" class="intake-form">
+            <AntiforgeryToken />
+            <label for="field">Field</label>
+            <select id="field" name="field" required>
+                @foreach (var field in Enum.GetValues<CorrectionField>())
+                {
+                    <option value="@field">@CorrectionLabel(field)</option>
+                }
+            </select>
+            <label for="box-code">T4 box code, when applicable</label>
+            <input id="box-code" name="boxCode" type="text" autocomplete="off" />
+            <label for="corrected-value">Corrected value</label>
+            <input id="corrected-value" name="correctedValue" type="text" autocomplete="off" />
+            <button type="submit">Record correction</button>
+        </form>
+    </section>
+
+    <p><a href="@ListUrl">Back to case documents</a></p>
+</LayoutView>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    public Guid CaseId { get; set; }
+
+    [Parameter]
+    public Guid DocumentId { get; set; }
+
+    [Parameter]
+    [EditorRequired]
+    public ExtractionReviewPageModel Model { get; set; } = default!;
+
+    private string ListUrl =>
+        $"/intake-cases/{CaseId:D}/extractions";
+
+    private string ExtractAction =>
+        $"/intake-cases/{CaseId:D}/extractions/{DocumentId:D}/extract";
+
+    private string ClassificationAction =>
+        $"/intake-cases/{CaseId:D}/extractions/{DocumentId:D}/classification";
+
+    private string CorrectionAction =>
+        $"/intake-cases/{CaseId:D}/extractions/{DocumentId:D}/corrections";
+
+    private string AcceptAction =>
+        $"/intake-cases/{CaseId:D}/extractions/{DocumentId:D}/accept";
+
+    private string VersionText =>
+        Model.LatestVersion?.ToString(CultureInfo.InvariantCulture) ??
+        "Not extracted";
+
+    private static string Fact(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not provided" : value;
+
+    private static string CorrectionLabel(CorrectionField field) =>
+        field switch
+        {
+            CorrectionField.T4BoxValue => "T4 box value",
+            CorrectionField.T4BoxCode => "T4 box code",
+            CorrectionField.AddT4Box => "Add T4 box",
+            CorrectionField.RemoveT4Box => "Remove T4 box",
+            CorrectionField.EmployerDisplayName => "Employer display name",
+            CorrectionField.EmployeeDisplayName => "Employee display name",
+            CorrectionField.EmployerAddress => "Employer address",
+            CorrectionField.EmployeeAddress => "Employee address",
+            CorrectionField.MedicalServiceDate => "Medical service date",
+            CorrectionField.MedicalGrossAmount => "Medical gross amount",
+            CorrectionField.MedicalCurrency => "Medical currency",
+            CorrectionField.MedicalProviderDisplayName =>
+                "Medical provider display name",
+            CorrectionField.MedicalPatientDisplayName =>
+                "Medical patient display name",
+            CorrectionField.MedicalReceiptReference =>
+                "Medical receipt reference",
+            _ => throw new ArgumentOutOfRangeException(nameof(field)),
+        };
+}

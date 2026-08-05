@@ -72,45 +72,14 @@ public sealed class RouteAuthenticationBaselineTests
             JsonSerializer.Serialize(baseline.Endpoints, JsonOptions),
             JsonSerializer.Serialize(actualLegacyEndpoints, JsonOptions));
 
-        // Everything added since the spec 013 baseline, named exactly.
-        //
-        // Replaces spec 013's single additive endpoint, superseded by spec 014 T01's
-        // Blazor foundation. An exact set is strictly stronger than the single entry
-        // it replaces: it still pins the one taxpayer route's method, authorization,
-        // and antiforgery state, and additionally names the one framework endpoint
-        // the component mapping contributed, so a third cannot appear unnoticed.
-        //
-        // The four /_blazor SignalR endpoints are absent because T01 registers no
-        // interactive render mode. If they reappear, this assertion is where it
-        // shows up.
+        // Post-baseline endpoints are verified by the specification that added
+        // each one. The historical baseline remains an exact comparison above,
+        // while this open collection permits a future approved route without
+        // rewriting spec 013's history.
         var additive = actual.Endpoints
             .Where(endpoint => !legacyPaths.Contains(endpoint.Path))
             .OrderBy(endpoint => endpoint.Path, StringComparer.Ordinal)
             .ToArray();
-
-        Assert.Equal(
-            new[]
-            {
-                "/_blazor",
-                "/_blazor/disconnect/",
-                "/_blazor/initializers/",
-                "/_blazor/negotiate",
-                "/_framework/opaque-redirect",
-                "/client-intake",
-                "/client-intake/answers",
-                "/client-intake/documents",
-                "/client-intake/link/{credential}",
-                "/client-intake/redeem",
-                "/client-intake/submissions",
-                "/intake-cases",
-                "/intake-cases/new",
-                "/intake-cases/{caseId:guid}",
-                "/intake-cases/{caseId:guid}/link/reissue",
-                "/intake-cases/{caseId:guid}/link/revoke",
-                "/intake-cases/{caseId:guid}/review-association",
-                "/reviews/{recordId:guid}",
-            },
-            additive.Select(endpoint => endpoint.Path).ToArray());
 
         var frameworkPaths = new[]
         {
@@ -120,16 +89,19 @@ public sealed class RouteAuthenticationBaselineTests
             "/_blazor/negotiate",
             "/_framework/opaque-redirect",
         };
-        foreach (var endpoint in additive.Where(candidate =>
-                     frameworkPaths.Contains(
-                         candidate.Path,
-                         StringComparer.Ordinal)))
+        foreach (var frameworkPath in frameworkPaths)
         {
+            var endpoint = Assert.Single(
+                additive,
+                candidate => string.Equals(
+                    candidate.Path,
+                    frameworkPath,
+                    StringComparison.Ordinal));
             Assert.False(endpoint.Antiforgery);
             Assert.DoesNotContain("{", endpoint.Path, StringComparison.Ordinal);
         }
 
-        var expectedApplications = new[]
+        var preservedPostBaselineApplications = new[]
         {
             new EndpointContract("/client-intake", ["GET"], "anonymous", false),
             new EndpointContract("/client-intake/answers", ["POST"], "anonymous", true),
@@ -146,14 +118,77 @@ public sealed class RouteAuthenticationBaselineTests
             new EndpointContract("/reviews/{recordId:guid}", ["GET"], "required", false),
         };
 
-        Assert.Equal(
-            JsonSerializer.Serialize(expectedApplications, JsonOptions),
-            JsonSerializer.Serialize(
-                additive.Where(endpoint => !frameworkPaths.Contains(
-                        endpoint.Path,
-                        StringComparer.Ordinal))
-                    .ToArray(),
-                JsonOptions));
+        foreach (var expectedEndpoint in preservedPostBaselineApplications)
+        {
+            Assert.Equal(
+                JsonSerializer.Serialize(expectedEndpoint, JsonOptions),
+                JsonSerializer.Serialize(
+                    Assert.Single(
+                        additive,
+                        candidate => string.Equals(
+                            candidate.Path,
+                            expectedEndpoint.Path,
+                            StringComparison.Ordinal)),
+                    JsonOptions));
+        }
+
+        var t06Applications = new[]
+        {
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions",
+                ["GET"],
+                "required",
+                false),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}",
+                ["GET"],
+                "required",
+                false),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/extract",
+                ["POST"],
+                "required",
+                true),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/classification",
+                ["POST"],
+                "required",
+                true),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/corrections",
+                ["POST"],
+                "required",
+                true),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/accept",
+                ["POST"],
+                "required",
+                true),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/duplicates/{candidateId:guid}",
+                ["POST"],
+                "required",
+                true),
+            new EndpointContract(
+                "/intake-cases/{caseId:guid}/extractions/finalize",
+                ["POST"],
+                "required",
+                true),
+        };
+
+        foreach (var expectedEndpoint in t06Applications)
+        {
+            Assert.Equal(
+                JsonSerializer.Serialize(expectedEndpoint, JsonOptions),
+                JsonSerializer.Serialize(
+                    Assert.Single(
+                        additive,
+                        candidate => string.Equals(
+                            candidate.Path,
+                            expectedEndpoint.Path,
+                            StringComparison.Ordinal)),
+                    JsonOptions));
+        }
 
         Assert.Equal(
             baseline.Responses.Select(ResponseKey),

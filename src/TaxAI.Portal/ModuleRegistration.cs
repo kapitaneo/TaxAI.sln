@@ -2,6 +2,9 @@ using CaseProcessing.Services;
 using ClientIntake.Contracts;
 using ClientIntake.Models;
 using ClientIntake.Services;
+using DocumentIntelligence;
+using ExtractionWorkflow.Contracts;
+using ExtractionWorkflow.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -84,16 +87,31 @@ internal static class ModuleRegistration
         services.AddSingleton<IIntakeCredentialSource>(
             _ => new CryptographicIntakeCredentialSource(intake.DigestKey));
 
-        if (string.Equals(
-                environment.EnvironmentName,
-                Environments.Development,
-                StringComparison.Ordinal))
+        var runsInDevelopment = string.Equals(
+            environment.EnvironmentName,
+            Environments.Development,
+            StringComparison.Ordinal);
+
+        if (runsInDevelopment)
         {
-            services.AddSingleton<IIntakeContentStore>(
-                _ => new DevelopmentEncryptedIntakeContentStore(
+            var extraction = ExtractionConfiguration.Require(
+                configuration,
+                environment);
+            services.AddSingleton(extraction);
+            services.AddSingleton(extraction.Workflow);
+            services.AddDeterministicDocumentIntelligence(
+                extraction.Intelligence,
+                isDevelopmentOrTestHost: true);
+
+            services.AddScoped<DevelopmentEncryptedIntakeContentStore>(
+                provider => new DevelopmentEncryptedIntakeContentStore(
                     intake.DevelopmentContentRoot!,
                     intake.ContentEncryptionKey,
-                    intake.FingerprintKey));
+                    intake.FingerprintKey,
+                    provider.GetRequiredService<IIntakeStore>()));
+            services.AddScoped<IIntakeContentStore>(
+                provider => provider.GetRequiredService<
+                    DevelopmentEncryptedIntakeContentStore>());
         }
 
         // Static SSR remains the default. Interactive Server is registered only
@@ -112,6 +130,36 @@ internal static class ModuleRegistration
                 provider.GetRequiredService<IIntakeContentStore>(),
                 provider.GetRequiredService<IIntakeCredentialSource>(),
                 provider.GetRequiredService<IntakeWorkflowOptions>()));
+
+        if (runsInDevelopment)
+        {
+            services.AddScoped<IExtractionIngestWorkflow>(provider =>
+                ActivatorUtilities.CreateInstance<ExtractionIngestWorkflow>(
+                    provider,
+                    provider.GetRequiredService<
+                        DevelopmentEncryptedIntakeContentStore>(),
+                    CreateDocumentExtractionIngress()));
+            services.AddScoped<IExtractionReviewWorkflow>(provider =>
+                ActivatorUtilities.CreateInstance<ExtractionReviewWorkflow>(
+                    provider,
+                    provider.GetRequiredService<
+                        DevelopmentEncryptedIntakeContentStore>(),
+                    CreateDocumentExtractionIngress()));
+        }
+        else
+        {
+            // These descriptors let endpoint construction identify workflow
+            // parameters as services in TestServer-based historical baseline
+            // tests. A deployable non-Development host refuses before serving,
+            // and resolving either descriptor refuses as well.
+            services.AddScoped<IExtractionIngestWorkflow>(
+                _ => throw new InvalidOperationException(
+                    ExtractionConfiguration.NonDevelopmentRefusalMessage));
+            services.AddScoped<IExtractionReviewWorkflow>(
+                _ => throw new InvalidOperationException(
+                    ExtractionConfiguration.NonDevelopmentRefusalMessage));
+        }
+
         services.AddPortalIdentity(configuration, environment);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ClientIntakeCookie>();
@@ -157,5 +205,15 @@ internal static class ModuleRegistration
             PortalAuthorization.ConfigureSelectionIssuance);
 
         return services;
+    }
+
+    private static object CreateDocumentExtractionIngress()
+    {
+        var ingressType = typeof(ExtractionIngestWorkflow).Assembly.GetType(
+            "ExtractionWorkflow.Services.DocumentExtractionIngress",
+            throwOnError: true)!;
+        return Activator.CreateInstance(ingressType) ??
+            throw new InvalidOperationException(
+                "The extraction ingress could not be constructed.");
     }
 }

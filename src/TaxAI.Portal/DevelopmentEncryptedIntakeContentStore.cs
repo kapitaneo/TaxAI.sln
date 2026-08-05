@@ -3,12 +3,13 @@ using System.Security.Cryptography;
 using System.Text;
 using ClientIntake.Contracts;
 using ClientIntake.Models;
+using ExtractionWorkflow.Contracts;
 using Tenancy.Models;
 
 namespace TaxAI.Portal;
 
-internal sealed class DevelopmentEncryptedIntakeContentStore :
-    IIntakeContentStore
+internal sealed class DevelopmentEncryptedIntakeContentStore : IIntakeContentStore,
+    IExtractionContentReader
 {
     private const int ChunkSize = 64 * 1024;
     private const int TagSize = 16;
@@ -19,11 +20,21 @@ internal sealed class DevelopmentEncryptedIntakeContentStore :
     private readonly string _root;
     private readonly byte[] _encryptionKey;
     private readonly byte[] _fingerprintKey;
+    private readonly IIntakeStore? _intake;
 
     internal DevelopmentEncryptedIntakeContentStore(
         string root,
         byte[] encryptionKey,
-        byte[] fingerprintKey)
+        byte[] fingerprintKey) :
+        this(root, encryptionKey, fingerprintKey, intake: null)
+    {
+    }
+
+    internal DevelopmentEncryptedIntakeContentStore(
+        string root,
+        byte[] encryptionKey,
+        byte[] fingerprintKey,
+        IIntakeStore? intake)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentNullException.ThrowIfNull(encryptionKey);
@@ -40,6 +51,7 @@ internal sealed class DevelopmentEncryptedIntakeContentStore :
         _root = Path.GetFullPath(root);
         _encryptionKey = encryptionKey.ToArray();
         _fingerprintKey = fingerprintKey.ToArray();
+        _intake = intake;
     }
 
     public async Task<StagedIntakeContent> StageAsync(
@@ -106,6 +118,86 @@ internal sealed class DevelopmentEncryptedIntakeContentStore :
         return Task.CompletedTask;
     }
 
+    public async Task<ExtractionSourceLease?> OpenAsync(
+        TrustedFirmId firm,
+        Guid caseId,
+        Guid documentId,
+        string contentKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(firm);
+
+        if (_intake is null ||
+            caseId == Guid.Empty ||
+            documentId == Guid.Empty ||
+            !IsCanonicalKey(contentKey))
+        {
+            return null;
+        }
+
+        try
+        {
+            var storedCase = await _intake
+                .FindAsync(firm, caseId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (storedCase is null ||
+                storedCase.CaseId != caseId ||
+                !string.Equals(
+                    storedCase.Firm.ToCanonicalString(),
+                    firm.ToCanonicalString(),
+                    StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            IntakeDocumentRecord? matchedDocument = null;
+            foreach (var document in storedCase.Documents)
+            {
+                if (document.DocumentId != documentId)
+                {
+                    continue;
+                }
+
+                if (matchedDocument is not null)
+                {
+                    return null;
+                }
+
+                matchedDocument = document;
+            }
+
+            if (matchedDocument is null ||
+                !string.Equals(
+                    matchedDocument.ContentKey,
+                    contentKey,
+                    StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var plaintext = await DecryptAsync(
+                    firm,
+                    caseId,
+                    contentKey,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return ExtractionSourceLease.Create(
+                new ClearingReadStream(plaintext));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure) when (
+            failure is CryptographicException or
+                IOException or
+                UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     internal async Task<byte[]> ReadForTestingAsync(
         TrustedFirmId firm,
         Guid caseId,
@@ -118,6 +210,20 @@ internal sealed class DevelopmentEncryptedIntakeContentStore :
             throw new ArgumentException("The content key is invalid.");
         }
 
+        return await DecryptAsync(
+                firm,
+                caseId,
+                contentKey,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<byte[]> DecryptAsync(
+        TrustedFirmId firm,
+        Guid caseId,
+        string contentKey,
+        CancellationToken cancellationToken)
+    {
         var path = ObjectPath(firm, caseId, contentKey);
         if (!File.Exists(path))
         {
@@ -445,4 +551,27 @@ internal sealed class DevelopmentEncryptedIntakeContentStore :
     }
 
     private sealed record EncryptionResult(long ByteCount, byte[] Fingerprint);
+
+    private sealed class ClearingReadStream : MemoryStream
+    {
+        private readonly byte[] _content;
+        private bool _cleared;
+
+        internal ClearingReadStream(byte[] content) :
+            base(content, writable: false)
+        {
+            _content = content;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!_cleared)
+            {
+                CryptographicOperations.ZeroMemory(_content);
+                _cleared = true;
+            }
+
+            base.Dispose(disposing);
+        }
+    }
 }

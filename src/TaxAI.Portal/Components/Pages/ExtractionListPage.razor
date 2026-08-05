@@ -1,0 +1,89 @@
+@using ExtractionWorkflow.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using TaxCases.Models
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Document extraction | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">Accountant extraction review</p>
+    <h1>Case documents</h1>
+    <dl class="summary">
+        <div><dt>Tax year</dt><dd>@Model.TaxYear</dd></div>
+        <div><dt>Finalized</dt><dd>@(Model.IsFinalized ? "Yes" : "No")</dd></div>
+    </dl>
+
+    @if (Model.Documents.Count == 0)
+    {
+        <p class="empty">No uploaded documents are available.</p>
+    }
+    else
+    {
+        <ol class="document-checklist">
+            @foreach (var document in Model.Documents)
+            {
+                <li>
+                    <div>
+                        <strong>@CategoryLabel(document.DeclaredCategory) @document.DeclaredOrdinal</strong>
+                        <span>Automated: @ClassificationLabel(document.AutomatedClassification)</span>
+                        <span>Effective: @ClassificationLabel(document.EffectiveClassification)</span>
+                        <span>Acceptance: @document.AcceptanceState</span>
+                        <span>T4 versions: @document.ExtractionVersionCount</span>
+                        <span>Medical versions: @document.MedicalEvidenceVersionCount</span>
+                        @if (document.HasUnresolvedDuplicateCandidate)
+                        {
+                            <span>Duplicate decision required</span>
+                        }
+                    </div>
+                    <a class="button-link"
+                       href="@($"/intake-cases/{Model.CaseId:D}/extractions/{document.DocumentId:D}")">
+                        Review extraction
+                    </a>
+                </li>
+            }
+        </ol>
+    }
+
+    @if (!Model.IsFinalized)
+    {
+        <form method="post"
+              action="@($"/intake-cases/{Model.CaseId:D}/extractions/finalize")">
+            <AntiforgeryToken />
+            <button type="submit">Finalize accepted T4 documents</button>
+        </form>
+    }
+</LayoutView>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public ExtractionListPageModel Model { get; set; } = default!;
+
+    private static string CategoryLabel(DocumentCategory category) =>
+        category switch
+        {
+            DocumentCategory.T4Slip => "Declared T4",
+            DocumentCategory.MedicalExpenseEvidence => "Declared medical document",
+            _ => "Declared other document",
+        };
+
+    private static string ClassificationLabel(
+        DocumentClassification classification) =>
+        classification switch
+        {
+            DocumentClassification.T4Slip => "T4 slip",
+            DocumentClassification.MedicalExpenseEvidence =>
+                "medical expense evidence",
+            _ => "unsupported document",
+        };
+}
