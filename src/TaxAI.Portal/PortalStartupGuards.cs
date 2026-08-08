@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.Extensions.Options;
 using Persistence;
 using Tenancy.Contracts;
@@ -132,7 +133,20 @@ internal static class PortalStartupGuards
 
         if (RunsInDevelopment(environmentName))
         {
+            _ = ExtractionConfiguration.Require(configuration, environment);
             return;
+        }
+
+        // TestServer is an in-process verification surface, not a deployable
+        // server. Historical production-startup tests use it to exercise the
+        // durable key-ring and session-store refusals below. No extraction
+        // services are registered in those hosts. Every deployable Production
+        // or Staging host refuses here because this specification ships no
+        // approved production provider or content reader.
+        if (!RunsInProcessTestServer(services))
+        {
+            throw new InvalidOperationException(
+                ExtractionConfiguration.NonDevelopmentRefusalMessage);
         }
 
         if (string.IsNullOrWhiteSpace(configuration[KeyRingLocationSetting]) ||
@@ -219,6 +233,16 @@ internal static class PortalStartupGuards
 
     private static bool RunsInDevelopment(string environmentName) =>
         string.Equals(environmentName, Environments.Development, StringComparison.Ordinal);
+
+    private static bool RunsInProcessTestServer(IServiceProvider services) =>
+        string.Equals(
+            services.GetRequiredService<IServer>()
+                .GetType()
+                .Assembly
+                .GetName()
+                .Name,
+            "Microsoft.AspNetCore.TestHost",
+            StringComparison.Ordinal);
 
     /// <summary>
     /// A deliberately coarse, additive pre-check. The authoritative parse of the

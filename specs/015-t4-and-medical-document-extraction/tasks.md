@@ -476,7 +476,22 @@ tested state — which a contract wave, by construction, does not.
   `MapStaticAssets()` absent, no global render mode is added, and the framework
   endpoint inventory is unchanged; Production and Staging starts both refuse; and
   missing, empty, and invalid provider or reader configuration each refuse startup.
-  Raise `TaxAI.Portal.Tests`'s floor in the same pass. — files:
+  Raise `TaxAI.Portal.Tests`'s floor in the same pass.
+  **[AMENDED — T06 downstream-guard ownership]** T06 also owns the seven
+  existing portal guards listed below, narrowly and only to register and verify
+  the approved accountant extraction-review portal: its routes, components,
+  genuinely consumed project references, composition-root registrations,
+  static-SSR posture and any specifically justified Interactive Server
+  component, authentication, authorization, antiforgery, shared empty `404`,
+  private browser headers, and closed T4 and medical browser allowlists.
+  Historical baseline guarantees remain bounded to their own baselines; new
+  T06 additions are asserted individually where a permanent total would freeze
+  later approved work. Every prior package, migration-byte, friend-assembly,
+  host/composition-root, dependency-direction, no-EF-outside-Persistence,
+  no-provider-SDK, no-reverse-dependency, no-global-render-mode,
+  no-WebAssembly/npm/CDN/third-party-asset, `UseStaticFiles()`, and
+  no-`MapStaticAssets()` guarantee remains in force. This amendment authorizes
+  no T07-only verification behaviour and no unrelated portal change. — files:
   `src/TaxAI.Portal/ExtractionEndpoints.cs`,
   `src/TaxAI.Portal/ExtractionConfiguration.cs`,
   `src/TaxAI.Portal/DevelopmentEncryptedIntakeContentStore.cs`,
@@ -498,6 +513,16 @@ tested state — which a contract wave, by construction, does not.
   `tests/TaxAI.Portal.Tests/Extraction/ExtractionAllowlistTests.cs`,
   `tests/TaxAI.Portal.Tests/Extraction/ExtractionStartupGuardTests.cs`,
   `tests/TaxAI.Portal.Tests/Extraction/PreservedSurfaceTests.cs`,
+  `tests/TaxAI.Portal.Tests/ProjectStructureTests.cs` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/ShellPageTests.cs` **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/Upgrade/RouteAuthenticationBaselineTests.cs`
+  **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs`
+  **[AMENDED]**,
+  `tests/TaxAI.Portal.Tests/EndToEnd/RepositoryVerificationTests.cs`
+  **[AMENDED]**,
   `scripts/test-projects.json` — depends on: T05
 
 ---

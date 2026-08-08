@@ -247,6 +247,8 @@ public sealed class ProjectStructureTests
             {
                 "../CaseProcessing/CaseProcessing.csproj",
                 "../ClientIntake/ClientIntake.csproj",
+                "../DocumentIntelligence/DocumentIntelligence.csproj",
+                "../ExtractionWorkflow/ExtractionWorkflow.csproj",
                 "../Persistence/Persistence.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
                 "../Tenancy/Tenancy.csproj",
@@ -286,14 +288,16 @@ public sealed class ProjectStructureTests
         // superseded by spec 014 T01: the Razor compiler emits every component as a
         // public type, and a component's parameter has to be public to be settable.
         //
-        // An exact set is strictly stronger than the single entry it replaces would
-        // be if merely relaxed. It still forbids every public type the old rule
-        // forbade — no public endpoint, guard, identity, authorization, content, or
-        // ticket-store type — and additionally names which five components and four
-        // page-model records were approved. Anything else is a failure.
-        Assert.Equal(
-            new[]
-            {
+        // Each approved type is asserted individually. The rule below still
+        // forbids public host/security types, while avoiding a permanent total
+        // that would make a later approved component retroactively fail T06.
+        var exported = typeof(Program).Assembly
+            .GetExportedTypes()
+            .Select(type => type.FullName!)
+            .ToArray();
+
+        foreach (var approved in new[]
+                 {
                  "Program",
                  "TaxAI.Portal.Components.App",
                  "TaxAI.Portal.Components.Layout.PortalLayout",
@@ -302,25 +306,47 @@ public sealed class ProjectStructureTests
                  "TaxAI.Portal.Components.Pages.IntakeCaseCreatePage",
                  "TaxAI.Portal.Components.Pages.IntakeCaseIssuedPage",
                  "TaxAI.Portal.Components.Pages.IntakeCaseProgressPage",
+                 "TaxAI.Portal.Components.Pages.ExtractionFieldRowModel",
+                 "TaxAI.Portal.Components.Pages.ExtractionListItemModel",
+                 "TaxAI.Portal.Components.Pages.ExtractionListPage",
+                 "TaxAI.Portal.Components.Pages.ExtractionListPageModel",
+                 "TaxAI.Portal.Components.Pages.ExtractionReviewPage",
+                 "TaxAI.Portal.Components.Pages.ExtractionReviewPageModel",
+                 "TaxAI.Portal.Components.Pages.T4BoxDisplayModel",
+                 "TaxAI.Portal.Components.Pages.T4ExtractionPanelModel",
+                 "TaxAI.Portal.Components.Pages.MedicalEvidencePanelModel",
+                 "TaxAI.Portal.Components.Pages.DuplicateCandidateModel",
                  "TaxAI.Portal.Components.Pages.ReviewBoxModel",
-                "TaxAI.Portal.Components.Pages.ReviewLineModel",
-                "TaxAI.Portal.Components.Pages.ReviewPage",
-                "TaxAI.Portal.Components.Pages.ReviewPageModel",
-                "TaxAI.Portal.Components.Pages.ReviewSlipModel",
+                 "TaxAI.Portal.Components.Pages.ReviewLineModel",
+                 "TaxAI.Portal.Components.Pages.ReviewPage",
+                 "TaxAI.Portal.Components.Pages.ReviewPageModel",
+                 "TaxAI.Portal.Components.Pages.ReviewSlipModel",
                  "TaxAI.Portal.Components.Routes",
+                 "TaxAI.Portal.Components.Shared.ClassificationDisagreementNotice",
                  "TaxAI.Portal.Components.Shared.ClientQuestionnairePanel",
+                 "TaxAI.Portal.Components.Shared.DuplicateCandidateNotice",
                  "TaxAI.Portal.Components.Shared.ExpectedDocumentChecklist",
+                 "TaxAI.Portal.Components.Shared.ExtractionFieldTable",
                  "TaxAI.Portal.Components.Shared.IntakeStatusBadge",
+                 "TaxAI.Portal.Components.Shared.MedicalEvidencePanel",
 
                 // The Razor compiler emits a type for _Imports.razor too. It is a
                 // using list, declares no member, and renders nothing.
                 "TaxAI.Portal.Components._Imports",
-            },
-            typeof(Program).Assembly
-                .GetExportedTypes()
-                .Select(type => type.FullName!)
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .ToArray());
+                 })
+        {
+            Assert.Equal(1, exported.Count(name =>
+                string.Equals(name, approved, StringComparison.Ordinal)));
+        }
+
+        Assert.All(
+            exported,
+            name => Assert.True(
+                string.Equals(name, "Program", StringComparison.Ordinal) ||
+                name.StartsWith(
+                    "TaxAI.Portal.Components.",
+                    StringComparison.Ordinal),
+                $"Unexpected public host type: {name}"));
     }
 
     [Fact]
@@ -336,6 +362,7 @@ public sealed class ProjectStructureTests
         foreach (var forbidden in new[]
                  {
                      "ReviewEndpoints",
+                     "ExtractionEndpoints",
                      "IntakeEndpoints",
                      "ClientIntakeEndpoints",
                      "ClientIntakeCookie",

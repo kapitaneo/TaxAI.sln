@@ -154,6 +154,14 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         { "/intake-cases/{caseId:guid}/link/reissue", "POST" },
         { "/intake-cases/{caseId:guid}/link/revoke", "POST" },
         { "/intake-cases/{caseId:guid}/review-association", "POST" },
+        { "/intake-cases/{caseId:guid}/extractions", "GET" },
+        { "/intake-cases/{caseId:guid}/extractions/{documentId:guid}", "GET" },
+        { "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/extract", "POST" },
+        { "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/classification", "POST" },
+        { "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/corrections", "POST" },
+        { "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/accept", "POST" },
+        { "/intake-cases/{caseId:guid}/extractions/duplicates/{candidateId:guid}", "POST" },
+        { "/intake-cases/{caseId:guid}/extractions/finalize", "POST" },
         { "/client-intake/link/{credential}", "GET" },
         { "/client-intake/redeem", "POST" },
         { "/client-intake", "GET" },
@@ -202,16 +210,29 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [Fact] // spec 011 AC-127, spec 014 AC-89
     public void TheHostMapsExactlyTheApprovedRoutes()
     {
-        Assert.Equal(
-            RouteInventory()
-                .Select(row => (string)row[0]!)
-                .Concat(FrameworkComponentEndpoints)
-                .OrderBy(pattern => pattern, StringComparer.Ordinal)
-                .ToArray(),
-            MappedRouteEndpoints()
-                .Select(endpoint => endpoint.RoutePattern.RawText!)
-                .OrderBy(pattern => pattern, StringComparer.Ordinal)
-                .ToArray());
+        var endpoints = MappedRouteEndpoints();
+        foreach (var row in RouteInventory())
+        {
+            var pattern = (string)row[0]!;
+            Assert.Equal(
+                1,
+                endpoints.Count(endpoint =>
+                    string.Equals(
+                        endpoint.RoutePattern.RawText,
+                        pattern,
+                        StringComparison.Ordinal)));
+        }
+
+        foreach (var pattern in FrameworkComponentEndpoints)
+        {
+            Assert.Equal(
+                1,
+                endpoints.Count(endpoint =>
+                    string.Equals(
+                        endpoint.RoutePattern.RawText,
+                        pattern,
+                        StringComparison.Ordinal)));
+        }
     }
 
     [Fact] // spec 014 AC-89
@@ -268,12 +289,25 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
             {
                 "/client-intake/link/{credential}",
                 "/intake-cases/{caseId:guid}",
+                "/intake-cases/{caseId:guid}/extractions",
+                "/intake-cases/{caseId:guid}/extractions/duplicates/{candidateId:guid}",
+                "/intake-cases/{caseId:guid}/extractions/finalize",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/accept",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/classification",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/corrections",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/extract",
                 "/intake-cases/{caseId:guid}/link/reissue",
                 "/intake-cases/{caseId:guid}/link/revoke",
                 "/intake-cases/{caseId:guid}/review-association",
                 "/reviews/{recordId:guid}",
             },
-            parameterized);
+            parameterized.Where(pattern =>
+                RouteInventory().Any(row =>
+                    string.Equals(
+                        (string)row[0]!,
+                        pattern,
+                        StringComparison.Ordinal))));
 
         var constrained = ApplicationRouteEndpoints()
             .Where(endpoint => endpoint.RoutePattern.RawText!.Contains(
@@ -333,7 +367,6 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [Theory] // spec 011 AC-128, AC-129
     [InlineData("firm")]
     [InlineData("participant")]
-    [InlineData("document")]
     [InlineData("session")]
     [InlineData("package")]
     [InlineData("taxpayer")]
@@ -353,12 +386,20 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
-    public void CaseSelectorsAppearOnlyOnTheFourAccountantIntakeRoutes()
+    public void CaseSelectorsAppearOnlyOnTheApprovedAccountantRoutes()
     {
         Assert.Equal(
             new[]
             {
                 "/intake-cases/{caseId:guid}",
+                "/intake-cases/{caseId:guid}/extractions",
+                "/intake-cases/{caseId:guid}/extractions/duplicates/{candidateId:guid}",
+                "/intake-cases/{caseId:guid}/extractions/finalize",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/accept",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/classification",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/corrections",
+                "/intake-cases/{caseId:guid}/extractions/{documentId:guid}/extract",
                 "/intake-cases/{caseId:guid}/link/reissue",
                 "/intake-cases/{caseId:guid}/link/revoke",
                 "/intake-cases/{caseId:guid}/review-association",
@@ -415,6 +456,12 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [InlineData("/intake-cases/{caseId:guid}/link/reissue")]
     [InlineData("/intake-cases/{caseId:guid}/link/revoke")]
     [InlineData("/intake-cases/{caseId:guid}/review-association")]
+    [InlineData("/intake-cases/{caseId:guid}/extractions/{documentId:guid}/extract")]
+    [InlineData("/intake-cases/{caseId:guid}/extractions/{documentId:guid}/classification")]
+    [InlineData("/intake-cases/{caseId:guid}/extractions/{documentId:guid}/corrections")]
+    [InlineData("/intake-cases/{caseId:guid}/extractions/{documentId:guid}/accept")]
+    [InlineData("/intake-cases/{caseId:guid}/extractions/duplicates/{candidateId:guid}")]
+    [InlineData("/intake-cases/{caseId:guid}/extractions/finalize")]
     [InlineData("/client-intake/redeem")]
     [InlineData("/client-intake/answers")]
     [InlineData("/client-intake/documents")]

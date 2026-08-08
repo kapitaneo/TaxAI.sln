@@ -1,0 +1,66 @@
+# Spec 015 — T06 complete
+
+**Task:** T06 — Accountant extraction-review portal.
+
+**Branch:** `feat/015-w6-t06`
+
+**Implementation commit:** 33b5002010301f23408838a257023d996ec22325
+
+**Test command:**
+
+```
+pwsh ./scripts/Invoke-SolutionTests.ps1
+```
+
+**Result:** pass on the clean committed tree at the implementation commit —
+all 11 registered projects ran, none skipped, no failures, and every floor met.
+
+| Project | Passed | Floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| **TaxAI.Portal.Tests** | **641** | **641** |
+| Tenancy.Tests | 289 | 289 |
+| Persistence.Tests | 236 | 236 |
+| ClientIntake.Tests | 157 | 157 |
+| ExtractionWorkflow.Tests | 356 | 356 |
+| DocumentIntelligence.Tests | 65 | 65 |
+
+The `TaxAI.Portal.Tests` floor was raised from 571 to 641 in this task; no
+floor was lowered.
+
+## Delivered
+
+- Eight authenticated, firm-scoped accountant routes: two extraction-review
+  reads plus extraction, classification override, correction, duplicate
+  decision, document acceptance, and case finalization mutations.
+- Antiforgery on every mutation, live server-side user/session/membership
+  revalidation, shared empty `404` failures, private response posture, and no
+  anonymous or client extraction path.
+- A four-part scoped encrypted-content reader beside the existing write
+  adapter, using the same firm-and-case key derivation and exposing plaintext
+  only through a clearing disposable lease.
+- Development-only deterministic provider and workflow wiring with fail-closed
+  configuration; deployable Production and Staging hosts refuse because no
+  approved production provider or reader ships.
+- Static-SSR list, review, T4, medical, duplicate, disagreement, and field
+  components. No new interactive component or global render mode was needed.
+- Closed T4 and medical browser projections that omit source content, Box 12,
+  identifiers from serialization, provider payloads, and unapproved medical
+  content while retaining approved provider/patient display PII only on the
+  accountant extraction-review surface.
+- The seven authorized downstream guards were narrowed to preserve their
+  historical baselines while registering each approved T06 addition
+  individually. Antiforgery, historical route, and dependency mutations were
+  each confirmed to fail their corresponding guard before being restored.
+
+## Scope held
+
+No T07 verification file, cross-module verification behaviour, production
+provider, provider SDK, background worker, queue, timer, source-content route,
+WebAssembly project, npm tree, CDN asset, global render mode, or
+`MapStaticAssets()` path was added. The existing spec 012 review and spec 014
+intake surfaces remain unchanged.

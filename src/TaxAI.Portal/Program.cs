@@ -161,6 +161,12 @@ app.MapRazorComponents<App>()
 IntakeEndpoints.Map(app);
 ClientIntakeEndpoints.Map(app);
 
+// Accountant-initiated extraction and human review. Every route re-enters the
+// firm-scoped policy, every mutation carries antiforgery metadata, and the two
+// read surfaces return static server-rendered components only after firm/case/
+// document consistency has been verified.
+ExtractionEndpoints.Map(app);
+
 // The unchanged accountant review surface. Authorization revalidates the local
 // user and active memberships before this endpoint can obtain the trusted firm;
 // the handler then uses only Tenancy's already-firm-scoped read contract and

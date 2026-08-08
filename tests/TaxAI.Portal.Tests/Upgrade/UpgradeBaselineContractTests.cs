@@ -45,6 +45,11 @@ public sealed class UpgradeBaselineContractTests
         ("Persistence", "src/TaxCases/TaxCases.csproj"),
         ("TaxAI.Portal", "src/ClientIntake/ClientIntake.csproj"),
 
+        // Spec 015 T06 — accountant extraction-review coordination and the
+        // deterministic Development adapter.
+        ("TaxAI.Portal", "src/DocumentIntelligence/DocumentIntelligence.csproj"),
+        ("TaxAI.Portal", "src/ExtractionWorkflow/ExtractionWorkflow.csproj"),
+
         // Spec 015 T03 — the extraction store's contracts and storage records.
         ("Persistence", "src/ExtractionWorkflow/ExtractionWorkflow.csproj"),
     ];
@@ -333,13 +338,25 @@ public sealed class UpgradeBaselineContractTests
                 "TaxAI.Portal.Components.Pages.IntakeCaseCreatePage",
                 "TaxAI.Portal.Components.Pages.IntakeCaseIssuedPage",
                 "TaxAI.Portal.Components.Pages.IntakeCaseProgressPage",
+                "TaxAI.Portal.Components.Pages.DuplicateCandidateModel",
+                "TaxAI.Portal.Components.Pages.Extraction",
+                "TaxAI.Portal.Components.Pages.MedicalEvidencePanelModel",
+                "TaxAI.Portal.Components.Pages.T4BoxDisplayModel",
+                "TaxAI.Portal.Components.Pages.T4ExtractionPanelModel",
+                "TaxAI.Portal.Components.Shared.ClassificationDisagreementNotice",
                 "TaxAI.Portal.Components.Shared.ClientQuestionnairePanel",
+                "TaxAI.Portal.Components.Shared.DuplicateCandidateNotice",
                 "TaxAI.Portal.Components.Shared.ExpectedDocumentChecklist",
+                "TaxAI.Portal.Components.Shared.ExtractionFieldTable",
                 "TaxAI.Portal.Components.Shared.IntakeStatusBadge",
+                "TaxAI.Portal.Components.Shared.MedicalEvidencePanel",
                 "TaxAI.Portal.ClientIntakeCookie",
                 "TaxAI.Portal.ClientIntakeEndpoints",
                 "TaxAI.Portal.CryptographicIntakeCredentialSource",
                 "TaxAI.Portal.DevelopmentEncryptedIntakeContentStore",
+                "TaxAI.Portal.ExtractionConfiguration",
+                "TaxAI.Portal.ExtractionEndpoints",
+                "TaxAI.Portal.ExtractionRuntimeConfiguration",
                 "TaxAI.Portal.IntakeConfiguration",
                 "TaxAI.Portal.IntakeEndpoints",
                 "TaxAI.Portal.IntakeHttpSecurity",

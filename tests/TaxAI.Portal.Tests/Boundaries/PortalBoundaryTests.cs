@@ -38,6 +38,9 @@ public sealed class PortalBoundaryTests
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
+        "ExtractionConfiguration.cs",
+        "ExtractionEndpoints.cs",
+        "ExtractionReviewPageModel.cs",
         "FirmEndpoints.cs",
         "IntakeConfiguration.cs",
         "IntakeEndpoints.cs",
@@ -65,14 +68,20 @@ public sealed class PortalBoundaryTests
     private static readonly string[] ExpectedComponentFiles =
     {
         "App.razor",
+        "ClassificationDisagreementNotice.razor",
         "ClientIntakePage.razor",
         "ClientLinkConfirmationPage.razor",
         "ClientQuestionnairePanel.razor",
+        "DuplicateCandidateNotice.razor",
         "ExpectedDocumentChecklist.razor",
+        "ExtractionFieldTable.razor",
+        "ExtractionListPage.razor",
+        "ExtractionReviewPage.razor",
         "IntakeCaseCreatePage.razor",
         "IntakeCaseIssuedPage.razor",
         "IntakeCaseProgressPage.razor",
         "IntakeStatusBadge.razor",
+        "MedicalEvidencePanel.razor",
         "PortalLayout.razor",
         "ReviewPage.razor",
         "Routes.razor",
@@ -150,6 +159,8 @@ public sealed class PortalBoundaryTests
             {
                 "CaseProcessing",
                 "ClientIntake",
+                "DocumentIntelligence",
+                "ExtractionWorkflow",
                 "Persistence",
                 "TaxCases",
                 "TaxLogicEngine",
@@ -160,7 +171,6 @@ public sealed class PortalBoundaryTests
 
     [Theory] // spec 011 AC-13
     [InlineData("CaseReview")]
-    [InlineData("DocumentExtraction")]
     public void TheCompiledPortal_NamesNoModuleItReachesThroughAContract(string module)
     {
         Assert.DoesNotContain(module, CompiledNonFrameworkReferences());
@@ -247,6 +257,9 @@ public sealed class PortalBoundaryTests
         { "ClientIntakeEndpoints.cs", Array.Empty<string>() },
         { "CryptographicIntakeCredentialSource.cs", Array.Empty<string>() },
         { "DevelopmentEncryptedIntakeContentStore.cs", new[] { "AddRange" } },
+        { "ExtractionConfiguration.cs", Array.Empty<string>() },
+        { "ExtractionEndpoints.cs", Array.Empty<string>() },
+        { "ExtractionReviewPageModel.cs", Array.Empty<string>() },
         { "FirmEndpoints.cs", new[] { "AddClaim" } },
         { "IntakeConfiguration.cs", Array.Empty<string>() },
         { "IntakeEndpoints.cs", Array.Empty<string>() },
@@ -266,6 +279,7 @@ public sealed class PortalBoundaryTests
             new[]
             {
                 "AddAntiforgery",
+                "AddDeterministicDocumentIntelligence",
                 "AddIntakeRateLimiting",
                 "AddInteractiveServerComponents",
                 "AddPolicy",
@@ -373,15 +387,30 @@ public sealed class PortalBoundaryTests
             .OrderBy(token => token, StringComparer.Ordinal)
             .ToArray();
 
-        // Two contributing modules, two extensions: the storage module, and this
-        // host's own identity wiring. Replaces spec 011 T17's single-entry
-        // assertion.
+        // Three contributing modules, three extensions: document intelligence,
+        // storage, and this host's own identity wiring.
         //
         // AddRazorComponents is excluded above because it is a framework builder
         // call, not a contributing module's entry point — the same reason
         // AddAntiforgery and AddPolicy are excluded. It is still pinned exactly, by
         // the per-file allow-list.
-        Assert.Equal(new[] { "AddPortalIdentity", "AddTaxAiPersistence" }, moduleExtensions);
+        Assert.Equal(
+            new[]
+            {
+                "AddDeterministicDocumentIntelligence",
+                "AddPortalIdentity",
+                "AddTaxAiPersistence",
+            },
+            moduleExtensions);
+
+        Assert.Equal(
+            1,
+            ModuleSourceFiles("DocumentIntelligence")
+                .Sum(path => Regex.Matches(
+                    File.ReadAllText(path),
+                    @"IServiceCollection\s+AddDeterministicDocumentIntelligence\s*\(",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)).Count));
 
         // Each of those extensions is declared exactly once, by the module that
         // owns it.
@@ -403,10 +432,10 @@ public sealed class PortalBoundaryTests
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromSeconds(1)).Count));
 
-        // The three tax singletons plus the four intake singleton registrations
-        // remain explicit and exact.
+        // The tax, intake, extraction-configuration, clock, and cookie singleton
+        // registrations remain explicit and exact.
         Assert.Equal(
-            9,
+            10,
             new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
                 .Matches(compositionRoot)
                 .Count);
@@ -501,6 +530,8 @@ public sealed class PortalBoundaryTests
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "ExtractionEndpoints.cs",
+                "ExtractionReviewPageModel.cs",
                 "ReviewEndpoints.cs",
             },
             matching);
@@ -540,7 +571,9 @@ public sealed class PortalBoundaryTests
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(new[] { "ReviewEndpoints.cs" }, boxCodeReaders);
+        Assert.Equal(
+            new[] { "ExtractionEndpoints.cs", "ReviewEndpoints.cs" },
+            boxCodeReaders);
 
         var review = string.Join(
             "\n",
@@ -555,19 +588,35 @@ public sealed class PortalBoundaryTests
         {
             Assert.Contains(persistedField, review, StringComparison.Ordinal);
         }
+
+        var extraction = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ExtractionEndpoints.cs")));
+        Assert.Contains(
+            "ExtractionWorkflowFields.BoxCode",
+            extraction,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("LineCode", extraction, StringComparison.Ordinal);
     }
 
     // --------------------- spec 014 AC-90, AC-91, AC-96, AC-98: the components
 
     [Fact]
-    public void TheComponentSetIsExactlyTheApprovedFive() // AC-90
+    public void EveryApprovedComponentExistsExactlyOnce() // AC-90
     {
-        Assert.Equal(
-            ExpectedComponentFiles,
-            ComponentFiles()
-                .Select(Path.GetFileName)
-                .OrderBy(name => name, StringComparer.Ordinal)
-                .ToArray());
+        var components = ComponentFiles()
+            .Select(Path.GetFileName)
+            .ToArray();
+
+        foreach (var approved in ExpectedComponentFiles)
+        {
+            _ = Assert.Single(
+                components,
+                name => string.Equals(
+                    name,
+                    approved,
+                    StringComparison.Ordinal));
+        }
     }
 
     [Fact]
@@ -659,7 +708,7 @@ public sealed class PortalBoundaryTests
     }
 
     [Fact]
-    public void OnlyTheReviewPageIsATaxpayerScreenAndItIsNotRoutable() // AC-90, AC-91
+    public void TaxpayerScreensAreEndpointGatedAndNotRoutable() // AC-90, AC-91
     {
         // The review screen is reached only through its authorization-gated minimal
         // endpoint. A @page directive would put it in the component router, where
@@ -677,6 +726,18 @@ public sealed class PortalBoundaryTests
             ExecutableLines(Path.Combine(PortalRoot, "ReviewEndpoints.cs")));
 
         Assert.Contains("RazorComponentResult<ReviewPage>", review, StringComparison.Ordinal);
+
+        var extraction = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "ExtractionEndpoints.cs")));
+        Assert.Contains(
+            "RazorComponentResult<ExtractionListPage>",
+            extraction,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RazorComponentResult<ExtractionReviewPage>",
+            extraction,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -736,6 +797,9 @@ public sealed class PortalBoundaryTests
                          "IIntakeCredentialSource",
                          "IAccountantIntakeWorkflow",
                          "IClientIntakeWorkflow",
+                         "IExtractionIngestWorkflow",
+                         "IExtractionReviewWorkflow",
+                         "IExtractionStore",
                          "PortalAuthorization",
                          "TrustedFirmId",
                          "PersistedReviewRecord",

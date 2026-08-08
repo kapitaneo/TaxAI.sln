@@ -1,0 +1,40 @@
+@using ExtractionWorkflow.Models
+@using TaxCases.Models
+
+@if (DeclaredClassification != AutomatedClassification)
+{
+    <aside class="notice" aria-label="Classification disagreement">
+        <strong>Classification needs review.</strong>
+        <span>The checklist declares @DeclaredLabel, while automated classification reports @AutomatedLabel.</span>
+    </aside>
+}
+
+@code {
+    [Parameter]
+    public DocumentCategory DeclaredCategory { get; set; }
+
+    [Parameter]
+    public DocumentClassification AutomatedClassification { get; set; }
+
+    private DocumentClassification DeclaredClassification =>
+        DeclaredCategory switch
+        {
+            DocumentCategory.T4Slip => DocumentClassification.T4Slip,
+            DocumentCategory.MedicalExpenseEvidence =>
+                DocumentClassification.MedicalExpenseEvidence,
+            _ => DocumentClassification.Unsupported,
+        };
+
+    private string DeclaredLabel => Label(DeclaredClassification);
+
+    private string AutomatedLabel => Label(AutomatedClassification);
+
+    private static string Label(DocumentClassification classification) =>
+        classification switch
+        {
+            DocumentClassification.T4Slip => "T4 slip",
+            DocumentClassification.MedicalExpenseEvidence =>
+                "medical expense evidence",
+            _ => "unsupported document",
+        };
+}

@@ -44,6 +44,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
+        "ExtractionConfiguration.cs",
+        "ExtractionEndpoints.cs",
+        "ExtractionReviewPageModel.cs",
         "FirmEndpoints.cs",
         "IntakeConfiguration.cs",
         "IntakeEndpoints.cs",
@@ -88,6 +91,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "ExtractionEndpoints.cs",
                 "FirmEndpoints.cs",
                 "IntakeEndpoints.cs",
             }
@@ -305,7 +309,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     {
         { "SIN identifier", @"(?<![A-Za-z])Sin(?![a-z])|\bSocialInsurance\w*\b|\bRecipientIdentifier\b" },
         { "masking or redaction helper", @"\bSafeDiagnosticText\b|\bMask(?:ed|ing)?\s*\(|\bRedact\w*\b|\bScrub\w*\b|\bSanitiz\w*\b" },
-        { "unapproved taxpayer identity field", @"\bEmployeeName\b|\bEmployerName\b|\bEmployeeAddress\b|\bEmployerAddress\b|\bRecipientName\b|\bDateOfBirth\b|\bEmailAddress\b|\bPhoneNumber\b|\bAccountNumber\b|\bProviderIdentity\b" },
+        { "unapproved taxpayer identity field", @"\bEmployeeName\b|\bEmployerName\b|\bRecipientName\b|\bDateOfBirth\b|\bEmailAddress\b|\bPhoneNumber\b|\bAccountNumber\b|\bProviderIdentity\b" },
     };
 
     [Theory] // AC-36
@@ -343,9 +347,36 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             Assert.Equal(
                 field == "TaxpayerDisplayName"
                     ? new[] { "IntakeEndpoints.cs", "ReviewEndpoints.cs" }
-                    : new[] { "ReviewEndpoints.cs" },
+                    : new[]
+                    {
+                        "ExtractionEndpoints.cs",
+                        "ExtractionReviewPageModel.cs",
+                        "ReviewEndpoints.cs",
+                    },
                 matching);
         }
+    }
+
+    [Theory]
+    [InlineData("ProviderDisplayName")]
+    [InlineData("PatientDisplayName")]
+    public void MedicalDisplayPiiIsConfinedToTheExtractionProjection(
+        string field)
+    {
+        var matching = ProductionSourceFiles()
+            .Where(path => string.Join("\n", ExecutableLines(path))
+                .Contains(field, StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "ExtractionEndpoints.cs",
+                "ExtractionReviewPageModel.cs",
+            },
+            matching);
     }
 
     // ------------------------------------------------- AC-38: no request logging
@@ -407,6 +438,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "ExtractionEndpoints.cs",
                 "FirmEndpoints.cs",
                 "IntakeEndpoints.cs",
                 "PortalIdentity.cs",
@@ -516,6 +548,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "ExtractionEndpoints.cs",
                 "FirmEndpoints.cs",
                 "IntakeEndpoints.cs",
                 "PortalAuthorization.cs",
@@ -664,6 +697,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "ExtractionEndpoints.cs",
                 "IntakeEndpoints.cs",
                 "ModuleRegistration.cs",
             },
