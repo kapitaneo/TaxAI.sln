@@ -74,16 +74,31 @@ the same PR that introduces it, or the gate fails on it by design.
   validation contracts. Its production references are exactly `CaseReview` and
   `TaxLogicEngine`; its local `CLAUDE.md` owns the boundary and the no-SIN-at-
   persistence rule.
+- **`src/ExtractionWorkflow/`** — the deterministic coordination module for
+  spec 015 document extraction: the single `IDocumentExtractionIngress`
+  implementation, the closed classification/correction/acceptance vocabularies,
+  the neutral medical evidence model, the append-only `IExtractionStore`
+  contract, the four-part-scoped `IExtractionContentReader` port, the
+  `IDocumentIntelligenceProvider` port, and the ingest and review workflows. Its
+  references are exactly `CaseProcessing`, `CaseReview`, `ClientIntake`,
+  `DocumentExtraction`, `TaxLogicEngine`, and `Tenancy`, and it declares no
+  package.
+- **`src/DocumentIntelligence/`** — the provider boundary, and the only project
+  that would ever be permitted an OCR, LLM, document-intelligence, or cloud SDK.
+  **It declares none.** It holds `DeterministicDocumentIntelligenceProvider`, an
+  in-process adapter registered for Development and test hosts only, and one
+  registration extension. Its one package is the DI abstraction.
 - **`src/Persistence/`** — the infrastructure adapter and the repository's only
   EF Core project. Its project references are exactly `ClientIntake`,
-  `TaxCases`, and `Tenancy`; it owns the SQL Server EF model, repository-owned
-  migrations, repositories, the firm/case-scoped intake metadata store, the
-  durable session store, identity directory, purge implementation, and one
-  registration extension.
+  `ExtractionWorkflow`, `TaxCases`, and `Tenancy`; it owns the SQL Server EF
+  model, repository-owned migrations, repositories, the firm/case-scoped intake
+  metadata store, the extraction store, the durable session store, identity
+  directory, purge implementation, and one registration extension.
 - **`src/TaxAI.Portal/`** — the ASP.NET Core host: the repository's only
   executable project, and its single dependency-injection composition root. Its
   production project references are exactly `TaxLogicEngine`, `CaseProcessing`,
-  `ClientIntake`, `Tenancy`, and `Persistence`. Its local `CLAUDE.md` owns the
+  `ClientIntake`, `DocumentIntelligence`, `ExtractionWorkflow`, `Tenancy`, and
+  `Persistence`. Its local `CLAUDE.md` owns the
   approved read-only review surface, the accountant/client intake surface, and
   the narrowed gate on every further taxpayer-data surface. **ASP.NET Core lives
   here and in its test project, and nowhere else.**
@@ -97,6 +112,9 @@ the same PR that introduces it, or the gate fails on it by design.
 - **`tests/Tenancy.Tests/`**, **`tests/Persistence.Tests/`** — contract,
   boundary, model, service, relational, schema, and composition coverage for
   the two spec 011 modules.
+- **`tests/ExtractionWorkflow.Tests/`**, **`tests/DocumentIntelligence.Tests/`**
+  — ingest, review, duplicate, correction, medical, PII, boundary, fail-closed,
+  and no-egress coverage for the two spec 015 modules.
 - **`tests/TaxAI.Portal.Tests/`** — xUnit host, composition-root, boundary,
   security, and repository-verification suites for the portal. Adds
   `Microsoft.AspNetCore.Mvc.Testing` for in-process host testing; no network
@@ -430,6 +448,92 @@ authenticated encrypted source object outside web root: it may contain a SIN,
 it is **never** described as SIN-free, and no query, route, log, or diagnostic
 can reach it. Every structured surface — browser model, HTML, URL, cookie,
 header, SQL metadata, audit, log, and error — remains SIN-free in every form.
+
+Spec 015 (T4 and Medical Document Extraction) is **complete**, with one
+recorded defect. It answers spec 010's reserved question F: **yes, the document
+extraction ingress opens — as an authenticated, firm-scoped,
+accountant-initiated, in-process ingress and nothing else.** The system can now
+turn a stored uploaded document into a persisted review record.
+
+- **The chain is fed, not reimplemented.** `ExtractionWorkflow` implements the
+  single `IDocumentExtractionIngress` spec 007 declared and left unimplemented,
+  and drives the existing `ExtractionEnvelopeValidator` → `T4SlipParser` →
+  `T4LineMapper` → `T4CaseProcessor` → `ReviewPackageAssembler` →
+  `ReviewPackageProjection` → `IReviewRecordRepository.SaveAsync` chain. It
+  contains no CRA line number, box→line table, tax rate, threshold, arithmetic,
+  or rounding, and it declares no second envelope, validator, provenance,
+  document-kind, supported-year, or retention authority.
+- **The employee-copy T4 parses.** T01 removed exactly three `T4SlipParser`
+  validation requirements — Box 54, `EmployerAddress`, and `EmployeeAddress` —
+  against a canada.ca citation recorded in `src/TaxLogicEngine/CLAUDE.md`. Box 12
+  and Box 45 remain required, nothing is invented in place of a removed
+  requirement, and **no public type, member, or signature changed.**
+- **History is append-only.** Extraction versions, medical evidence versions,
+  corrections, classification overrides, duplicate determinations and their
+  resolutions, acceptances, and audit events are each appended and never
+  rewritten. `Persistence` owns migration `20260803000000_AddDocumentExtraction`,
+  which adds only ten extraction tables and alters no existing one.
+- **Medical evidence is neutral evidence, not a tax result.** It is a closed
+  field set — date and amount **as printed**, currency-or-unknown, provider and
+  patient display names, receipt reference, provenance, and structural outcomes.
+  There is no aggregation, threshold, dependant rule, eligibility claim, or CRA
+  line for it anywhere, and it never enters a T4 review record.
+- **Nothing is automatic.** No confidence threshold exists anywhere in the
+  feature; a duplicate is flagged and never auto-resolved; and every document
+  acceptance and case finalization is an explicit accountant action.
+- **No provider ships and nothing leaves the process.** `DocumentIntelligence`
+  holds the boundary and declares no SDK. The only adapter is deterministic,
+  in-process, and registered for Development and test hosts only; a deployable
+  non-Development host still refuses to start.
+- **The content read is the narrowest thing that works.** `IIntakeContentStore`
+  stays write-only. A separate `IExtractionContentReader` requires the full
+  firm/case/document/content-key scope with no omitting overload, has exactly one
+  consumer, and hands back a disposable lease. No route serves, streams,
+  previews, downloads, or exports source content.
+
+**AC-1 through AC-119 are recorded, per criterion, in
+`specs/015-t4-and-medical-document-extraction/verification.md`. 117 are met.**
+Two are not:
+
+- **AC-16 is NOT MET — an open CSRF defect.** `POST …/extract`,
+  `POST …/accept`, and `POST …/extractions/finalize` carry antiforgery metadata
+  that is **never validated**, because the minimal-API pipeline validates the
+  token when the form is read during parameter binding and those three handlers
+  bind no `[FromForm]` value. The three that do bind one are correctly refused.
+  The exposure is narrowed — not closed — by the session cookie's
+  `SameSite=Lax` policy. **Fix this in `ExtractionEndpoints` before the portal
+  is exposed to anything real.**
+- **One T06-owned guard blocks the merge.**
+  `PreservedSurfaceTests.NoT07VerificationSurfaceWasIntroduced` asserts that
+  `specs/015-.../verification.md` does not exist. It proved T06 stayed in its
+  lane, but it is bounded to future `HEAD` rather than to T06's own range, so it
+  fails the moment T07 writes the file T07 exists to write. T07 may not fix it —
+  the file is not in its list. Whoever owns T06 must either drop that one
+  assertion or bound it to T06's completion commit, the way AC-45's third
+  amendment bounds the spec 006 and spec 007 historical guards.
+- **AC-44 is NOT VERIFIED.** T07 ran in a Linux container without PowerShell or
+  the pinned SDK, so `pwsh ./scripts/Invoke-SolutionTests.ps1` could not run.
+  `dotnet test TaxAI.sln` added 30 passing tests with an unchanged failure set of
+  14 pre-existing environment-dependent failures (Windows line endings, Windows
+  path separators, and the SDK pin). **Run the gate on Windows before merge.**
+
+**The gates are unchanged and remain in force.** No raw-content
+preview/download, production content or document-intelligence provider,
+retention/purge path, second taxpayer-data surface beyond the approved
+accountant extraction-review screen, or deployment authorization ships. The
+spec 012 review route and every spec 014 intake surface are byte-identical. The
+one raw-byte exception is still the authenticated encrypted source object
+outside the web root: it may contain a SIN, it is **never** described as
+SIN-free, and no query, route, log, or diagnostic can reach it. Every structured
+surface — browser model, HTML, URL, cookie, header, SQL column, audit, log, and
+error — remains SIN-free in every form.
+
+**The shipped Development provider cannot read a client-uploaded document.** The
+upload transport requires a PDF/JPEG/PNG signature prefix and the deterministic
+adapter requires its own text header as the first line, so no byte sequence
+satisfies both. That is a property of the Development-only adapter — a real
+provider would read a PDF — but do not read a green suite as proof that the
+uploaded-document path works end to end.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their
