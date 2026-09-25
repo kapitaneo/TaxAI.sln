@@ -431,6 +431,57 @@ it is **never** described as SIN-free, and no query, route, log, or diagnostic
 can reach it. Every structured surface — browser model, HTML, URL, cookie,
 header, SQL metadata, audit, log, and error — remains SIN-free in every form.
 
+Spec 015 (T4 and Medical Document Extraction) has its T07 verification
+implementation assembled, with the final committed-tree gate pending. The human
+authorized fixing the obsolete T06 guard by bounding it to the T06 merge tree;
+the T07 verification document can now exist while T06's historical ownership
+assertions remain enforced. T01 corrected
+the employee-copy T4 boundary; T02 established the deterministic extraction and
+Development intelligence modules; T03 added append-only extraction persistence;
+T04 implemented firm-scoped ingest and duplicate detection; T05 added explicit
+corrections, overrides, duplicate decisions, acceptance, and review creation;
+T06 exposed the authenticated accountant review surface; T07 recorded the
+cross-module proof in
+`specs/015-t4-and-medical-document-extraction/verification.md`:
+
+- **T4 tax authority remains in the existing engine chain.** The workflow reads
+  the tax year from the stored case, carries Box 12 only through the in-memory
+  parser call, preserves every engine error, and adds no rule, mapping,
+  arithmetic, rounding, threshold, year fallback, or review-assembler bypass.
+  Employee copies do not require Box 54 or addresses; the 2025 Box 45 and Box 12
+  rules remain unchanged.
+- **Medical extraction is neutral evidence.** It reuses the existing medical
+  document category and stores immutable as-printed evidence versions. It makes
+  no eligibility, claim, or tax-treatment decision and never enters the T4
+  review record. Provider and patient display names are permitted only on the
+  authenticated accountant medical-evidence surface.
+- **Extraction storage is additive and append-only.** `Persistence` remains the
+  only EF Core project and owns `SqlExtractionStore` plus migration
+  `20260803000000_AddDocumentExtraction`. Every operation is firm/case scoped,
+  every retained row uses the existing exclusive seven-year boundary, audit is
+  structural, and no extraction table can store source bytes, content keys,
+  payloads, filenames, SIN, or a SIN-presence signal.
+- **The HTTP boundary contains exactly eight accountant routes.** Two reads and
+  six mutations are live-session and active-membership revalidated; every
+  mutation requires antiforgery; anonymous/client/background initiation is
+  absent; and foreign and missing selectors share the same empty `404` over all
+  eight routes. No preview, download, print, email, export, or content-serving
+  route exists.
+- **Deployment remains blocked.** The shipped provider is deterministic and
+  Development/test-only, no provider SDK or taxpayer-content network transport
+  ships, and Production or Staging startup refuses without future approved
+  provider and encrypted-reader infrastructure. Spec 011's Canadian residency,
+  Data Protection, TLS/exposure, secrets, operations, and provisioning gates are
+  not relaxed.
+- **T07 changed no product behaviour.** Its relational suite applies the real
+  migrations and drives the real intake/extraction/review workflows through
+  `SqlIntakeStore`, `SqlExtractionStore`, and `SqlReviewRecordRepository`; its
+  HTTP suite drives the real portal composition, deterministic provider, and
+  encrypted Development reader. Together they prove correction, duplicate and
+  override decisions, exact-version acceptance, one-time review association,
+  safe refusal, no egress, and planted-value confinement. AC-1 through AC-119,
+  including supplemental AC-45a, are recorded per criterion.
+
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their
 approved path, never that they are the only projects in the solution. A total
