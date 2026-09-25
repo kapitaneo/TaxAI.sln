@@ -431,11 +431,11 @@ it is **never** described as SIN-free, and no query, route, log, or diagnostic
 can reach it. Every structured surface — browser model, HTML, URL, cookie,
 header, SQL metadata, audit, log, and error — remains SIN-free in every form.
 
-Spec 015 (T4 and Medical Document Extraction) has its T07 verification
-implementation assembled, with the final committed-tree gate pending. The human
-authorized fixing the obsolete T06 guard by bounding it to the T06 merge tree;
-the T07 verification document can now exist while T06's historical ownership
-assertions remain enforced. T01 corrected
+Spec 015 (T4 and Medical Document Extraction) is **complete**. The T07 gate
+passed on its committed implementation: 4,147 tests across all 11 registered
+projects, no failures or skips, and every unchanged floor met. The human
+authorized bounding the obsolete T06 guard to the T06 merge tree, preserving its
+historical ownership assertions while allowing T07's required evidence. T01 corrected
 the employee-copy T4 boundary; T02 established the deterministic extraction and
 Development intelligence modules; T03 added append-only extraction persistence;
 T04 implemented firm-scoped ingest and duplicate detection; T05 added explicit

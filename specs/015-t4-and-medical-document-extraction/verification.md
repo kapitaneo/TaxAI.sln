@@ -2,7 +2,7 @@
 
 ## Result
 
-**Final gate pending.** T07 adds cross-module verification of T01–T06. Its
+**PASS.** T07 adds cross-module verification of T01–T06. Its
 synthetic PII probes use deliberately non-real values. Raw source bytes are
 excluded from the structured-surface claim and remain confined to the encrypted
 source object.
@@ -30,10 +30,10 @@ empty result cannot silently pass. All product-surface assertions are unchanged.
 | E05 | `ExtractionWorkflow.Tests/Review/*` proves corrections, overrides, duplicate decisions, exact-version acceptance, one-time finalization, immutable review creation, and review PII rules. |
 | E06 | `TaxAI.Portal.Tests/Extraction/*` proves all eight routes, antiforgery/authentication, four-part content reading, closed browser projections, startup refusal, and preserved surfaces. |
 | E07 | `DocumentExtractionPersistenceTests` drives real intake, ingest, review, `SqlIntakeStore`, `SqlExtractionStore`, and `SqlReviewRecordRepository` against a relational database after real migrations, including T4 plus medical evidence, exactly one review association, replay refusal, and a whole-database planted-value sweep. |
-| E08 | `DocumentExtractionAcceptanceTests` drives both real workflows through the eight-route portal composition with the shipped deterministic provider and Development encrypted reader, including correction, duplicate resolution, classification disagreement/override, acceptance, finalization, and neutral medical rendering. A positively checked runtime listener asserts zero HTTP/DNS/socket egress attempts during the journey; the final verification runs in the restricted-network sandbox. |
+| E08 | `DocumentExtractionAcceptanceTests` drives both real workflows through the eight-route portal composition with the shipped deterministic provider and Development encrypted reader, including correction, duplicate resolution, classification disagreement/override, acceptance, finalization, and neutral medical rendering. A positively checked runtime listener asserts zero HTTP/DNS/socket egress attempts during the journey; the focused test passed in the restricted-network sandbox. |
 | E09 | `DocumentExtractionSecurityAcceptanceTests` compares foreign and missing resources over all eight routes and proves identical status, empty body, headers, and no mutation. |
 | E10 | `DocumentExtractionPiiSweepTests` captures browser models, HTML, URLs, cookies/headers, SQL-independent structured state, audits, logs, metrics, traces, exceptions, and review output with planted SIN/source/provider/patient values; provider/patient display names occur only on the accountant medical surface. |
-| E11 | `pwsh ./scripts/Invoke-SolutionTests.ps1` is the authoritative gate. The final committed-tree result is recorded below after execution. |
+| E11 | `pwsh ./scripts/Invoke-SolutionTests.ps1` passed on committed implementation `9f72c786b583f2cecc2d2ca0945ecba2c2872a34`: 4,147 passed across all 11 registered projects, none failed or skipped, every unchanged floor met. |
 | E12 | `PreservedSurfaceTests`, portal upgrade/boundary tests, repository verification tests, and the historical T01 guards prove the spec 012, spec 014, static-asset, solution-registration, and pre-existing contract boundaries remain intact. |
 
 ## Acceptance-criterion ledger
@@ -86,7 +86,7 @@ that row; the evidence index gives the concrete suites and integration tests.
 | AC-41 — Spec 014 surfaces are untouched | Pass | E06, E12 |
 | AC-42 — Schema change is additive only | Pass | E03 |
 | AC-43 — Existing contracts changed only as enumerated | Pass | E02, E03, E06, E12 |
-| AC-44 — Full suite green | Pending | E11 |
+| AC-44 — Full suite green | Pass | E11 |
 | AC-45 — No unauthorized tax behaviour changed | Pass | E01, E11, E12 |
 | AC-45a — Downstream Box 54 rejection superseded by T01 | Pass | E01 |
 | AC-46 — Solution assertions stay open | Pass | E02, E12 |
@@ -179,3 +179,33 @@ that row; the evidence index gives the concrete suites and integration tests.
 - No production provider, SDK, network transport, deployment authorization,
   background initiator, content route, tax rule, arithmetic, or retention path
   was introduced by verification.
+
+## Authoritative gate — 2026-09-25
+
+Implementation commit: `9f72c786b583f2cecc2d2ca0945ecba2c2872a34`.
+
+```powershell
+pwsh ./scripts/Invoke-SolutionTests.ps1 -ResultsDirectory 'C:\Users\kapit\OneDrive\Documents\New project\artifacts\test-results-t07-20260925'
+```
+
+| Project | Passed | Unchanged floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 644 | 641 |
+| Tenancy.Tests | 289 | 289 |
+| Persistence.Tests | 238 | 236 |
+| ClientIntake.Tests | 157 | 157 |
+| ExtractionWorkflow.Tests | 356 | 356 |
+| DocumentIntelligence.Tests | 65 | 65 |
+| **Total** | **4,147** | **4,142** |
+
+No failures or skips. The earlier sandbox gate could not read the existing
+user-level NuGet configuration and ran no tests; the successful gate above ran
+with that access. The focused portal journey was separately run successfully
+inside the restricted-network sandbox with `--no-restore`. No machine firewall
+or global network setting was changed. No floor, production file, dependency,
+contract, migration, or mapping changed in T07.
