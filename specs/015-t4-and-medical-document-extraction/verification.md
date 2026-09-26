@@ -31,9 +31,9 @@ empty result cannot silently pass. All product-surface assertions are unchanged.
 | E06 | `TaxAI.Portal.Tests/Extraction/*` proves all eight routes, antiforgery/authentication, four-part content reading, closed browser projections, startup refusal, and preserved surfaces. |
 | E07 | `DocumentExtractionPersistenceTests` drives real intake, ingest, review, `SqlIntakeStore`, `SqlExtractionStore`, and `SqlReviewRecordRepository` against a relational database after real migrations, including T4 plus medical evidence, exactly one review association, replay refusal, and a whole-database planted-value sweep. |
 | E08 | `DocumentExtractionAcceptanceTests` drives both real workflows through the eight-route portal composition with the shipped deterministic provider and Development encrypted reader, including correction, duplicate resolution, classification disagreement/override, acceptance, finalization, and neutral medical rendering. A positively checked runtime listener asserts zero HTTP/DNS/socket egress attempts during the journey; the focused test passed in the restricted-network sandbox. |
-| E09 | `DocumentExtractionSecurityAcceptanceTests` compares foreign and missing resources over all eight routes and proves identical status, empty body, headers, and no mutation. |
-| E10 | `DocumentExtractionPiiSweepTests` captures browser models, HTML, URLs, cookies/headers, SQL-independent structured state, audits, logs, metrics, traces, exceptions, and review output with planted SIN/source/provider/patient values; provider/patient display names occur only on the accountant medical surface. |
-| E11 | `pwsh ./scripts/Invoke-SolutionTests.ps1` passed on committed implementation `9f72c786b583f2cecc2d2ca0945ecba2c2872a34`: 4,147 passed across all 11 registered projects, none failed or skipped, every unchanged floor met. |
+| E09 | `DocumentExtractionSecurityAcceptanceTests` creates a real firm-two extraction and duplicate candidate, first proves the owner can read both documents and the list, then compares foreign and missing resources over all eight routes: identical status, empty body, headers, and unchanged histories. |
+| E10 | `DocumentExtractionPiiSweepTests` captures browser models, HTML, URLs, cookies/headers, web-root files, structured state, audits, logs, all seven numeric metric types and observable measurements, activity tags/events/links/status/baggage, exceptions, and review output. Positive controls verify the diagnostic listeners. Planted provider/patient names occur only on the accountant medical surface. |
+| E11 | `pwsh ./scripts/Invoke-SolutionTests.ps1` passed on committed implementation `e7deeb4d40181434e3388c78cee75b25500372b0`: 4,147 passed across all 11 registered projects, none failed or skipped, every unchanged floor met. |
 | E12 | `PreservedSurfaceTests`, portal upgrade/boundary tests, repository verification tests, and the historical T01 guards prove the spec 012, spec 014, static-asset, solution-registration, and pre-existing contract boundaries remain intact. |
 
 ## Acceptance-criterion ledger
@@ -180,12 +180,12 @@ that row; the evidence index gives the concrete suites and integration tests.
   background initiator, content route, tax rule, arithmetic, or retention path
   was introduced by verification.
 
-## Authoritative gate — 2026-09-25
+## Authoritative gate — 2026-09-26
 
-Implementation commit: `9f72c786b583f2cecc2d2ca0945ecba2c2872a34`.
+Implementation commit: `e7deeb4d40181434e3388c78cee75b25500372b0`.
 
 ```powershell
-pwsh ./scripts/Invoke-SolutionTests.ps1 -ResultsDirectory 'C:\Users\kapit\OneDrive\Documents\New project\artifacts\test-results-t07-20260925'
+pwsh ./scripts/Invoke-SolutionTests.ps1 -ResultsDirectory 'C:\Users\kapit\OneDrive\Documents\New project\artifacts\test-results-t07-final-20260926'
 ```
 
 | Project | Passed | Unchanged floor |
@@ -209,3 +209,11 @@ with that access. The focused portal journey was separately run successfully
 inside the restricted-network sandbox with `--no-restore`. No machine firewall
 or global network setting was changed. No floor, production file, dependency,
 contract, migration, or mapping changed in T07.
+
+The read-only review identified four gaps in T07's initial proof. The final
+implementation fixes each: valid owner-readable foreign resources, complete
+metric/activity and web-root capture with controls, actual review-row counts
+before/after finalization and replay, and binary SQL cell inspection as UTF-8
+and UTF-16 with planted-value controls. The SQL capture also runs through a
+correction before acceptance and finalization. These are changes to T07's own
+tests; no product repair was needed.
