@@ -1,0 +1,73 @@
+# Spec 015 — T07 complete
+
+Task: T07 — Cross-module verification.
+Branch: `feat/015-w7-t07`
+PR: #145 — https://github.com/kapitaneo/TaxAI.sln/pull/145
+Initial implementation commit: `9f72c786b583f2cecc2d2ca0945ecba2c2872a34`
+Final implementation commit: `e7deeb4d40181434e3388c78cee75b25500372b0`
+
+## Gate — final committed implementation, 2026-09-26
+
+```powershell
+pwsh ./scripts/Invoke-SolutionTests.ps1 -ResultsDirectory 'C:\Users\kapit\OneDrive\Documents\New project\artifacts\test-results-t07-final-20260926'
+```
+
+PASS: all 11 registered projects ran; 4,147 tests passed; none failed or
+skipped; every unchanged floor was met.
+
+| Project | Passed | Floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 644 | 641 |
+| Tenancy.Tests | 289 | 289 |
+| Persistence.Tests | 238 | 236 |
+| ClientIntake.Tests | 157 | 157 |
+| ExtractionWorkflow.Tests | 356 | 356 |
+| DocumentIntelligence.Tests | 65 | 65 |
+
+`dotnet build TaxAI.sln --no-restore` also passed: zero warnings and errors.
+The focused portal verification passed in the restricted-network sandbox.
+The full gate needed access to the existing user-level NuGet configuration;
+its first sandbox attempt ran no tests and is not counted as a passing run.
+
+## Delivered
+
+- Two relational journeys using real migrations, intake/extraction/review
+  workflows, `SqlIntakeStore`, `SqlExtractionStore`, and
+  `SqlReviewRecordRepository`, ending in one persisted T4 review association
+  with medical evidence retained separately, plus a whole-database PII sweep.
+- A real-composition HTTP journey with the shipped deterministic provider and
+  Development encrypted reader: T4/medical extraction, correction, duplicate
+  resolution, classification override, explicit acceptance, and finalization.
+- Safe-404 equivalence across all eight extraction routes for foreign and
+  missing resources, with no mutation.
+- Planted SIN/source/provider/patient capture checks, including intermediate
+  antiforgery pages and redirect headers; runtime network-attempt observation
+  validated with a blocked control request.
+- Per-criterion evidence for AC-1 through AC-119 plus AC-45a, and the root
+  current-state update.
+
+## Human-authorized scope exception
+
+The human explicitly authorized fixing the T06-owned
+`tests/TaxAI.Portal.Tests/Extraction/PreservedSurfaceTests.cs` guard after it
+rejected the T07-required `verification.md`. Its assertions now inspect the
+committed T06 merge tree at `33ca918`, preserving the historical guarantee
+without prohibiting later approved work. Every other assertion is unchanged.
+
+No product code, dependency, contract, mapping, migration, test floor, or
+`tasks.md` changed. No task after T07 was selected. Not merged or self-approved;
+human review remains required.
+
+## Read-only review follow-up
+
+The four initial T07 evidence gaps were corrected in the final implementation:
+real owner-readable firm-two extractions and duplicate candidates; complete
+numeric metric/activity and web-root capture with positive controls; SQL review
+row counts of zero/one/one before finalization, afterward, and after replay;
+and binary SQL cell inspection with UTF-8/UTF-16 controls. The full gate above
+was rerun after those changes were committed. Test totals and floors are unchanged.

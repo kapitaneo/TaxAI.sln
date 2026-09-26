@@ -7,6 +7,7 @@ namespace TaxAI.Portal.Tests.Extraction;
 public sealed class PreservedSurfaceTests
 {
     private const string T05Merge = "736f10d";
+    private const string T06Merge = "33ca918";
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
@@ -176,20 +177,47 @@ public sealed class PreservedSurfaceTests
     }
 
     [Fact]
-    public void NoT07VerificationSurfaceWasIntroduced()
+    public async Task T06DidNotIntroduceT07VerificationArtifacts()
     {
-        Assert.False(
-            File.Exists(
-                Path.Combine(
-                    RepositoryRoot,
-                    "specs",
-                    "015-t4-and-medical-document-extraction",
-                    "verification.md")));
+        // This is a historical wave-ownership assertion. Inspect T06's tree,
+        // so the required T07 artifacts can exist in later working trees.
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "git",
+                WorkingDirectory = RepositoryRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+        foreach (var argument in new[]
+                 {
+                     "ls-tree", "-r", "--name-only", T06Merge, "--",
+                     "specs/015-t4-and-medical-document-extraction/verification.md",
+                     "tests",
+                 })
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        Assert.True(process.Start());
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        Assert.True(process.ExitCode == 0, await standardError);
+
+        var paths = (await standardOutput).Split(
+            ['\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries);
+        Assert.Contains("tests/TaxAI.Portal.Tests/Extraction/ExtractionRouteTests.cs", paths);
         Assert.DoesNotContain(
-            Directory.EnumerateFiles(
-                Path.Combine(RepositoryRoot, "tests"),
-                "*",
-                SearchOption.AllDirectories),
+            "specs/015-t4-and-medical-document-extraction/verification.md",
+            paths);
+        Assert.DoesNotContain(
+            paths,
             path => Path.GetFileName(path).Contains(
                 "CrossModule",
                 StringComparison.OrdinalIgnoreCase));
