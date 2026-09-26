@@ -332,8 +332,8 @@ internal sealed class ExtractionPortalWorld : IAsyncDisposable
     internal async Task<SeededExtractionCase> SeedFirmTwoAsync() =>
         await SeedAsync(
             Intake.FirmTwo,
-            [T4Source("foreign scan")],
-            t4Count: 1,
+            [T4Source("foreign first scan"), T4Source("foreign second scan")],
+            t4Count: 2,
             medicalCount: 0);
 
     private async Task<SeededExtractionCase> SeedAsync(
@@ -822,23 +822,6 @@ internal sealed class PortalExtractionStore : IExtractionStore
                 state.Acceptances.Where(item =>
                     item.Scope == ExtractionAcceptanceScope.Case).ToArray(),
                 state.Audits.ToArray());
-        }
-    }
-
-    internal void SeedCandidate(
-        TrustedFirmId firm,
-        Guid caseId,
-        Guid documentId,
-        Guid otherDocumentId,
-        Guid candidateId)
-    {
-        lock (_gate)
-        {
-            StateFor(firm, caseId).Candidates.Add(new DuplicateCandidateRecord(
-                candidateId,
-                documentId,
-                otherDocumentId,
-                new DateTimeOffset(2028, 4, 5, 7, 0, 0, TimeSpan.Zero)));
         }
     }
 

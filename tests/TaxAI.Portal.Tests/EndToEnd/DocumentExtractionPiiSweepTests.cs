@@ -28,6 +28,8 @@ public sealed class DocumentExtractionPiiSweepTests
         var diagnostics = new ConcurrentQueue<string>();
         using var activityListener = StartActivityCapture(diagnostics);
         using var meterListener = StartMetricCapture(diagnostics);
+        VerifyDiagnosticCapture(diagnostics, meterListener);
+        diagnostics.Clear();
 
         EventHandler<FirstChanceExceptionEventArgs> exceptionCapture = (_, args) =>
             diagnostics.Enqueue(args.Exception.ToString());
@@ -173,6 +175,10 @@ public sealed class DocumentExtractionPiiSweepTests
                 .Audit(seeded.Firm.Value, seeded.CaseId)
                 .Select(audit => audit.ToString());
             var reviewRecords = world.Reviews.All.Select(record => record.ToString());
+            var webRoot = world.Intake.FirmOne.Resolve<IWebHostEnvironment>().WebRootPath;
+            var webRootFiles = Directory.GetFiles(webRoot, "*", SearchOption.AllDirectories);
+            Assert.NotEmpty(webRootFiles);
+            meterListener.RecordObservableInstruments();
             var disallowed = disallowedHttp.Select(capture => capture.All)
                 // Only the medical BODY/model may contain approved names.
                 // Its URL, cookies and other headers remain disallowed.
@@ -181,6 +187,7 @@ public sealed class DocumentExtractionPiiSweepTests
                 .Concat(extractionAudit)
                 .Concat(intakeAudit)
                 .Concat(reviewRecords)
+                .Concat(webRootFiles.Select(File.ReadAllText))
                 .Concat(logs.Messages)
                 .Concat(diagnostics)
                 .ToArray();
@@ -265,8 +272,13 @@ public sealed class DocumentExtractionPiiSweepTests
                 activity.Source.Name,
                 activity.DisplayName,
                 activity.OperationName,
-                string.Join(" ", activity.Tags.Select(tag => $"{tag.Key}={tag.Value}")),
-                string.Join(" ", activity.Baggage.Select(tag => $"{tag.Key}={tag.Value}")))),
+                activity.StatusDescription,
+                string.Join(" ", activity.TagObjects.Select(tag => $"{tag.Key}={tag.Value}")),
+                string.Join(" ", activity.Baggage.Select(tag => $"{tag.Key}={tag.Value}")),
+                string.Join(" ", activity.Events.Select(item =>
+                    $"{item.Name} {string.Join(" ", item.Tags.Select(tag => $"{tag.Key}={tag.Value}"))}")),
+                string.Join(" ", activity.Links.Select(link =>
+                    string.Join(" ", (link.Tags ?? []).Select(tag => $"{tag.Key}={tag.Value}")))))),
         };
         ActivitySource.AddActivityListener(listener);
         return listener;
@@ -283,12 +295,66 @@ public sealed class DocumentExtractionPiiSweepTests
                 meterListener.EnableMeasurementEvents(instrument);
             },
         };
-        listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
-            diagnostics.Enqueue($"{instrument.Name} {value} {FormatTags(tags)}"));
-        listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
-            diagnostics.Enqueue($"{instrument.Name} {value} {FormatTags(tags)}"));
+        CaptureMeasurements<byte>(listener, diagnostics);
+        CaptureMeasurements<short>(listener, diagnostics);
+        CaptureMeasurements<int>(listener, diagnostics);
+        CaptureMeasurements<long>(listener, diagnostics);
+        CaptureMeasurements<float>(listener, diagnostics);
+        CaptureMeasurements<double>(listener, diagnostics);
+        CaptureMeasurements<decimal>(listener, diagnostics);
         listener.Start();
         return listener;
+    }
+
+    private static void CaptureMeasurements<T>(
+        MeterListener listener,
+        ConcurrentQueue<string> diagnostics) where T : struct =>
+        listener.SetMeasurementEventCallback<T>((instrument, value, tags, _) =>
+            diagnostics.Enqueue($"{instrument.Name} {value} {FormatTags(tags)}"));
+
+    private static void VerifyDiagnosticCapture(
+        ConcurrentQueue<string> diagnostics,
+        MeterListener listener)
+    {
+        using var source = new ActivitySource("T07.CaptureControl");
+        var link = new ActivityLink(
+            new ActivityContext(ActivityTraceId.CreateRandom(), ActivitySpanId.CreateRandom(),
+                ActivityTraceFlags.Recorded),
+            new ActivityTagsCollection { ["probe"] = "trace-link-control" });
+        using (var activity = source.StartActivity("capture-control", ActivityKind.Internal,
+                   default(ActivityContext), links: [link]))
+        {
+            Assert.NotNull(activity);
+            activity.SetTag("probe", "trace-tag-control");
+            activity.AddBaggage("probe", "trace-baggage-control");
+            activity.SetStatus(ActivityStatusCode.Error, "trace-status-control");
+            activity.AddEvent(new ActivityEvent("trace-event-control", tags:
+                new ActivityTagsCollection { ["probe"] = "trace-event-tag-control" }));
+        }
+
+        using var meter = new Meter("T07.CaptureControl");
+        meter.CreateCounter<byte>("byte").Add(1, new KeyValuePair<string, object?>("probe", "metric-byte-control"));
+        meter.CreateCounter<short>("short").Add(1, new KeyValuePair<string, object?>("probe", "metric-short-control"));
+        meter.CreateCounter<int>("int").Add(1, new KeyValuePair<string, object?>("probe", "metric-int-control"));
+        meter.CreateCounter<long>("long").Add(1, new KeyValuePair<string, object?>("probe", "metric-long-control"));
+        meter.CreateCounter<float>("float").Add(1, new KeyValuePair<string, object?>("probe", "metric-float-control"));
+        meter.CreateCounter<double>("double").Add(1, new KeyValuePair<string, object?>("probe", "metric-double-control"));
+        meter.CreateCounter<decimal>("decimal").Add(1, new KeyValuePair<string, object?>("probe", "metric-decimal-control"));
+        meter.CreateObservableGauge("observable", () => new Measurement<int>(1,
+            new KeyValuePair<string, object?>("probe", "metric-observable-control")));
+        listener.RecordObservableInstruments();
+
+        foreach (var probe in new[]
+                 {
+                     "trace-tag-control", "trace-baggage-control", "trace-status-control",
+                     "trace-event-control", "trace-event-tag-control", "trace-link-control",
+                     "metric-byte-control", "metric-short-control", "metric-int-control",
+                     "metric-long-control", "metric-float-control", "metric-double-control",
+                     "metric-decimal-control", "metric-observable-control",
+                 })
+        {
+            Assert.Contains(diagnostics, entry => entry.Contains(probe, StringComparison.Ordinal));
+        }
     }
 
     private static string FormatTags(

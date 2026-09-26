@@ -16,13 +16,22 @@ public sealed class DocumentExtractionSecurityAcceptanceTests
         await using var world = ExtractionPortalWorld.Create();
         var owned = await world.SeedFirmOneAsync();
         var foreign = await world.SeedFirmTwoAsync();
-        var foreignCandidateId = Guid.NewGuid();
-        world.Extractions.SeedCandidate(
-            foreign.Firm,
-            foreign.CaseId,
-            foreign.FirstT4DocumentId,
-            Guid.NewGuid(),
-            foreignCandidateId);
+        using var owner = world.Intake.FirmTwo.CreateAccountantClient();
+        await world.Intake.FirmTwo.SignInAsync(owner);
+        foreach (var documentId in new[] { foreign.FirstT4DocumentId, foreign.SecondT4DocumentId })
+        {
+            Assert.Equal(HttpStatusCode.OK, (await ExtractionPortalHttp.ExtractAsync(
+                owner, foreign.CaseId, documentId)).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await ExtractionPortalHttp.GetAsync(
+                owner, $"/intake-cases/{foreign.CaseId:D}/extractions/{documentId:D}")).StatusCode);
+        }
+        Assert.Equal(HttpStatusCode.OK, (await ExtractionPortalHttp.GetAsync(
+            owner, $"/intake-cases/{foreign.CaseId:D}/extractions")).StatusCode);
+        var before = (await world.Extractions.FindCaseAsync(
+            foreign.Firm, foreign.CaseId, CancellationToken.None))!;
+        var foreignCandidateId = Assert.Single(before.Documents.Single(
+            document => document.DocumentId == foreign.SecondT4DocumentId)
+            .DuplicateCandidates).CandidateId;
 
         using var accountant = world.Intake.FirmOne.CreateAccountantClient();
         await world.Intake.FirmOne.SignInAsync(accountant);
@@ -104,9 +113,22 @@ public sealed class DocumentExtractionSecurityAcceptanceTests
             foreign.CaseId,
             CancellationToken.None);
         Assert.NotNull(foreignState);
-        Assert.Empty(foreignState.AuditEvents);
-        Assert.Empty(foreignState.CaseAcceptances);
-        Assert.Empty(Assert.Single(foreignState.Documents).DuplicateResolutions);
+        Assert.Equal(before.AuditEvents, foreignState.AuditEvents);
+        Assert.Equal(before.CaseAcceptances, foreignState.CaseAcceptances);
+        Assert.Equal(before.Documents.Select(item => item.DocumentId),
+            foreignState.Documents.Select(item => item.DocumentId));
+        foreach (var original in before.Documents)
+        {
+            var unchanged = foreignState.Documents.Single(item => item.DocumentId == original.DocumentId);
+            Assert.Equal(original.ParticipantId, unchanged.ParticipantId);
+            Assert.Equal(original.Versions, unchanged.Versions);
+            Assert.Equal(original.MedicalEvidenceVersions, unchanged.MedicalEvidenceVersions);
+            Assert.Equal(original.Corrections, unchanged.Corrections);
+            Assert.Equal(original.ClassificationOverrides, unchanged.ClassificationOverrides);
+            Assert.Equal(original.DuplicateCandidates, unchanged.DuplicateCandidates);
+            Assert.Equal(original.DuplicateResolutions, unchanged.DuplicateResolutions);
+            Assert.Equal(original.Acceptances, unchanged.Acceptances);
+        }
     }
 
     private static async Task<ExtractionHttpCapture> SendAsync(

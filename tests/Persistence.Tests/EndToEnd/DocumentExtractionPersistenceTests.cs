@@ -87,10 +87,7 @@ public sealed class DocumentExtractionPersistenceTests
             journey.Now.AddMinutes(3),
             CancellationToken.None)).IsSuccess);
 
-        Assert.Null(await journey.Reviews.FindAsync(
-            journey.Firm,
-            Guid.NewGuid(),
-            CancellationToken.None));
+        Assert.Equal(0, await journey.ReviewRecordCountAsync());
 
         var finalized = await journey.Review.FinalizeCaseAsync(
             journey.Firm,
@@ -101,6 +98,7 @@ public sealed class DocumentExtractionPersistenceTests
 
         Assert.True(finalized.IsSuccess);
         Assert.Equal(1, finalized.Value!.AcceptedT4DocumentCount);
+        Assert.Equal(1, await journey.ReviewRecordCountAsync());
 
         var persisted = await journey.Reviews.FindAsync(
             journey.Firm,
@@ -139,6 +137,7 @@ public sealed class DocumentExtractionPersistenceTests
             journey.Now.AddMinutes(5),
             CancellationToken.None);
         Assert.False(repeated.IsSuccess);
+        Assert.Equal(1, await journey.ReviewRecordCountAsync());
         Assert.Single((await journey.Extractions.FindCaseAsync(
             journey.Firm,
             journey.CaseId,
@@ -148,6 +147,10 @@ public sealed class DocumentExtractionPersistenceTests
     [Fact]
     public async Task CompleteRelationalJourneyKeepsSourceAndSinOutOfEveryColumn()
     {
+        Assert.Contains(SourceMarker, RelationalJourney.CellText(Encoding.UTF8.GetBytes(SourceMarker)),
+            StringComparison.Ordinal);
+        Assert.Contains(PlantedSin, RelationalJourney.CellText(Encoding.Unicode.GetBytes(PlantedSin)),
+            StringComparison.Ordinal);
         await using var journey = await RelationalJourney.CreateAsync();
 
         var t4 = await journey.Ingest.ExtractAsync(
@@ -172,6 +175,20 @@ public sealed class DocumentExtractionPersistenceTests
             journey.Now.AddMinutes(1),
             CancellationToken.None);
         Assert.True(medical.IsSuccess, medical.Code.ToString());
+
+        Assert.True((await journey.Review.CorrectAsync(
+            journey.Firm,
+            journey.Actor,
+            new ApplyExtractionCorrectionCommand
+            {
+                CaseId = journey.CaseId,
+                DocumentId = journey.T4DocumentId,
+                Field = CorrectionField.T4BoxValue,
+                BoxCode = "14",
+                CorrectedValue = "51000.00",
+            },
+            journey.Now.AddSeconds(90),
+            CancellationToken.None)).IsSuccess);
 
         Assert.True((await journey.Review.AcceptDocumentAsync(
             journey.Firm,
@@ -434,6 +451,14 @@ public sealed class DocumentExtractionPersistenceTests
                 CancellationToken.None);
         }
 
+        internal async Task<long> ReviewRecordCountAsync()
+        {
+            await _context.Database.OpenConnectionAsync();
+            await using var command = _context.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM PersistedReviewRecords;";
+            return Convert.ToInt64(await command.ExecuteScalarAsync());
+        }
+
         internal async Task<IReadOnlyList<StoredCell>> ReadEveryCellAsync()
         {
             var connection = _context.Database.GetDbConnection();
@@ -469,9 +494,7 @@ public sealed class DocumentExtractionPersistenceTests
                             cells.Add(new StoredCell(
                                 table,
                                 columns[index],
-                                Convert.ToString(reader.GetValue(index),
-                                    System.Globalization.CultureInfo.InvariantCulture)
-                                ?? string.Empty));
+                                CellText(reader.GetValue(index))));
                         }
                     }
                 }
@@ -479,6 +502,10 @@ public sealed class DocumentExtractionPersistenceTests
 
             return cells;
         }
+
+        internal static string CellText(object value) => value is byte[] bytes
+            ? string.Join("\n", Encoding.UTF8.GetString(bytes), Encoding.Unicode.GetString(bytes))
+            : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
         private static async Task<string[]> ColumnsAsync(
             DbConnection connection,
