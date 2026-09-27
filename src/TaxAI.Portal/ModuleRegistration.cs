@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Persistence;
+using TaxAI.AzureInfrastructure;
+using TaxAI.Portal.Production;
 using TaxLogicEngine.Services;
 
 namespace TaxAI.Portal;
@@ -123,6 +125,19 @@ internal static class ModuleRegistration
                 options => options.DetailedErrors = false);
 
         services.AddTaxAiPersistence(databaseConnectionString);
+
+        // Spec 016 T01: the production validation boundary is registered only
+        // for the Production environment, from the closed production profile.
+        // It registers validation and identity verification only; no production
+        // source store, reader or provider exists yet, so admission is refused.
+        if (string.Equals(
+                environment.EnvironmentName,
+                Environments.Production,
+                StringComparison.Ordinal))
+        {
+            services.AddTaxAiAzureInfrastructure(
+                ProductionConfiguration.Read(configuration).Options);
+        }
         services.AddScoped<IAccountantIntakeWorkflow, AccountantIntakeWorkflow>();
         services.AddScoped<IClientIntakeWorkflow>(provider =>
             new ClientIntakeWorkflow(

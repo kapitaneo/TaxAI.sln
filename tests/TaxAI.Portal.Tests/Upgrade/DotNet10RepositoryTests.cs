@@ -28,6 +28,10 @@ public sealed class DotNet10RepositoryTests
         "tests/Tenancy.Tests/Tenancy.Tests.csproj",
         "src/ClientIntake/ClientIntake.csproj",
         "tests/ClientIntake.Tests/ClientIntake.Tests.csproj",
+        // Spec 016 T01: the Azure infrastructure library and its tests enter the
+        // same net10 framework and test-package matrix.
+        "src/TaxAI.AzureInfrastructure/TaxAI.AzureInfrastructure.csproj",
+        "tests/TaxAI.AzureInfrastructure.Tests/TaxAI.AzureInfrastructure.Tests.csproj",
     ];
 
     private static readonly Dictionary<string, string> TestPackageVersions =

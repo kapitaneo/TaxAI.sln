@@ -27,13 +27,17 @@
        storage to this host adds no ORM package to this file. ExtractionWorkflow
        supplies the accountant use cases and DocumentIntelligence supplies the
        deterministic Development adapter; both references are consumed by the
-       composition root and the extraction-only browser projection. -->
+       composition root and the extraction-only browser projection.
+       TaxAI.AzureInfrastructure (spec 016 T01) supplies the production profile
+       validator and managed-identity binding probe consumed by the production
+       admission gate; it carries the Azure SDK so this host declares none. -->
   <ItemGroup>
     <ProjectReference Include="..\CaseProcessing\CaseProcessing.csproj" />
     <ProjectReference Include="..\ClientIntake\ClientIntake.csproj" />
     <ProjectReference Include="..\DocumentIntelligence\DocumentIntelligence.csproj" />
     <ProjectReference Include="..\ExtractionWorkflow\ExtractionWorkflow.csproj" />
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
+    <ProjectReference Include="..\TaxAI.AzureInfrastructure\TaxAI.AzureInfrastructure.csproj" />
     <ProjectReference Include="..\TaxLogicEngine\TaxLogicEngine.csproj" />
     <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
   </ItemGroup>

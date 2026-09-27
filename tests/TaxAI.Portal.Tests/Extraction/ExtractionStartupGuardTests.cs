@@ -41,6 +41,12 @@ public sealed class ExtractionStartupGuardTests
     private const string NonDevelopmentMessage =
         "Document extraction is unavailable outside Development until an approved production provider and content reader are supplied.";
 
+    private const string AdmissionRefusalMessage =
+        "Production startup is refused: the exact approved production configuration, registrations, identity and release evidence are not all present and valid.";
+
+    private const string UnconfiguredKeyRingMessage =
+        "A data protection key ring must be configured outside Development.";
+
     [Theory]
     [InlineData("TaxAi:Extraction:Provider", null)]
     [InlineData("TaxAi:Extraction:Provider", "")]
@@ -94,10 +100,16 @@ public sealed class ExtractionStartupGuardTests
     [InlineData("Staging")]
     public void DeployableNonDevelopmentStartupRefuses(string environmentName)
     {
+        // Spec 016 T01 replaced the unconditional refusal with the enforced
+        // production admission gate. A deployable host with the historical
+        // extraction and intake settings is refused twice over: by the durable
+        // key-ring requirement and by the gate, which no deployable host can
+        // pass until the production adapters and evidence exist.
         var services = new ServiceCollection();
         services.AddSingleton<IWebHostEnvironment>(
             new TestEnvironment(environmentName));
         services.AddSingleton<IServer, DeployableServer>();
+        services.AddSingleton(TimeProvider.System);
         using var provider = services.BuildServiceProvider();
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(ValidHostSettings())
@@ -116,7 +128,27 @@ public sealed class ExtractionStartupGuardTests
                 obj: null,
                 new object[] { provider, configuration, environmentName }));
 
-        Assert.Equal(NonDevelopmentMessage, failure.InnerException?.Message);
+        Assert.Equal(UnconfiguredKeyRingMessage, failure.InnerException?.Message);
+
+        var gate = typeof(Program).Assembly
+            .GetType(
+                "TaxAI.Portal.Production.ProductionAdmissionGate",
+                throwOnError: true)!
+            .GetMethod(
+                "RequireAdmission",
+                BindingFlags.Static | BindingFlags.NonPublic)!;
+
+        var refusal = Assert.Throws<TargetInvocationException>(
+            () => gate.Invoke(
+                obj: null,
+                new object[] { provider, configuration, environmentName }));
+
+        Assert.Equal(AdmissionRefusalMessage, refusal.InnerException?.Message);
+
+        // The historical extraction refusal itself is unchanged.
+        var extraction = Assert.Throws<TargetInvocationException>(
+            () => RequireExtraction(configuration, new TestEnvironment(environmentName)));
+        Assert.Equal(NonDevelopmentMessage, extraction.InnerException?.Message);
     }
 
     [Fact]

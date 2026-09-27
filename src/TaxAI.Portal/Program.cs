@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication;
 using TaxAI.Portal;
 using TaxAI.Portal.Components;
+using TaxAI.Portal.Production;
 using Tenancy.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,6 +56,18 @@ var app = builder.Build();
 // connection, so this resolves the store to inspect it without touching the
 // database.
 PortalStartupGuards.RequireSafeStartup(
+    app.Services,
+    app.Configuration,
+    app.Environment.EnvironmentName);
+
+// Spec 016 production admission. Every deployable non-Development host is
+// evaluated against the exact approved production profile, its real
+// registrations, the managed identity the platform actually issues, the exact
+// artifact version and the release evidence, and refuses unless all of them
+// pass. This replaces the old unconditional refusal with an enforced gate; it
+// has no switch, and no deployable host can pass it until the later slices
+// supply the production adapters and every evidence item is approved.
+ProductionAdmissionGate.RequireAdmission(
     app.Services,
     app.Configuration,
     app.Environment.EnvironmentName);

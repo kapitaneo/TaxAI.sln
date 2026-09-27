@@ -398,7 +398,8 @@ public sealed class RepositoryVerificationTests
             typeof(Program).Assembly.GetReferencedAssemblies(),
             reference => reference.Name!.Equals("ClientIntake", StringComparison.OrdinalIgnoreCase));
 
-        // The exact production reference set after spec 014.
+        // The exact production reference set after spec 016 T01, which adds
+        // only the Azure infrastructure library consumed by production admission.
         Assert.Equal(
             new[]
             {
@@ -407,6 +408,7 @@ public sealed class RepositoryVerificationTests
                 "../DocumentIntelligence/DocumentIntelligence.csproj",
                 "../ExtractionWorkflow/ExtractionWorkflow.csproj",
                 "../Persistence/Persistence.csproj",
+                "../TaxAI.AzureInfrastructure/TaxAI.AzureInfrastructure.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
                 "../Tenancy/Tenancy.csproj",
             },

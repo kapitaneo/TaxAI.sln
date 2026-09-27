@@ -39,6 +39,32 @@ ports; the dependency arrow never reverses.
 Every instant enters as an explicit parameter. Tenancy reads no system clock,
 environment, current user, filesystem, network, or database.
 
+## Spec 016 T01: production-control contracts
+
+Tenancy owns the structural, provider-independent vocabulary used to decide
+whether a production host may be admitted. It adds no reference and no package:
+
+- `Models/ProductionControlModels.cs` — the twenty-four DEP evidence subjects
+  (numbered as their DEP ids), the evidence states (`Absent` is the zero value
+  and only `Approved` counts), the two provider assurance subjects, the two
+  approval roles, the closed `ProductionAdmissionRefusal` vocabulary (no
+  admitting member), and `ProductionReadiness`.
+- `Contracts/ProductionControlContracts.cs` — the exact release binding
+  (artifact version, configuration digest, subscription), the evidence
+  manifest, role approvals, the managed-identity binding, and the
+  `IManagedIdentityBindingProbe` port. Opaque infrastructure identifiers are
+  serialization-omitted and every type renders structurally.
+- `Services/ProductionEvidencePolicy.cs` — the pure admission policy. Every one
+  of DEP-01 to DEP-24 must be Approved and unexpired for the exact release;
+  each provider assurance (input-CMK coverage, retention/deletion clock) is
+  evaluated independently and neither is satisfied by the DEP-05 row; both
+  roles must approve the exact binding. It also computes the deterministic
+  configuration digest. It reads no clock: the instant is a parameter.
+
+These types carry infrastructure evidence only — never a secret, taxpayer fact
+or SIN — and add no tax policy. The recovery/control ledger and telemetry
+contracts arrive with the slices that consume them (T06, T09).
+
 ## PII posture: omission at the persistence boundary
 
 No SIN or partial SIN may enter a `Tenancy` persisted model, diagnostic, JSON

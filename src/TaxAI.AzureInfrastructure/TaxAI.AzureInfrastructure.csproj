@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- The repository's single non-Document-Intelligence Azure adapter library
+       (spec 016). Packages arrive only with their first working consumer and
+       are pinned exactly, never floated:
+
+       - Azure.Identity: the managed-identity binding probe requests one
+         data-plane token through ManagedIdentityCredential. No other Azure SDK
+         family is referenced by this slice; Blob, Key Vault and Data Protection
+         packages arrive with the slices that consume them.
+       - Microsoft.Extensions.DependencyInjection.Abstractions: the single
+         registration extension, on the repository's 10.0.10 line.
+
+       No EF Core, ASP.NET Core, Document Intelligence SDK or tax module. -->
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+  <!-- Dependencies point inward, and are exactly one in this slice: Tenancy owns
+       the production-control vocabulary, evidence shapes and the identity-probe
+       port this library implements. ClientIntake and ExtractionWorkflow are
+       referenced only when a later slice consumes them. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
+  </ItemGroup>
+
+</Project>

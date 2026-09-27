@@ -83,7 +83,10 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   fingerprint, tax, or review authority ships. Interactive Server is confined
   to presentation-only closed-code reveal.
 - No OCR or LLM adapter ships.
-- No production deployment configuration ships.
+- No production deployment configuration ships. Spec 016 T01 adds only the
+  refused production path: a closed runtime-configuration contract, a
+  settings-only Bicep module, an offline configuration check, and a startup
+  admission gate that no deployable host can pass yet.
 - No production provisioning ships for a firm, user, membership, or
   administrator.
 - No taxpayer-value editing, review decision/approval screen, export, T1 calculation, or
@@ -113,6 +116,7 @@ src/
   ClientIntake/                   Deterministic intake application workflows
   Tenancy/                        Trusted-firm, session, projection, retention ports
   Persistence/                    EF Core model, migrations, and SQL adapters
+  TaxAI.AzureInfrastructure/      Production profile validation and identity probe
   TaxAI.Portal/                   ASP.NET Core host and composition root
     Components/                   Static screens and one narrow interactive island
     wwwroot/                      Tracked local styles and upload module
@@ -125,8 +129,11 @@ tests/
   ClientIntake.Tests/             xUnit contract, workflow, and boundary suite
   Tenancy.Tests/                  xUnit suite
   Persistence.Tests/              xUnit suite
+  TaxAI.AzureInfrastructure.Tests/ xUnit validator, probe, and boundary suite
   TaxAI.Portal.Tests/             xUnit in-process host and boundary suite
+infra/azure/                       Runtime-configuration contract and Bicep module
 scripts/                           Full-suite execution gate and manifest
+  azure/                           Offline production-configuration check
 specs/                             PRDs, architecture, task plans, and status
 ```
 
@@ -201,6 +208,21 @@ Protection key ring, operations, and production provisioning.
 
 Until then, the existing non-Development startup refusal remains authoritative,
 and this application may not receive real taxpayer data in production.
+
+Spec 016 T01 replaces that unconditional refusal with an enforced production
+admission gate rather than a switch. A deployable host is refused unless it is
+explicitly Production, its closed `TaxAi:Production:*` profile describes the
+approved Canada Central topology, its real registrations are the approved
+production adapters, its managed identity verifies, its artifact version is the
+released one, and the evidence manifest approves DEP-01 to DEP-24, both provider
+assurances and both roles for that exact configuration. No production Document
+Intelligence adapter, source store or source reader exists yet, so every
+deployable host is still refused. The offline check validates a settings file
+without Azure access and is not deployment evidence:
+
+```powershell
+pwsh ./scripts/azure/Test-ProductionConfiguration.ps1 -SettingsPath <app-settings.json>
+```
 
 ## Roll back the platform upgrade
 
