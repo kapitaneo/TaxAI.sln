@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.Extensions.Options;
 using Persistence;
+using TaxAI.AzureInfrastructure.Protection;
+using TaxAI.Portal.Production;
 using Tenancy.Contracts;
 
 namespace TaxAI.Portal;
@@ -32,10 +34,12 @@ namespace TaxAI.Portal;
 /// outside Development the built service provider must actually hold an
 /// <see cref="IDataProtectionProvider"/>, an explicit key repository, and an
 /// explicit key encryptor — none of them the framework's own local
-/// implementations. This specification registers no such provider, so a
-/// non-Development host of this build refuses to start; supplying the real
-/// Azure Blob Storage repository and Azure Key Vault encryptor is an obligation
-/// of the later deployment specification.
+/// implementations. Spec 016 T03 supplies the real pair for Production: the
+/// Azure Blob Storage repository protected by the Azure Key Vault encryptor,
+/// configured from the closed production profile. The production admission
+/// gate then accepts <i>only</i> that exact pair with the approved application
+/// discriminator; this guard keeps the general durable-ring rule for every
+/// non-Development host, including the in-process verification hosts.
 /// </para>
 /// </summary>
 internal static class PortalStartupGuards
@@ -142,8 +146,7 @@ internal static class PortalStartupGuards
         // faces ProductionAdmissionGate (spec 016 T01), which Program invokes
         // next; TestServer remains an in-process verification surface only and
         // is never production authorization.
-        if (string.IsNullOrWhiteSpace(configuration[KeyRingLocationSetting]) ||
-            string.IsNullOrWhiteSpace(configuration[KeyProtectionIdentifierSetting]))
+        if (!HasConfiguredKeyRing(configuration, environmentName))
         {
             throw new InvalidOperationException(UnconfiguredKeyRingMessage);
         }
@@ -154,6 +157,31 @@ internal static class PortalStartupGuards
         {
             throw new InvalidOperationException(NonDurableSessionStoreMessage);
         }
+    }
+
+    /// <summary>
+    /// A key ring is configured when the spec 011 location and protection pair
+    /// is supplied, or — in Production only, spec 016 T03 — when the closed
+    /// production profile describes the protected Azure key ring. Either way the
+    /// registered components are still checked separately below.
+    /// </summary>
+    internal static bool HasConfiguredKeyRing(
+        IConfiguration configuration,
+        string environmentName)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environmentName);
+
+        if (!string.IsNullOrWhiteSpace(configuration[KeyRingLocationSetting]) &&
+            !string.IsNullOrWhiteSpace(configuration[KeyProtectionIdentifierSetting]))
+        {
+            return true;
+        }
+
+        return string.Equals(environmentName, Environments.Production, StringComparison.Ordinal) &&
+               AzureDataProtectionConfiguration.TryCreateSettings(
+                   ProductionConfiguration.Read(configuration).Options,
+                   out _);
     }
 
     /// <summary>

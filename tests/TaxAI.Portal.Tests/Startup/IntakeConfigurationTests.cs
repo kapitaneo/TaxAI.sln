@@ -159,6 +159,51 @@ public sealed class IntakeConfigurationTests
         Assert.Empty(ProductionShape(settings));
     }
 
+    // ------------------------------- spec 016 T03 vault-loaded key material
+
+    [Fact] // T03: vault material passes the unchanged Spec 014 key validation.
+    public void VaultLoadedMaterialSatisfiesTheUnchangedIntakeKeyValidation()
+    {
+        var material = TaxAI.Portal.Tests.Production.ProductionStartupTests.ControlledSecrets.Load();
+        var settings = ValidSettings(NewRoot());
+        settings.Remove("TaxAi:Intake:DevelopmentContentRoot");
+        settings.Remove("TaxAi:Intake:ContentEncryptionKey");
+        settings["TaxAi:Intake:DigestKey"] = material.DigestKey;
+        settings["TaxAi:Intake:FingerprintKey"] = material.FingerprintKey;
+
+        var result = Require(settings, new TestEnvironment(Environments.Production, NewRoot()));
+
+        Assert.NotNull(result);
+        var digest = (byte[])result!.GetType()
+            .GetProperty("DigestKey", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(result)!;
+        Assert.Equal(Enumerable.Repeat((byte)0x11, 32), digest);
+        Assert.Equal(nameof(TaxAI.AzureInfrastructure.Keys.RuntimeMaterial), material.ToString());
+    }
+
+    [Fact] // T03: the same validation still refuses material missing from the vault.
+    public void ProductionWithoutAnyKeyMaterialIsRefusedWithTheFixedMessage()
+    {
+        var settings = ValidSettings(NewRoot());
+        settings.Remove("TaxAi:Intake:DevelopmentContentRoot");
+        settings.Remove("TaxAi:Intake:ContentEncryptionKey");
+        settings.Remove("TaxAi:Intake:DigestKey");
+        settings.Remove("TaxAi:Intake:FingerprintKey");
+
+        AssertFixedRefusal(settings, Environments.Production);
+    }
+
+    [Fact] // T03: the vault names exactly the two purpose-separated secrets.
+    public void TheVaultSecretsAreTheTwoPurposeSeparatedIntakeKeys()
+    {
+        Assert.Equal(
+            "taxai-intake-digest-key",
+            TaxAI.AzureInfrastructure.Keys.KeyVaultRuntimeMaterialProvider.DigestKeySecretName);
+        Assert.Equal(
+            "taxai-intake-fingerprint-key",
+            TaxAI.AzureInfrastructure.Keys.KeyVaultRuntimeMaterialProvider.FingerprintKeySecretName);
+    }
+
     private static string[] ProductionShape(IReadOnlyDictionary<string, string?> settings)
     {
         var configuration = new ConfigurationBuilder()

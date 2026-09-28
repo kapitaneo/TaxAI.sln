@@ -10,23 +10,46 @@
        (spec 016). Packages arrive only with their first working consumer and
        are pinned exactly, never floated:
 
-       - Azure.Identity: the managed-identity binding probe requests one
-         data-plane token through ManagedIdentityCredential. No other Azure SDK
-         family is referenced by this slice; Blob, Key Vault and Data Protection
-         packages arrive with the slices that consume them.
+       - Azure.Identity: the one workload credential (ManagedIdentityCredential)
+         used by the binding probe (T01) and every T03 key-protection client.
+       - Azure.Security.KeyVault.Keys (T03): content-key wrapping and the
+         approved-resource probe's key reads.
+       - Azure.Security.KeyVault.Secrets (T03): the intake credential material.
+       - Azure.Extensions.AspNetCore.DataProtection.Blobs / .Keys (T03): the
+         shared Blob key ring protected by the Key Vault key. Pinned to the
+         versions whose Azure.Core requirement keeps the T01 managed-identity
+         behaviour unchanged.
+       - Microsoft.AspNetCore.DataProtection (T03): the Data Protection
+         abstractions those integrations configure, on the repository's
+         10.0.10 line. No other ASP.NET Core assembly.
        - Microsoft.Extensions.DependencyInjection.Abstractions: the single
          registration extension, on the repository's 10.0.10 line.
+       - Azure.Core and Azure.Storage.Blobs (T03): named directly by the
+         library (TokenCredential, BlobClient for the key ring), so they are
+         pinned exactly at the versions the packages above resolve to rather
+         than left to transitive resolution. Azure.Core 1.54.0 is the highest
+         floor any of them declares.
 
-       No EF Core, ASP.NET Core, Document Intelligence SDK or tax module. -->
+       No EF Core, ASP.NET Core hosting, Document Intelligence SDK or tax
+       module. -->
   <ItemGroup>
+    <PackageReference Include="Azure.Core" Version="1.54.0" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.2" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.2" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.10.1" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.11.1" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.26.0" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
   </ItemGroup>
 
-  <!-- Dependencies point inward, and are exactly one in this slice: Tenancy owns
+  <!-- Dependencies point inward, and are exactly one through T03: Tenancy owns
        the production-control vocabulary, evidence shapes and the identity-probe
-       port this library implements. ClientIntake and ExtractionWorkflow are
-       referenced only when a later slice consumes them. -->
+       port this library implements. ClientIntake is not referenced: the
+       credential-port implementation stays in the portal and consumes the
+       loaded material unchanged. ExtractionWorkflow is referenced only when a
+       later slice consumes it. -->
   <ItemGroup>
     <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
   </ItemGroup>

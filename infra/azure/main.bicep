@@ -20,6 +20,14 @@
 // emits, so the private endpoint bindings and the validated settings cannot
 // drift apart; deploying before those resources exist fails, it never deploys
 // a partial binding set.
+//
+// Spec 016 T03 adds the key-protection resources, all primary-only and all
+// named by the same runtime inputs: the Canadian Key Vault with its four
+// purpose-separated RSA-HSM customer-managed keys (key-vault.bicep), the
+// separate private Data Protection key-ring store (key-ring-storage.bicep) and
+// the secure Azure SQL Database with its TDE protector (sql.bicep). The
+// dependency private endpoints are created only after the Key Vault and SQL
+// resources they bind exist.
 
 targetScope = 'resourceGroup'
 
@@ -181,6 +189,45 @@ module egress 'modules/egress.bicep' = if (isPrimary) {
   }
 }
 
+module keyVault 'modules/key-vault.bicep' = if (isPrimary) {
+  name: 'key-vault'
+  params: {
+    location: primaryRegion
+    keyVaultName: primaryInputs!.runtime.keyVaultName
+    tenantId: primaryInputs!.runtime.tenantId
+    sourceEnvelopeKeyName: primaryInputs!.runtime.sourceEnvelopeKeyName
+    dataProtectionKeyName: primaryInputs!.runtime.dataProtectionKeyName
+    applicationPrincipalId: primaryInputs!.runtime.managedIdentityPrincipalId
+  }
+}
+
+module keyRingStorage 'modules/key-ring-storage.bicep' = if (isPrimary) {
+  name: 'key-ring-storage'
+  params: {
+    location: primaryRegion
+    namePrefix: namePrefix
+    accountName: primaryInputs!.runtime.controlStorageAccountName
+    containerName: primaryInputs!.runtime.keyRingContainerName
+    applicationPrincipalId: primaryInputs!.runtime.managedIdentityPrincipalId
+    privateEndpointSubnetId: regionalNetwork.outputs.privateEndpointSubnetId
+    blobZoneId: privateDns.outputs.zoneIds.SourceStorage
+  }
+}
+
+module sql 'modules/sql.bicep' = if (isPrimary) {
+  name: 'sql'
+  params: {
+    location: primaryRegion
+    namePrefix: namePrefix
+    sqlServerName: primaryInputs!.runtime.sqlServerName
+    sqlDatabaseName: primaryInputs!.runtime.sqlDatabaseName
+    tenantId: primaryInputs!.runtime.tenantId
+    keyVaultName: primaryInputs!.runtime.keyVaultName
+    tdeKeyName: keyVault!.outputs.sqlTdeKeyName
+    tdeKeyUriWithVersion: keyVault!.outputs.sqlTdeKeyUriWithVersion
+  }
+}
+
 module runtimeConfiguration 'modules/runtime-configuration.bicep' = if (isPrimary) {
   name: 'runtime-configuration'
   params: {
@@ -241,6 +288,10 @@ module privateEndpoints 'modules/private-endpoints.bicep' = if (isPrimary) {
     keyVaultResourceId: resourceId('Microsoft.KeyVault/vaults', primaryInputs!.runtime.keyVaultName)
     documentIntelligenceResourceId: resourceId('Microsoft.CognitiveServices/accounts', primaryInputs!.runtime.documentIntelligenceName)
   }
+  dependsOn: [
+    keyVault
+    sql
+  ]
 }
 
 module ingress 'modules/application-gateway.bicep' = if (isPrimary) {

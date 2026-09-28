@@ -216,22 +216,55 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
     {
         var registration = ExecutableLines(PortalFile("ModuleRegistration.cs")).ToArray();
 
+        // Spec 016 T03: the one Production comparison is captured once, in
+        // runsInProduction, and keys exactly two branches: the vault-loaded
+        // intake material (before intake validation reads it) and the
+        // infrastructure registration. Neither enables or disables a control.
         var production = Array.FindIndex(
             registration,
             line => line.Contains("Environments.Production,", StringComparison.Ordinal));
         Assert.True(production >= 0);
         Assert.Single(registration, line => line.Contains("Environments.Production", StringComparison.Ordinal));
+        Assert.Contains("var runsInProduction = string.Equals(", registration[production - 2], StringComparison.Ordinal);
 
-        var block = GuardedBlock(registration, production);
-        Assert.Contains("AddTaxAiAzureInfrastructure(", block, StringComparison.Ordinal);
-        foreach (var forbidden in ControlsNoEnvironmentBranchMayDisable)
+        var branches = registration
+            .Select((line, index) => (line, index))
+            .Where(entry => entry.line == "if (runsInProduction)")
+            .Select(entry => GuardedBlock(registration, entry.index))
+            .ToArray();
+        Assert.Equal(2, branches.Length);
+
+        var material = Assert.Single(branches, block => block.Contains("SupplyProductionRuntimeMaterial(", StringComparison.Ordinal));
+        Assert.Contains("services.AddSingleton(material);", material, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddTaxAiAzureInfrastructure(", material, StringComparison.Ordinal);
+
+        var infrastructure = Assert.Single(branches, block => block.Contains("AddTaxAiAzureInfrastructure(", StringComparison.Ordinal));
+
+        foreach (var block in branches)
         {
-            Assert.DoesNotMatch(new Regex(forbidden, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), block);
+            foreach (var forbidden in ControlsNoEnvironmentBranchMayDisable)
+            {
+                Assert.DoesNotMatch(new Regex(forbidden, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), block);
+            }
+
+            Assert.DoesNotContain("IIntakeContentStore", block, StringComparison.Ordinal);
+            Assert.DoesNotContain("IDocumentIntelligenceProvider", block, StringComparison.Ordinal);
+            Assert.DoesNotContain("IExtractionContentReader", block, StringComparison.Ordinal);
         }
 
-        Assert.DoesNotContain("IIntakeContentStore", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("IDocumentIntelligenceProvider", block, StringComparison.Ordinal);
-        Assert.DoesNotContain("IExtractionContentReader", block, StringComparison.Ordinal);
+        Assert.NotEqual(material, infrastructure);
+    }
+
+    [Fact] // spec 016 T03: the Production host registers the approved key protection.
+    public void TheProductionHostRegistersTheApprovedResourceProbe()
+    {
+        using var client = _factory.CreateClient();
+
+        // Registered, not resolved: resolving it builds the managed-identity
+        // credential, which only a structurally valid profile may do.
+        Assert.True(_factory.Services
+            .GetRequiredService<IServiceProviderIsService>()
+            .IsService(typeof(TaxAI.AzureInfrastructure.Configuration.IApprovedResourceProbe)));
     }
 
     // --------------------------------------------------------- spec 011 AC-32

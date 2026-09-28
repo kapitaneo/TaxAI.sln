@@ -222,6 +222,43 @@ deployable ones included. The intake content-encryption key is required only in
 Development; outside it the key and the Development content root are refused by
 the production shape.
 
+## Spec 016 T03: key protection in Production
+
+T03 wires the real key protection into the Production host. The portal still
+declares no Azure package and names no Azure SDK type: every credential, key,
+secret and key-ring component is built by `TaxAI.AzureInfrastructure`.
+
+- **Shared protected key ring.** In Production only, `PortalIdentity` registers
+  `AzureDataProtectionConfiguration.ProtectWithAzureKeyRing` from the closed
+  profile: one private Canadian Blob key ring, protected by the Key Vault Data
+  Protection key, reached by the configured managed identity, with the
+  production application discriminator. A profile that does not describe it
+  registers none, and startup refuses. Development keeps its local key ring;
+  every other environment registers none. `PortalStartupGuards` accepts the
+  profile key ring in place of the spec 011 location/protection pair in
+  Production only. Durable sessions, not cookie decryption, still authorize.
+- **Intake credential material from Key Vault.** In Production the composition
+  root loads the intake digest and fingerprint keys once, by managed identity,
+  with `AzureInfrastructureRegistration.LoadProductionRuntimeMaterial`, and
+  supplies them to the unchanged intake validation. `IntakeConfiguration.cs`
+  and the credential algorithms are unchanged. Plaintext
+  `TaxAi:Intake:DigestKey`/`FingerprintKey` settings are never loaded over; the
+  gate refuses them. A refused load leaves no material and intake validation
+  refuses startup with its fixed message. `ModuleRegistration.RegisterTaxAiModules`
+  takes the loader explicitly so tests never contact a vault; `AddTaxAiModules`
+  keeps its signature.
+- **The gate adds three T03 rules:** the registered key ring must be exactly the
+  Azure Blob repository with the Azure Key Vault encryptor and the approved
+  discriminator; the intake material must be exactly the vault-loaded material;
+  and, only after the managed identity is verified, `IApprovedResourceProbe`
+  must find both wrapping keys enabled, non-exportable, purge-protected and
+  actually wrapping, and the key ring round-tripping, within the probe
+  deadline. No new `TaxAi:Production:*` setting exists.
+
+Production admission is still refused: no production Document Intelligence
+adapter, source store or source reader exists, and both provider assurance
+gaps remain unresolved.
+
 ## The narrowed gate — read before adding a surface
 
 The identity, trusted-firm, session, logging, and residency decisions made by

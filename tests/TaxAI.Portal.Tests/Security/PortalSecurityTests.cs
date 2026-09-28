@@ -672,6 +672,51 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             + string.Join(", ", violations));
     }
 
+    [Fact] // spec 016 T03: keys, secrets and the key ring stay behind the library.
+    public void ThePortalReachesKeysSecretsAndTheKeyRingOnlyThroughTheInfrastructureLibrary()
+    {
+        var sdk = new Regex(
+            @"\b(TokenCredential|ManagedIdentityCredential|DefaultAzureCredential|SecretClient|KeyClient|CryptographyClient|KeyResolver|BlobClient|PersistKeysToAzureBlobStorage|ProtectKeysWithAzure\w*|StorageSharedKeyCredential)\b",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+        var offenders = ProductionSourceFiles()
+            .Where(path => sdk.IsMatch(string.Join("\n", ExecutableLines(path))))
+            .Select(Path.GetFileName)
+            .ToArray();
+
+        Assert.Empty(offenders);
+        Assert.Matches(sdk, "new SecretClient(vault, credential)"); // positive control
+
+        // The Production key-ring branch only adds the approved ring, once,
+        // after the Development branch; it never removes or replaces a control.
+        var identity = ExecutableLines(Path.Combine(PortalRoot, "PortalIdentity.cs")).ToArray();
+        var production = Array.FindIndex(identity, line => line.Contains("Environments.Production", StringComparison.Ordinal));
+        Assert.True(production > 0);
+        Assert.StartsWith("else if (", identity[production], StringComparison.Ordinal);
+        Assert.Single(identity, line => line.Contains("ProtectWithAzureKeyRing(", StringComparison.Ordinal));
+        Assert.Single(identity, line => line.Contains("PersistKeysToFileSystem(", StringComparison.Ordinal));
+        Assert.True(
+            Array.FindIndex(identity, line => line.Contains("ProtectWithAzureKeyRing(", StringComparison.Ordinal)) > production);
+
+        // Scoped to the Production key-ring branch itself: the unrelated OIDC
+        // scope reset elsewhere in the file is not a key-ring control.
+        var branch = new List<string>();
+        var depth = 0;
+        for (var index = production; index < identity.Length; index++)
+        {
+            branch.Add(identity[index]);
+            depth += identity[index].Count(character => character == '{') - identity[index].Count(character => character == '}');
+            if (index > production && depth == 0)
+            {
+                break;
+            }
+        }
+
+        Assert.Contains(branch, line => line.Contains("ProtectWithAzureKeyRing(", StringComparison.Ordinal));
+        Assert.DoesNotContain(branch, line => Regex.IsMatch(line, @"\b(Remove|Disable|Clear|Replace)\w*\(", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)));
+    }
+
     [Theory] // spec 011 FR-20 as amended
     [InlineData(@"DateTime\s*\.\s*Now")]
     [InlineData(@"DateTime\s*\.\s*UtcNow")]

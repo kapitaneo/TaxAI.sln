@@ -171,6 +171,56 @@ public sealed class RepositoryContractTests
         Assert.Matches(secret, "Server=x;Password=planted");
     }
 
+    // ---------------------------------------- spec 016 T03 key protection
+
+    [Fact] // T03 adds its IaC, contract, drill and procedure without a secret.
+    public void EveryT03ContractTemplateToolAndProcedureIsSecretFree()
+    {
+        var files = new[]
+        {
+            Path.Combine(RepositoryRoot, "infra", "azure", "contracts", "data-configuration.schema.json"),
+            Path.Combine(RepositoryRoot, "infra", "azure", "modules", "key-vault.bicep"),
+            Path.Combine(RepositoryRoot, "infra", "azure", "modules", "key-ring-storage.bicep"),
+            Path.Combine(RepositoryRoot, "infra", "azure", "modules", "sql.bicep"),
+            Path.Combine(RepositoryRoot, "scripts", "azure", "Invoke-KeyRotationDrill.ps1"),
+            Path.Combine(RepositoryRoot, "docs", "operations", "key-rotation.md"),
+        };
+        var secret = new Regex(
+            @"AccountKey=|SharedAccessSignature|[?&]sig=|Password\s*=|Pwd\s*=|BEGIN (RSA |EC )?PRIVATE KEY|client_secret|ClientSecret|administratorLoginPassword|""d""\s*:\s*""|""dp""\s*:",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+        Assert.All(files, file => Assert.True(File.Exists(file), file));
+        Assert.All(files, file => Assert.DoesNotMatch(secret, File.ReadAllText(file)));
+
+        // Positive controls: a private JWK exponent and a SQL password are caught.
+        Assert.Matches(secret, "{\"kty\":\"RSA\",\"d\":\"planted\"}");
+        Assert.Matches(secret, "Server=x;Password=planted");
+    }
+
+    [Fact] // T03 consumes the existing closed profile and adds no production setting.
+    public void KeyProtectionAddsNoProductionRuntimeSetting()
+    {
+        var names = PortalSettingNames();
+
+        Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
+        Assert.DoesNotContain(names, name =>
+            Regex.IsMatch(name, "Secret|Password|Material|Digest|Fingerprint|KeyRingBlob|Rotation", RegexOptions.IgnoreCase));
+        foreach (var consumed in new[]
+                 {
+                     "TaxAi:Production:KeyVault:Endpoint",
+                     "TaxAi:Production:SourceEnvelope:KeyUri",
+                     "TaxAi:Production:DataProtection:StorageEndpoint",
+                     "TaxAi:Production:DataProtection:KeyRingContainer",
+                     "TaxAi:Production:DataProtection:KeyUri",
+                     "TaxAi:Production:DataProtection:ApplicationDiscriminator",
+                     "TaxAi:Production:ManagedIdentity:ClientId",
+                 })
+        {
+            Assert.Contains(consumed, names);
+        }
+    }
+
     // ------------------------------------------- the executable offline check
 
     [Fact]

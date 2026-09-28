@@ -3,6 +3,8 @@ using ClientIntake.Contracts;
 using DocumentIntelligence;
 using ExtractionWorkflow.Contracts;
 using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Keys;
+using TaxAI.AzureInfrastructure.Protection;
 using Tenancy.Contracts;
 using Tenancy.Models;
 using Tenancy.Services;
@@ -35,6 +37,15 @@ namespace TaxAI.Portal.Production;
 /// default. Later slices replace each absence with a real, verified
 /// registration; the provider assurance gaps keep admission refused until
 /// authoritative evidence resolves them.
+/// </para>
+/// <para>
+/// Spec 016 T03 adds the real key protection: the registered key ring must be
+/// exactly the protected Azure key ring with the approved discriminator, the
+/// intake credential material must be the material loaded from Key Vault (never
+/// a plaintext setting), and, once the managed identity is verified, the
+/// approved-resource probe must find both Key Vault keys enabled,
+/// non-exportable, purge-protected and actually wrapping, and the shared key
+/// ring round-tripping.
 /// </para>
 /// </summary>
 internal static class ProductionAdmissionGate
@@ -126,7 +137,8 @@ internal static class ProductionAdmissionGate
             .Concat(structural?.Refusals ?? Array.Empty<ProductionAdmissionRefusal>())
             .Concat(IntakeConfiguration.ProductionShapeRefusals(configuration))
             .Concat(ExtractionConfiguration.ProductionShapeRefusals(configuration))
-            .Concat(RegistrationRefusals(services))
+            .Concat(RegistrationRefusals(services, snapshot.Options))
+            .Concat(RuntimeMaterialRefusals(services, configuration))
             .Concat(EvidenceRefusals(snapshot, evaluatedAtUtc))
             .Concat(IdentityRefusals(services, snapshot.Options, structural)));
     }
@@ -144,7 +156,8 @@ internal static class ProductionAdmissionGate
     /// Inspects actual registrations, not option strings (FR-14).
     /// </summary>
     private static IEnumerable<ProductionAdmissionRefusal> RegistrationRefusals(
-        IServiceProvider services)
+        IServiceProvider services,
+        AzureInfrastructureOptions options)
     {
         var registered = services.GetService<IServiceProviderIsService>();
 
@@ -198,7 +211,13 @@ internal static class ProductionAdmissionGate
 
         yield return ProductionAdmissionRefusal.ProductionSourceReaderMissing;
 
-        if (!PortalStartupGuards.HasRegisteredDurableKeyRing(services))
+        // Durable is necessary; the exact protected Azure key ring with the
+        // approved discriminator is required (T03). A durable ring from anywhere
+        // else is not the approved one.
+        if (!PortalStartupGuards.HasRegisteredDurableKeyRing(services) ||
+            !AzureDataProtectionConfiguration.IsApprovedKeyRing(
+                services,
+                options.DataProtection.ApplicationDiscriminator))
         {
             yield return ProductionAdmissionRefusal.DurableDataProtectionMissing;
         }
@@ -206,6 +225,31 @@ internal static class ProductionAdmissionGate
         if (!PortalStartupGuards.HasDurableSessionStore(services))
         {
             yield return ProductionAdmissionRefusal.DurableSessionStoreMissing;
+        }
+    }
+
+    /// <summary>
+    /// Spec 016 T03: the intake credential material the host runs with must be
+    /// exactly the material the composition root loaded from Key Vault. A
+    /// plaintext digest or fingerprint setting, a missing load, or a value that
+    /// differs from the loaded one is an unapproved configuration entry.
+    /// </summary>
+    private static IEnumerable<ProductionAdmissionRefusal> RuntimeMaterialRefusals(
+        IServiceProvider services,
+        IConfiguration configuration)
+    {
+        var material = services.GetService<RuntimeMaterial>();
+        if (material is not { IsLoaded: true } ||
+            !string.Equals(
+                configuration[IntakeConfiguration.DigestKeySetting],
+                material.DigestKey,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                configuration[IntakeConfiguration.FingerprintKeySetting],
+                material.FingerprintKey,
+                StringComparison.Ordinal))
+        {
+            yield return ProductionAdmissionRefusal.UnapprovedConfigurationEntry;
         }
     }
 
@@ -240,7 +284,8 @@ internal static class ProductionAdmissionGate
     /// <summary>
     /// Probes the managed identity only when the profile's binding is valid, so a
     /// malformed profile never causes a token request. The probe is bounded by
-    /// the validated probe deadline.
+    /// the validated probe deadline. Only a verified identity goes on to the
+    /// approved-resource probe (T03), under its own deadline of the same bound.
     /// </summary>
     private static IEnumerable<ProductionAdmissionRefusal> IdentityRefusals(
         IServiceProvider services,
@@ -275,7 +320,39 @@ internal static class ProductionAdmissionGate
         }
 
         return outcome == ManagedIdentityBindingOutcome.Verified
-            ? Array.Empty<ProductionAdmissionRefusal>()
+            ? ResourceRefusals(services, deadline)
             : new[] { ProductionAdmissionRefusal.ManagedIdentityBindingUnverified };
+    }
+
+    /// <summary>
+    /// The approved-resource probe as refusals. An unregistered probe is a
+    /// missing validation; a stalled or failed probe is unverifiable, never a
+    /// pass.
+    /// </summary>
+    private static IEnumerable<ProductionAdmissionRefusal> ResourceRefusals(
+        IServiceProvider services,
+        TimeSpan deadline)
+    {
+        var probe = services.GetService<IApprovedResourceProbe>();
+        if (probe is null)
+        {
+            return new[] { ProductionAdmissionRefusal.InfrastructureValidationUnregistered };
+        }
+
+        using var cancellation = new CancellationTokenSource(deadline);
+        try
+        {
+            return probe
+                .ProbeAsync(cancellation.Token)
+                .GetAwaiter()
+                .GetResult()
+                .Refusals;
+        }
+        catch (Exception failure) when (failure is
+            OperationCanceledException or
+            InvalidOperationException)
+        {
+            return ApprovedResourceProbeResult.Unverifiable.Refusals;
+        }
     }
 }

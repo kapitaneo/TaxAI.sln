@@ -36,6 +36,20 @@ executable review package or `TaxCase`.
 - `GuidOpaqueIdentifierSource`, `SqlConnectionStringGuard`, the
   development-only synthetic seeder, and `AddTaxAiPersistence`.
 
+Spec 016 T03 tightens `SqlConnectionStringGuard` without changing its
+signature: transport must be explicitly encrypted with the server certificate
+validated against the server name — no `TrustServerCertificate` bypass and no
+`HostNameInCertificate` override — and `Persist Security Info` is refused.
+Among Microsoft Entra modes only the platform managed identity is accepted, and
+never with a password or integrated security; a mode that stores a secret,
+prompts a person or walks a credential chain is refused. SQL and Windows
+authentication remain available to Development and the in-process verification
+hosts; the production profile validator independently requires the managed
+identity with strict encryption. Customer-managed TDE, Entra-only
+authentication and the private endpoint are infrastructure
+(`infra/azure/modules/sql.bicep`), not code here: this module still takes no
+cloud SDK, credential or key dependency.
+
 Migration `20260730000000_AddClientIntake` is additive: it creates only the
 twelve intake metadata tables. It does not alter the initial migration or any
 existing firm, identity, session, or review table. Source content remains

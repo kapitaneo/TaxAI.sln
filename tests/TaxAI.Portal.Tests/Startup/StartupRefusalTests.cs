@@ -240,6 +240,66 @@ public sealed class StartupRefusalTests
         Assert.Contains(ExpectedUnconfiguredKeyRing, refusal, StringComparison.Ordinal);
     }
 
+    // ------------------------------- spec 016 T03: the production key ring
+
+    /// <summary>
+    /// The production profile settings that describe the protected Azure key
+    /// ring, with the spec 011 location and protection pair removed.
+    /// </summary>
+    private static Dictionary<string, string?> ProfileKeyRingInPlaceOfLegacySettings(string? keyUri = null) => new()
+    {
+        [PortalTestDeploymentConfiguration.KeyRingLocationKey] = null,
+        [PortalTestDeploymentConfiguration.KeyProtectionIdentifierKey] = null,
+        ["TaxAi:Production:ManagedIdentity:ClientId"] = "33333333-3333-4333-8333-333333333333",
+        ["TaxAi:Production:DataProtection:StorageEndpoint"] = "https://sttaxaictlcc.blob.core.windows.net/",
+        ["TaxAi:Production:DataProtection:KeyRingContainer"] = "data-protection",
+        ["TaxAi:Production:DataProtection:KeyUri"] = keyUri ?? "https://kv-taxai-prod-cc.vault.azure.net/keys/data-protection",
+        ["TaxAi:Production:DataProtection:ApplicationDiscriminator"] = "taxai-portal-production",
+    };
+
+    [Fact] // T03: Production configures its key ring from the closed profile.
+    public void ProductionAcceptsTheProfileKeyRingInPlaceOfTheLegacySettings()
+    {
+        // The durable test ring replaces the Azure components so the host never
+        // reaches a storage account or vault; the configured-ring check under
+        // test reads configuration only.
+        using var host = Host(
+            "Production",
+            configuration: ProfileKeyRingInPlaceOfLegacySettings(),
+            services: collection => collection.AddApprovedDurableDataProtection());
+
+        Assert.Null(Record.Exception(() =>
+        {
+            using var client = host.CreateClient();
+        }));
+    }
+
+    [Fact] // T03: the profile key ring is a Production-only configuration.
+    public void StagingStillRequiresTheLegacyKeyRingSettingsEvenWithAProfileKeyRing()
+    {
+        var refusal = StartupFailure(
+            "Staging",
+            configuration: ProfileKeyRingInPlaceOfLegacySettings(),
+            services: collection => collection.AddApprovedDurableDataProtection());
+
+        Assert.Contains(ExpectedUnconfiguredKeyRing, refusal, StringComparison.Ordinal);
+    }
+
+    [Theory] // T03: an unusable profile key ring is not a configured one.
+    [InlineData("https://kv-taxai-prod-cc.vault.azure.net/keys/data-protection/0123456789abcdef0123456789abcdef")]
+    [InlineData("http://kv-taxai-prod-cc.vault.azure.net/keys/data-protection")]
+    [InlineData("https://kv-taxai-prod-cc.planted.example/keys/data-protection")]
+    public void ProductionRefusesAnUnusableProfileKeyRingWithoutTheLegacySettings(string keyUri)
+    {
+        var refusal = StartupFailure(
+            "Production",
+            configuration: ProfileKeyRingInPlaceOfLegacySettings(keyUri),
+            services: collection => collection.AddApprovedDurableDataProtection());
+
+        Assert.Contains(ExpectedUnconfiguredKeyRing, refusal, StringComparison.Ordinal);
+        Assert.DoesNotContain("planted", refusal, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ------------------------------------------------- AC-76 as decided by B-6
 
     [Fact] // AC-76, B-6

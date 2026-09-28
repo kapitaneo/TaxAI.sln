@@ -1,4 +1,6 @@
+using System.Net;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using DocumentIntelligence;
 using ExtractionWorkflow.Contracts;
@@ -11,7 +13,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
+using Azure.Core;
+using Azure.Core.Pipeline;
+using Azure.Security.KeyVault.Secrets;
 using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.Portal.Tests.Support;
 using Tenancy.Contracts;
 using Tenancy.Models;
@@ -29,6 +35,15 @@ namespace TaxAI.Portal.Tests.Production;
 /// satisfied; what remains is exactly the three production adapters that later
 /// slices supply, so no deployable host can be admitted by T01. Every other case
 /// changes one thing and observes its own refusal.
+/// </para>
+/// <para>
+/// Spec 016 T03 extends the positive control with the real key protection: the
+/// intake credential material is loaded by the real
+/// <see cref="KeyVaultRuntimeMaterialProvider"/> over a controlled in-memory
+/// vault, the key ring is the real protected Azure key ring the portal
+/// registers for Production, and a controlled approved-resource probe stands in
+/// for the Key Vault data plane. Plaintext material, a substitute key ring and
+/// each probe finding are then refused one at a time.
 /// </para>
 /// <para>
 /// All identifiers are synthetic and resolve to nothing. No network, cloud
@@ -137,8 +152,6 @@ public sealed class ProductionStartupTests
         settings["TaxAi:Intake:ClientSessionIdleLifetime"] = "00:15:00";
         settings["TaxAi:Intake:MaximumFileBytes"] = "1048576";
         settings["TaxAi:Intake:MaximumFilesPerRequest"] = "1";
-        settings["TaxAi:Intake:DigestKey"] = Key(0x11);
-        settings["TaxAi:Intake:FingerprintKey"] = Key(0x22);
         foreach (var (name, value) in new[]
                  {
                      ("PublicPermitLimit", "20"), ("PublicWindow", "00:01:00"),
@@ -238,12 +251,125 @@ public sealed class ProductionStartupTests
     [Fact]
     public void TheCompleteProfileUsesTheRealRegisteredValidatorAndDurableComponents()
     {
-        using var provider = Scenario.Complete().Build();
+        var (provider, configuration) = Scenario.Complete().BuildHost();
+        using var _ = provider;
 
         Assert.NotNull(provider.GetService<ProductionConfigurationValidator>());
         Assert.NotNull(provider.GetService<IManagedIdentityBindingProbe>());
+        Assert.NotNull(provider.GetService<IApprovedResourceProbe>());
         Assert.Null(provider.GetService<IDocumentIntelligenceProvider>());
         Assert.Null(provider.GetService<IExtractionContentReader>());
+
+        // T03: the real protected Azure key ring and the vault-loaded material.
+        Assert.True(TaxAI.AzureInfrastructure.Protection.AzureDataProtectionConfiguration.IsApprovedKeyRing(
+            provider,
+            "taxai-portal-production"));
+        var material = provider.GetRequiredService<RuntimeMaterial>();
+        Assert.True(material.IsLoaded);
+        Assert.Equal(Key(0x11), configuration["TaxAi:Intake:DigestKey"]);
+        Assert.Equal(Key(0x22), configuration["TaxAi:Intake:FingerprintKey"]);
+    }
+
+    [Fact] // T03: the production loader is handed the profile, not a free-form destination.
+    public void TheRuntimeMaterialLoaderReceivesTheProductionProfileAndConnection()
+    {
+        AzureInfrastructureOptions? received = null;
+        string? connection = null;
+        var scenario = Scenario.Complete() with
+        {
+            Loader = (options, databaseConnectionString) =>
+            {
+                received = options;
+                connection = databaseConnectionString;
+                return ControlledSecrets.Load();
+            },
+        };
+
+        var (provider, _) = scenario.BuildHost();
+        provider.Dispose();
+
+        Assert.Equal("https://kv-taxai-prod-cc.vault.azure.net/", received?.KeyVault.Endpoint);
+        Assert.Equal(ClientId, received?.ManagedIdentity.ClientId);
+        Assert.Equal(ProductionConnectionString, connection);
+    }
+
+    [Fact] // T03: plaintext material is never loaded over, and the gate refuses it.
+    public void PlaintextIntakeKeyMaterialIsNotReplacedAndIsRefused()
+    {
+        var loads = 0;
+        var scenario = Scenario.Complete()
+            .Set("TaxAi:Intake:DigestKey", Key(0x33))
+            .Set("TaxAi:Intake:FingerprintKey", Key(0x44)) with
+        {
+            Loader = (_, _) =>
+            {
+                loads++;
+                return ControlledSecrets.Load();
+            },
+        };
+
+        var (provider, configuration) = scenario.BuildHost();
+        using var _ = provider;
+
+        Assert.Equal(0, loads);
+        Assert.Null(provider.GetService<RuntimeMaterial>());
+        Assert.Equal(Key(0x33), configuration["TaxAi:Intake:DigestKey"]);
+        Assert.Contains(
+            ProductionAdmissionRefusal.UnapprovedConfigurationEntry,
+            EvaluateProvider(provider, configuration, "Production"));
+    }
+
+    public static TheoryData<string> RefusedMaterialLoads() => new()
+    {
+        "unavailable",
+        "invalid",
+        "wrong identity",
+    };
+
+    [Theory] // T03: a refused load leaves no material, so startup refuses.
+    [MemberData(nameof(RefusedMaterialLoads))]
+    public void ARefusedMaterialLoadRefusesStartupWithTheFixedIntakeMessage(string scenario)
+    {
+        Func<AzureInfrastructureOptions, string, RuntimeMaterial> loader = scenario switch
+        {
+            "unavailable" => (_, _) => RuntimeMaterial.Refused(RuntimeMaterialOutcome.Unavailable),
+            "invalid" => (_, _) => RuntimeMaterial.Refused(RuntimeMaterialOutcome.Invalid),
+            _ => (_, _) => ControlledSecrets.Load(token: "synthetic-foreign-identity-token"),
+        };
+
+        var failure = Assert.Throws<TargetInvocationException>(
+            () => (Scenario.Complete() with { Loader = loader }).BuildHost());
+
+        Assert.IsType<InvalidOperationException>(failure.InnerException);
+        Assert.Equal("Client intake configuration is missing or invalid.", failure.InnerException!.Message);
+    }
+
+    [Fact] // T03: an unmatched configured value is not the vault material.
+    public void MaterialThatDiffersFromTheLoadedMaterialIsRefused()
+    {
+        var (provider, configuration) = Scenario.Complete().BuildHost();
+        using var _ = provider;
+        configuration["TaxAi:Intake:DigestKey"] = Key(0x55);
+
+        Assert.Contains(
+            ProductionAdmissionRefusal.UnapprovedConfigurationEntry,
+            EvaluateProvider(provider, configuration, "Production"));
+    }
+
+    [Fact] // T03: the resource probe runs only after the identity is verified.
+    public void TheResourceProbeIsNotRunForAnUnverifiedIdentity()
+    {
+        var probe = new ControlledResourceProbe(new ApprovedResourceProbeResult(Array.Empty<ApprovedResourceFinding>()), hangs: false);
+        var scenario = Scenario.Complete() with
+        {
+            ProbeOutcome = ManagedIdentityBindingOutcome.Mismatched,
+            ResourceProbe = probe,
+        };
+
+        var result = Evaluate(scenario);
+
+        Assert.Contains(ProductionAdmissionRefusal.ManagedIdentityBindingUnverified, result);
+        Assert.Equal(0, probe.Calls);
     }
 
     public static TheoryData<string, ProductionAdmissionRefusal> AdmissionRefusals()
@@ -340,8 +466,30 @@ public sealed class ProductionStartupTests
             ["local store reader configured"] = (Scenario.Complete().Set("TaxAi:Extraction:ContentReader", "DevelopmentEncryptedIntakeContentStore"),
                 ProductionAdmissionRefusal.LocalSourceStoreConfigured),
             // AC-143
-            ["durable key ring omitted"] = (Scenario.Complete() with { DurableDataProtection = false },
+            ["durable key ring omitted"] = (Scenario.Complete().Set("TaxAi:Production:DataProtection:StorageEndpoint", null),
                 ProductionAdmissionRefusal.DurableDataProtectionMissing),
+            // T03: a durable ring that is not the protected Azure ring.
+            ["substitute durable key ring"] = (Scenario.Complete() with { SubstituteDataProtection = true },
+                ProductionAdmissionRefusal.DurableDataProtectionMissing),
+            // T03: approved-resource probe findings, one at a time.
+            ["source envelope key not approved"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.SourceEnvelopeKeyNotApproved),
+                ProductionAdmissionRefusal.SourceEnvelopeEncryptionMissing),
+            ["source envelope key cannot wrap"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.SourceEnvelopeWrapFailed),
+                ProductionAdmissionRefusal.SourceEnvelopeEncryptionMissing),
+            ["key ring key not approved"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.DataProtectionKeyNotApproved),
+                ProductionAdmissionRefusal.DataProtectionConfigurationMissing),
+            ["key ring key cannot wrap"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.DataProtectionWrapFailed),
+                ProductionAdmissionRefusal.DataProtectionConfigurationMissing),
+            ["key ring does not round trip"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.KeyRingRoundTripFailed),
+                ProductionAdmissionRefusal.DurableDataProtectionMissing),
+            ["key vault unavailable"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.KeyVaultUnavailable),
+                ProductionAdmissionRefusal.KeyVaultBindingInvalid),
+            ["resource probe exceeds its deadline"] = (Scenario.Complete().Set("TaxAi:Production:Resilience:ProbeDeadline", "00:00:01") with { ResourceProbeHangs = true },
+                ProductionAdmissionRefusal.KeyVaultBindingInvalid),
+            ["resource probe unregistered"] = (Scenario.Complete() with { RemoveResourceProbe = true },
+                ProductionAdmissionRefusal.InfrastructureValidationUnregistered),
+            ["plaintext intake key material"] = (Scenario.Complete().Set("TaxAi:Intake:DigestKey", Key(0x33)).Set("TaxAi:Intake:FingerprintKey", Key(0x44)),
+                ProductionAdmissionRefusal.UnapprovedConfigurationEntry),
             ["key ring configuration omitted"] = (Scenario.Complete().Set("TaxAi:Production:DataProtection:KeyUri", null),
                 ProductionAdmissionRefusal.DataProtectionConfigurationMissing),
             // AC-144
@@ -434,8 +582,8 @@ public sealed class ProductionStartupTests
     {
         var scenario = Scenario.Complete()
             .Set("TaxAi:Production:SourceStorage:Endpoint", "https://planted-host.example/");
-        using var provider = scenario.Build();
-        var configuration = scenario.Configuration();
+        var (provider, configuration) = scenario.BuildHost();
+        using var _ = provider;
 
         var failure = Assert.Throws<TargetInvocationException>(() => RequireAdmission(
             provider,
@@ -453,12 +601,12 @@ public sealed class ProductionStartupTests
     [Fact]
     public void RequireAdmissionRefusesTheCompleteT01ProfileBecauseNoProductionAdapterExists()
     {
-        var scenario = Scenario.Complete();
-        using var provider = scenario.Build();
+        var (provider, configuration) = Scenario.Complete().BuildHost();
+        using var _ = provider;
 
         var failure = Assert.Throws<TargetInvocationException>(() => RequireAdmission(
             provider,
-            scenario.Configuration(),
+            configuration,
             "Production"));
 
         Assert.Equal(RefusalMessage, failure.InnerException?.Message);
@@ -536,8 +684,9 @@ public sealed class ProductionStartupTests
 
     private static ProductionAdmissionRefusal[] Evaluate(Scenario scenario)
     {
-        using var provider = scenario.Build();
-        return EvaluateProvider(provider, scenario.Configuration(), scenario.EnvironmentName, scenario.EvaluatedAt);
+        var (provider, configuration) = scenario.BuildHost();
+        using var _ = provider;
+        return EvaluateProvider(provider, configuration, scenario.EnvironmentName, scenario.EvaluatedAt);
     }
 
     private static ProductionAdmissionRefusal[] EvaluateProvider(
@@ -586,7 +735,22 @@ public sealed class ProductionStartupTests
 
         public bool RemoveValidator { get; init; }
 
-        public bool DurableDataProtection { get; init; } = true;
+        /// <summary>
+        /// T03: replaces the real protected Azure key ring with the durable test
+        /// ring, which the startup guard accepts and the gate does not.
+        /// </summary>
+        public bool SubstituteDataProtection { get; init; }
+
+        public Func<AzureInfrastructureOptions, string, RuntimeMaterial> Loader { get; init; } =
+            (_, _) => ControlledSecrets.Load();
+
+        public ControlledResourceProbe? ResourceProbe { get; init; }
+
+        public ApprovedResourceFinding[] Findings { get; init; } = Array.Empty<ApprovedResourceFinding>();
+
+        public bool ResourceProbeHangs { get; init; }
+
+        public bool RemoveResourceProbe { get; init; }
 
         public bool RegisterDevelopmentProvider { get; init; }
 
@@ -597,6 +761,9 @@ public sealed class ProductionStartupTests
         public Func<string, string?> ManifestFactory { get; init; } = digest => Manifest(digest);
 
         public static Scenario Complete() => new();
+
+        public Scenario WithFindings(params ApprovedResourceFinding[] findings) =>
+            this with { Findings = findings };
 
         public Scenario Set(string key, string? value)
         {
@@ -623,7 +790,12 @@ public sealed class ProductionStartupTests
             return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         }
 
-        public ServiceProvider Build()
+        /// <summary>
+        /// Builds the host exactly as the composition root would, and returns the
+        /// configuration it actually ended up with, so the gate sees the same
+        /// configuration the host was built from.
+        /// </summary>
+        public (ServiceProvider Provider, IConfiguration Configuration) BuildHost()
         {
             var configuration = Configuration();
             var services = new ServiceCollection();
@@ -633,7 +805,7 @@ public sealed class ProductionStartupTests
 
             typeof(Program).Assembly
                 .GetType("TaxAI.Portal.ModuleRegistration", throwOnError: true)!
-                .GetMethod("AddTaxAiModules", BindingFlags.Static | BindingFlags.NonPublic)!
+                .GetMethod("RegisterTaxAiModules", BindingFlags.Static | BindingFlags.NonPublic)!
                 .Invoke(null, new object[]
                 {
                     services,
@@ -644,15 +816,23 @@ public sealed class ProductionStartupTests
                     // (proved separately), and the gate must still see and refuse
                     // whatever configuration actually holds.
                     ProductionConnectionString,
+                    Loader,
                 });
 
             services.AddSingleton<IServer, DeployableServer>();
 
             services.AddSingleton<TimeProvider>(new FixedClock(EvaluatedAt));
 
-            if (DurableDataProtection)
+            if (SubstituteDataProtection)
             {
                 services.AddApprovedDurableDataProtection();
+            }
+
+            services.RemoveAll<IApprovedResourceProbe>();
+            if (!RemoveResourceProbe)
+            {
+                services.AddSingleton<IApprovedResourceProbe>(
+                    ResourceProbe ?? new ControlledResourceProbe(new ApprovedResourceProbeResult(Findings), ResourceProbeHangs));
             }
 
             if (RemoveProbe)
@@ -689,7 +869,113 @@ public sealed class ProductionStartupTests
                 services.AddScoped(localStore, _ => throw new InvalidOperationException("never resolved"));
             }
 
-            return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+            return (services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true }), configuration);
+        }
+    }
+
+    /// <summary>
+    /// A controlled approved-resource probe: returns a fixed result, or waits
+    /// until the gate's deadline cancels it.
+    /// </summary>
+    internal sealed class ControlledResourceProbe(ApprovedResourceProbeResult result, bool hangs) : IApprovedResourceProbe
+    {
+        public int Calls { get; private set; }
+
+        public async Task<ApprovedResourceProbeResult> ProbeAsync(CancellationToken cancellationToken)
+        {
+            Calls++;
+            if (hangs)
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// Loads intake material with the real Key Vault provider over an in-memory
+    /// secrets endpoint that answers the SDK challenge, accepts one bearer token
+    /// and serves the two fixed synthetic secrets. Nothing reaches a network.
+    /// </summary>
+    internal static class ControlledSecrets
+    {
+        internal const string ApprovedToken = "synthetic-application-token";
+
+        internal static RuntimeMaterial Load(string token = ApprovedToken)
+        {
+            var options = new SecretClientOptions
+            {
+                Transport = new HttpClientTransport(new HttpClient(new Handler())),
+            };
+            options.Retry.MaxRetries = 0;
+
+            return new KeyVaultRuntimeMaterialProvider(
+                    new Uri("https://kv-taxai-prod-cc.vault.azure.net/"),
+                    new FixedToken(token),
+                    new FixedClock(Now),
+                    options)
+                .LoadAsync(CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        private sealed class Handler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                if (request.Headers.Authorization is null)
+                {
+                    var challenge = new HttpResponseMessage(HttpStatusCode.Unauthorized);
+                    challenge.Headers.TryAddWithoutValidation(
+                        "WWW-Authenticate",
+                        $"Bearer authorization=\"https://login.microsoftonline.com/{Tenant}\", resource=\"https://vault.azure.net\"");
+                    return Task.FromResult(challenge);
+                }
+
+                if (request.Headers.Authorization.Parameter != ApprovedToken)
+                {
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
+                    {
+                        Content = new StringContent("{\"error\":{\"code\":\"Forbidden\",\"message\":\"synthetic\"}}", Encoding.UTF8, "application/json"),
+                    });
+                }
+
+                var name = request.RequestUri!.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)[1];
+                var value = name switch
+                {
+                    "taxai-intake-digest-key" => Key(0x11),
+                    "taxai-intake-fingerprint-key" => Key(0x22),
+                    _ => null,
+                };
+                if (value is null)
+                {
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+                    {
+                        Content = new StringContent("{\"error\":{\"code\":\"SecretNotFound\",\"message\":\"synthetic\"}}", Encoding.UTF8, "application/json"),
+                    });
+                }
+
+                var body = JsonSerializer.Serialize(new
+                {
+                    value,
+                    id = $"https://kv-taxai-prod-cc.vault.azure.net/secrets/{name}/{new string('b', 32)}",
+                    attributes = new { enabled = true, created = 1_700_000_000, updated = 1_700_000_000 },
+                });
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
+                });
+            }
+        }
+
+        private sealed class FixedToken(string token) : TokenCredential
+        {
+            public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+                new(token, DateTimeOffset.UtcNow.AddHours(1));
+
+            public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+                new(GetToken(requestContext, cancellationToken));
         }
     }
 

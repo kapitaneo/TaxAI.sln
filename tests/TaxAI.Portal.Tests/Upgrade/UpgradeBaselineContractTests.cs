@@ -117,6 +117,21 @@ public sealed class UpgradeBaselineContractTests
         "HasRegisteredDurableKeyRing",
         "RunsInDevelopment",
         "RunsInProcessTestServer",
+
+        // Spec 016 T03: the configured-key-ring predicate that admits the
+        // production profile's protected Azure key ring in Production.
+        "HasConfiguredKeyRing",
+    ];
+
+    /// <summary>
+    /// Spec 016 T03: the one internal composition method added beside the
+    /// unchanged <c>AddTaxAiModules</c> signature. It takes the production
+    /// runtime-material loader explicitly, so tests never contact a vault. Named
+    /// exactly, so no other ModuleRegistration addition is approved.
+    /// </summary>
+    private static readonly string[] ApprovedPostBaselineCompositionMethods =
+    [
+        "RegisterTaxAiModules",
     ];
 
     [Fact]
@@ -449,7 +464,8 @@ public sealed class UpgradeBaselineContractTests
                 signature => Assert.True(
                     approvedAdditivePrefixes.Any(prefix =>
                         signature.Contains(prefix, StringComparison.Ordinal)) ||
-                    IsApprovedStartupGuardMethod(signature),
+                    IsApprovedStartupGuardMethod(signature) ||
+                    IsApprovedCompositionMethod(signature),
                     $"Unapproved additive signature: {signature}"));
 
             // The endpoint's own additions stay internal; only the component tree
@@ -888,6 +904,11 @@ public sealed class UpgradeBaselineContractTests
     private static bool IsApprovedStartupGuardMethod(string signature) =>
         signature.StartsWith("M|TaxAI.Portal.PortalStartupGuards|internal|", StringComparison.Ordinal) &&
         ApprovedPostBaselineStartupGuardMethods.Any(method =>
+            signature.Contains($"|{method}|(", StringComparison.Ordinal));
+
+    private static bool IsApprovedCompositionMethod(string signature) =>
+        signature.StartsWith("M|TaxAI.Portal.ModuleRegistration|internal|static|", StringComparison.Ordinal) &&
+        ApprovedPostBaselineCompositionMethods.Any(method =>
             signature.Contains($"|{method}|(", StringComparison.Ordinal));
 
     private static bool IncludeType(TypeInfo type) =>
