@@ -272,8 +272,24 @@ or deployment authorization ships.
 
 **Spec 014 is complete.** No spec 014 task remains.
 
-There is no approved next specification. The next one a human approves should
-start from the gates below, not from an assumption that any of them moved.
+Spec 016 (Canadian Azure Production Infrastructure) is the approved platform
+specification: `specs/016-canadian-azure-production-infrastructure/` holds the
+PRD, architecture and a ten-wave task plan (T01–T10), each wave human-selected
+and merged before the next. It starts from the gates below; none of them moved.
+
+- **T01 — Azure infrastructure boundary and production configuration** is
+  implemented on its branch: the `TaxAI.AzureInfrastructure` library with the
+  structural production-profile validator and the data-plane managed-identity
+  binding probe, Tenancy's production-control contracts and evidence policy,
+  the Portal's closed production profile and enforced admission gate, the
+  runtime-configuration schema and Bicep module, the offline configuration
+  check, and the initial threat model. It admits no deployable host: the
+  production Document Intelligence adapter, source store and reader do not
+  exist yet, and both provider assurance gaps stay independently required.
+  Its completion marker waits for the authoritative gate on the supported
+  Windows environment.
+- No later task is selected. T02 onward each require explicit human selection
+  after T01 merges.
 
 The first taxpayer-data surface is complete under spec 012's review allowlist,
 and spec 014 adds the separately approved intake surface. Both are limited to

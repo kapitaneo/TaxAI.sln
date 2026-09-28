@@ -77,6 +77,103 @@ public sealed class IntakeConfigurationTests
             new TestEnvironment(Environments.Production, NewRoot())));
     }
 
+    // ------------------------------------------ spec 016 T01 production shape
+
+    [Fact]
+    public void DevelopmentStillRequiresAValidDistinctContentEncryptionKey()
+    {
+        var missing = ValidSettings(NewRoot());
+        missing.Remove("TaxAi:Intake:ContentEncryptionKey");
+        AssertFixedRefusal(missing, Environments.Development);
+
+        var malformed = ValidSettings(NewRoot());
+        malformed["TaxAi:Intake:ContentEncryptionKey"] = "not-a-key";
+        AssertFixedRefusal(malformed, Environments.Development);
+
+        var reused = ValidSettings(NewRoot());
+        reused["TaxAi:Intake:ContentEncryptionKey"] = reused["TaxAi:Intake:DigestKey"];
+        AssertFixedRefusal(reused, Environments.Development);
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void OutsideDevelopmentTheLocalStoreKeyIsNotRequiredButIsStillValidatedWhenSupplied(
+        string environmentName)
+    {
+        var withoutLocalStore = ValidSettings(NewRoot());
+        withoutLocalStore.Remove("TaxAi:Intake:ContentEncryptionKey");
+        withoutLocalStore.Remove("TaxAi:Intake:DevelopmentContentRoot");
+
+        Assert.NotNull(Require(
+            withoutLocalStore,
+            new TestEnvironment(environmentName, NewRoot())));
+
+        var malformed = ValidSettings(NewRoot());
+        malformed["TaxAi:Intake:ContentEncryptionKey"] = "not-a-key";
+        AssertFixedRefusal(malformed, environmentName);
+
+        var reused = ValidSettings(NewRoot());
+        reused["TaxAi:Intake:ContentEncryptionKey"] = reused["TaxAi:Intake:FingerprintKey"];
+        AssertFixedRefusal(reused, environmentName);
+    }
+
+    [Fact]
+    public void EverySpec014BoundIsStillRequiredOutsideDevelopment()
+    {
+        foreach (var setting in ValidSettings(NewRoot()).Keys.Where(key =>
+                     key is not "TaxAi:Intake:ContentEncryptionKey" and
+                         not "TaxAi:Intake:DevelopmentContentRoot"))
+        {
+            var settings = ValidSettings(NewRoot());
+            settings.Remove(setting);
+            settings.Remove("TaxAi:Intake:ContentEncryptionKey");
+            settings.Remove("TaxAi:Intake:DevelopmentContentRoot");
+
+            AssertFixedRefusal(settings, Environments.Production);
+        }
+    }
+
+    [Theory] // AC-142
+    [InlineData("TaxAi:Intake:DevelopmentContentRoot")]
+    [InlineData("TaxAi:Intake:ContentEncryptionKey")]
+    public void EitherLocalStoreSettingIsAProductionShapeRefusal(string setting)
+    {
+        var settings = ValidSettings(NewRoot());
+        settings.Remove("TaxAi:Intake:ContentEncryptionKey");
+        settings.Remove("TaxAi:Intake:DevelopmentContentRoot");
+        settings[setting] = setting.EndsWith("Key", StringComparison.Ordinal)
+            ? Key(0x44)
+            : NewRoot();
+
+        Assert.Equal(new[] { "LocalSourceStoreConfigured" }, ProductionShape(settings));
+    }
+
+    [Fact]
+    public void TheProductionShapeWithoutLocalStoreSettingsHasNoIntakeRefusal()
+    {
+        var settings = ValidSettings(NewRoot());
+        settings.Remove("TaxAi:Intake:ContentEncryptionKey");
+        settings.Remove("TaxAi:Intake:DevelopmentContentRoot");
+
+        Assert.Empty(ProductionShape(settings));
+    }
+
+    private static string[] ProductionShape(IReadOnlyDictionary<string, string?> settings)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings)
+            .Build();
+        var type = typeof(Program).Assembly.GetType(
+            "TaxAI.Portal.IntakeConfiguration",
+            throwOnError: true)!;
+        var refusals = (System.Collections.IEnumerable)type.GetMethod(
+                "ProductionShapeRefusals",
+                BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [configuration])!;
+        return refusals.Cast<object>().Select(refusal => refusal.ToString()!).ToArray();
+    }
+
     private static object? Require(
         IReadOnlyDictionary<string, string?> settings,
         IWebHostEnvironment environment)

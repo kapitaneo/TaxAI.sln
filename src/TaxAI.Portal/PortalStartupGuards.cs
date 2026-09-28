@@ -137,18 +137,11 @@ internal static class PortalStartupGuards
             return;
         }
 
-        // TestServer is an in-process verification surface, not a deployable
-        // server. Historical production-startup tests use it to exercise the
-        // durable key-ring and session-store refusals below. No extraction
-        // services are registered in those hosts. Every deployable Production
-        // or Staging host refuses here because this specification ships no
-        // approved production provider or content reader.
-        if (!RunsInProcessTestServer(services))
-        {
-            throw new InvalidOperationException(
-                ExtractionConfiguration.NonDevelopmentRefusalMessage);
-        }
-
+        // Every non-Development host, deployable or in-process, must hold the
+        // durable key ring and session store below. A deployable host then also
+        // faces ProductionAdmissionGate (spec 016 T01), which Program invokes
+        // next; TestServer remains an in-process verification surface only and
+        // is never production authorization.
         if (string.IsNullOrWhiteSpace(configuration[KeyRingLocationSetting]) ||
             string.IsNullOrWhiteSpace(configuration[KeyProtectionIdentifierSetting]))
         {
@@ -157,16 +150,47 @@ internal static class PortalStartupGuards
 
         RequireRegisteredDurableKeyRing(services);
 
-        // Resolved through a scope: the store is scoped, and the container is
-        // built with scope validation on, so a root resolution would be a bug
-        // this guard should not be the one to introduce.
-        using var scope = services.CreateScope();
-        var sessionStore = scope.ServiceProvider.GetService<IAuthenticationSessionStore>();
-
-        if (sessionStore is null || !IsDurableStore(sessionStore))
+        if (!HasDurableSessionStore(services))
         {
             throw new InvalidOperationException(NonDurableSessionStoreMessage);
         }
+    }
+
+    /// <summary>
+    /// The B-6 key-ring rule as a predicate, shared with the spec 016
+    /// production admission gate so both apply one definition of durable.
+    /// </summary>
+    internal static bool HasRegisteredDurableKeyRing(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        if (services.GetService<IDataProtectionProvider>() is null)
+        {
+            return false;
+        }
+
+        var keyManagement = services.GetService<IOptions<KeyManagementOptions>>()?.Value;
+
+        return IsExplicitlyRegistered(keyManagement?.XmlRepository) &&
+               IsExplicitlyRegistered(keyManagement?.XmlEncryptor);
+    }
+
+    /// <summary>
+    /// True only when the registered session store is the durable one.
+    /// <para>
+    /// Resolved through a scope: the store is scoped, and the container is
+    /// built with scope validation on, so a root resolution would be a bug
+    /// this guard should not be the one to introduce.
+    /// </para>
+    /// </summary>
+    internal static bool HasDurableSessionStore(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        using var scope = services.CreateScope();
+        var sessionStore = scope.ServiceProvider.GetService<IAuthenticationSessionStore>();
+
+        return sessionStore is not null && IsDurableStore(sessionStore);
     }
 
     /// <summary>
@@ -201,15 +225,7 @@ internal static class PortalStartupGuards
     /// </summary>
     private static void RequireRegisteredDurableKeyRing(IServiceProvider services)
     {
-        if (services.GetService<IDataProtectionProvider>() is null)
-        {
-            throw new InvalidOperationException(UnregisteredKeyRingMessage);
-        }
-
-        var keyManagement = services.GetService<IOptions<KeyManagementOptions>>()?.Value;
-
-        if (!IsExplicitlyRegistered(keyManagement?.XmlRepository) ||
-            !IsExplicitlyRegistered(keyManagement?.XmlEncryptor))
+        if (!HasRegisteredDurableKeyRing(services))
         {
             throw new InvalidOperationException(UnregisteredKeyRingMessage);
         }
@@ -231,10 +247,10 @@ internal static class PortalStartupGuards
     private static bool IsDurableStore(IAuthenticationSessionStore sessionStore) =>
         sessionStore.GetType().Assembly == typeof(PersistenceRegistration).Assembly;
 
-    private static bool RunsInDevelopment(string environmentName) =>
+    internal static bool RunsInDevelopment(string environmentName) =>
         string.Equals(environmentName, Environments.Development, StringComparison.Ordinal);
 
-    private static bool RunsInProcessTestServer(IServiceProvider services) =>
+    internal static bool RunsInProcessTestServer(IServiceProvider services) =>
         string.Equals(
             services.GetRequiredService<IServer>()
                 .GetType()

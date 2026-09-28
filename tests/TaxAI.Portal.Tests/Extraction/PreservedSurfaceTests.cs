@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace TaxAI.Portal.Tests.Extraction;
@@ -8,6 +10,25 @@ public sealed class PreservedSurfaceTests
 {
     private const string T05Merge = "736f10d";
     private const string T06Merge = "33ca918";
+
+    private const string IntakeConfigurationPath = "src/TaxAI.Portal/IntakeConfiguration.cs";
+
+    /// <summary>
+    /// Spec 016 T01, human-authorized: the exact lines the production-shape
+    /// change removed from the T05 version of IntakeConfiguration.cs.
+    /// </summary>
+    private static readonly string[] ApprovedSpec016IntakeRemovals =
+    {
+        "            !TryKey(",
+    };
+
+    /// <summary>
+    /// SHA-256 of the exact lines spec 016 T01 added to IntakeConfiguration.cs,
+    /// joined by LF. Any further addition or edit to that file changes this
+    /// digest and fails until a new change is separately authorized.
+    /// </summary>
+    private const string ApprovedSpec016IntakeAdditionsSha256 =
+        "b8824ceef756c896c5a1dc9fad2f5b5fa86be9dd86e553509c35b2f54d56a9dc";
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
@@ -27,7 +48,9 @@ public sealed class PreservedSurfaceTests
         await AssertUnchangedFromT05Async(
             "src/TaxAI.Portal/ClientIntakeCookie.cs",
             "src/TaxAI.Portal/ClientIntakeEndpoints.cs",
-            "src/TaxAI.Portal/IntakeConfiguration.cs",
+            // IntakeConfiguration.cs is no longer byte-identical: spec 016 T01
+            // made the human-authorized production-shape change. It is still
+            // guarded, line-exactly, by the two spec 016 tests below.
             "src/TaxAI.Portal/IntakeEndpoints.cs",
             "src/TaxAI.Portal/IntakeHttpSecurity.cs",
             "src/TaxAI.Portal/Components/Pages/ClientIntakePage.razor",
@@ -39,6 +62,116 @@ public sealed class PreservedSurfaceTests
             "src/TaxAI.Portal/Components/Shared/ClientQuestionnairePanel.razor.js",
             "src/TaxAI.Portal/Components/Shared/IntakeStatusBadge.razor",
             "src/TaxAI.Portal/wwwroot/intake.css");
+    }
+
+    /// <summary>
+    /// Spec 016 T01 (human-authorized narrow exception). IntakeConfiguration.cs
+    /// may differ from the T05 merge only by the approved production-shape
+    /// change: exactly one removed line and exactly the approved added lines.
+    /// Anything else, including any later edit, fails here.
+    /// </summary>
+    [Fact]
+    public async Task IntakeConfigurationDiffersFromTheT05MergeOnlyByTheApprovedSpec016Change()
+    {
+        var (removed, added) = await DiffFromT05Async(IntakeConfigurationPath);
+
+        Assert.Equal(ApprovedSpec016IntakeRemovals, removed);
+        Assert.Equal(
+            ApprovedSpec016IntakeAdditionsSha256,
+            Convert.ToHexStringLower(
+                SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", added)))));
+
+        // The additions carry no source, logging, network, SIN or bypass token.
+        var addedText = string.Join("\n", added);
+        foreach (var forbidden in new[]
+                 {
+                     "File.", "Directory.", "Stream", "ILogger", "Console.", "HttpClient",
+                     "GetEnvironmentVariable", "Sin", "SocialInsurance", "Mask",
+                     "Bypass", "Skip", "Disable", "IExtractionContentReader",
+                     "IIntakeContentStore", "RetentionPolicy", "TrustedFirmId",
+                 })
+        {
+            Assert.DoesNotContain(forbidden, addedText, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Spec 016 T01: the approved production configuration surface, asserted
+    /// separately from the diff. Every Spec 014 setting, bound, key rule and
+    /// the Development content-root rule are still present; the only additions
+    /// are the production-shape refusal and the Development-only content key.
+    /// </summary>
+    [Fact]
+    public void IntakeConfigurationExposesExactlyTheApprovedSpec016ProductionSurface()
+    {
+        var source = string.Join(
+            "\n",
+            File.ReadAllLines(Path.Combine(RepositoryRoot, "src", "TaxAI.Portal", "IntakeConfiguration.cs")));
+        var type = typeof(Program).Assembly.GetType(
+            "TaxAI.Portal.IntakeConfiguration",
+            throwOnError: true)!;
+
+        var methods = type
+            .GetMethods(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .Select(method => method.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "Encode",
+                "IsWithin",
+                "ProductionShapeRefusals",
+                "Require",
+                "RequireDevelopmentRoot",
+                "TryContentEncryptionKey",
+                "TryKey",
+                "TryOrigin",
+                "TryPositiveDuration",
+                "TryPositiveInt",
+                "TryPositiveLong",
+                "TryRates",
+            },
+            methods);
+
+        var shape = type.GetMethod(
+            "ProductionShapeRefusals",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        Assert.True(shape.IsAssembly);
+        Assert.Equal(
+            typeof(IReadOnlyList<Tenancy.Models.ProductionAdmissionRefusal>),
+            shape.ReturnType);
+
+        // Every Spec 014 bound is still read and enforced exactly as before.
+        foreach (var preserved in new[]
+                 {
+                     "!TryOrigin(configuration[PublicOriginSetting], out var publicOrigin) ||",
+                     "!TryKey(configuration[DigestKeySetting], out var digestKey) ||",
+                     "!TryKey(configuration[FingerprintKeySetting], out var fingerprintKey) ||",
+                     "digestKey.AsSpan().SequenceEqual(fingerprintKey) ||",
+                     "digestKey.AsSpan().SequenceEqual(contentEncryptionKey) ||",
+                     "fingerprintKey.AsSpan().SequenceEqual(contentEncryptionKey) ||",
+                     "!TryRates(configuration, out var rates))",
+                     "contentRoot = RequireDevelopmentRoot(",
+                     "IsWithin(root, environment.WebRootPath))",
+                     "\"Client intake configuration is missing or invalid.\";",
+                 })
+        {
+            Assert.Contains(preserved, source, StringComparison.Ordinal);
+        }
+
+        // The content key stays mandatory in Development, and the only refusal
+        // the production shape can produce is the local-store refusal.
+        Assert.Contains("Environments.Development,", source, StringComparison.Ordinal);
+        Assert.Contains("return TryKey(candidate, out key);", source, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(source, @"ProductionAdmissionRefusal\.\w+"));
+        Assert.Contains(
+            "ProductionAdmissionRefusal.LocalSourceStoreConfigured",
+            source,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,6 +390,42 @@ public sealed class PreservedSurfaceTests
             $"Preserved surface differs from {T05Merge}.{Environment.NewLine}" +
             await standardOutput +
             await standardError);
+    }
+
+    private static async Task<(string[] Removed, string[] Added)> DiffFromT05Async(string path)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "git",
+                WorkingDirectory = RepositoryRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            },
+        };
+        foreach (var argument in new[] { "diff", "-U0", "--no-ext-diff", "--no-color", T05Merge, "--", path })
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        Assert.True(process.Start());
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        Assert.True(process.ExitCode == 0, await standardError);
+
+        var lines = (await standardOutput).Split('\n');
+        return (
+            lines.Where(line => line.StartsWith('-') && !line.StartsWith("---", StringComparison.Ordinal))
+                .Select(line => line[1..].TrimEnd('\r'))
+                .ToArray(),
+            lines.Where(line => line.StartsWith('+') && !line.StartsWith("+++", StringComparison.Ordinal))
+                .Select(line => line[1..].TrimEnd('\r'))
+                .ToArray());
     }
 
     private static string PortalFile(string name) =>

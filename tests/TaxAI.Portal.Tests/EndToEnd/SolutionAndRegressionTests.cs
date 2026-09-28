@@ -104,6 +104,43 @@ public sealed class SolutionAndRegressionTests
         }
     }
 
+    [Fact] // spec 016 T01
+    public void TheSpec016InfrastructureProjectsAreDeclaredExactlyOnceEachWithEveryConfiguration()
+    {
+        // Presence and uniqueness at the approved paths only; this makes no
+        // statement about the solution's total project count.
+        var solution = File.ReadAllText(Path.Combine(RepositoryRoot, "TaxAI.sln"));
+        var projectLines = SolutionProjectLines();
+
+        foreach (var (declaration, guid) in new[]
+                 {
+                     (
+                         "\"TaxAI.AzureInfrastructure\", \"src\\TaxAI.AzureInfrastructure\\TaxAI.AzureInfrastructure.csproj\"",
+                         "{8E5B2C41-6A0D-4F1B-9C3E-2D7A5B9E1F04}"
+                     ),
+                     (
+                         "\"TaxAI.AzureInfrastructure.Tests\", \"tests\\TaxAI.AzureInfrastructure.Tests\\TaxAI.AzureInfrastructure.Tests.csproj\"",
+                         "{3C9F7A12-5E84-4B6D-A1F0-9B2E6D4C8A37}"
+                     ),
+                 })
+        {
+            var line = Assert.Single(
+                projectLines,
+                candidate => candidate.Contains(declaration, StringComparison.Ordinal));
+            Assert.Contains(guid, line, StringComparison.Ordinal);
+
+            foreach (var configuration in new[]
+                     {
+                         "Debug|Any CPU", "Debug|x64", "Debug|x86",
+                         "Release|Any CPU", "Release|x64", "Release|x86",
+                     })
+            {
+                Assert.Contains($"{guid}.{configuration}.ActiveCfg", solution, StringComparison.Ordinal);
+                Assert.Contains($"{guid}.{configuration}.Build.0", solution, StringComparison.Ordinal);
+            }
+        }
+    }
+
     [Fact]
     public void EveryDeclaredSolutionProjectResolvesToAFileThatExists()
     {
@@ -433,6 +470,20 @@ public sealed class SolutionAndRegressionTests
         {
             var executable = string.Join("\n", ExecutableLines(path));
 
+            // Spec 016 T01: the closed production profile reader names the Key
+            // Vault configuration keys it validates. Exactly those three
+            // configuration spellings are removed from that one file before the
+            // scan; any other Key Vault token, and every SDK namespace below,
+            // stays forbidden there and everywhere else.
+            if (IsProductionProfileReader(module, path))
+            {
+                Assert.Contains("\"KeyVault:\"", executable, StringComparison.Ordinal);
+                executable = executable
+                    .Replace("KeyVaultPrefix", string.Empty, StringComparison.Ordinal)
+                    .Replace("\"KeyVault:\"", string.Empty, StringComparison.Ordinal)
+                    .Replace("KeyVault = ReadDependency", string.Empty, StringComparison.Ordinal);
+            }
+
             foreach (var forbidden in new[]
                      {
                          "IDocumentExtractionIngress",
@@ -462,6 +513,14 @@ public sealed class SolutionAndRegressionTests
             }
         }
     }
+
+    private static bool IsProductionProfileReader(string module, string path) =>
+        module == "TaxAI.Portal" &&
+        string.Equals(
+            Path.GetRelativePath(Path.Combine(RepositoryRoot, "src", module), path)
+                .Replace('\\', '/'),
+            "Production/ProductionConfiguration.cs",
+            StringComparison.Ordinal);
 
     /// <summary>
     /// Spec 014 AC-81 — no source-document or intake-history retention rule was

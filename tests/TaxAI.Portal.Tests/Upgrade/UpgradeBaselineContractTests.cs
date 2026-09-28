@@ -52,6 +52,10 @@ public sealed class UpgradeBaselineContractTests
 
         // Spec 015 T03 — the extraction store's contracts and storage records.
         ("Persistence", "src/ExtractionWorkflow/ExtractionWorkflow.csproj"),
+
+        // Spec 016 T01 — the production admission gate consumes the Azure
+        // infrastructure library's validator and identity probe.
+        ("TaxAI.Portal", "src/TaxAI.AzureInfrastructure/TaxAI.AzureInfrastructure.csproj"),
     ];
 
     /// <summary>
@@ -75,6 +79,44 @@ public sealed class UpgradeBaselineContractTests
         "Persistence.Entities.MedicalEvidence",
         "Persistence.Migrations.AddDocumentExtraction",
         "Persistence.Repositories.SqlExtractionStore",
+    ];
+
+    /// <summary>
+    /// Spec 016 T01 — the production-control vocabulary, evidence shapes,
+    /// identity-probe port and evidence policy added beside Tenancy's baseline.
+    /// Each type is named exactly; the baseline signatures stay compared
+    /// byte-for-byte.
+    /// </summary>
+    private static readonly string[] ApprovedPostBaselineTenancyTypes =
+    [
+        "Tenancy.Contracts.IManagedIdentityBindingProbe",
+        "Tenancy.Contracts.ManagedIdentityBinding",
+        "Tenancy.Contracts.ManagedIdentityBindingOutcome",
+        "Tenancy.Contracts.ProductionApproval",
+        "Tenancy.Contracts.ProductionEvidenceManifest",
+        "Tenancy.Contracts.ProductionReleaseBinding",
+        "Tenancy.Models.ProductionAdmissionRefusal",
+        "Tenancy.Models.ProductionApprovalRole",
+        "Tenancy.Models.ProductionEvidenceItem",
+        "Tenancy.Models.ProductionEvidenceStatus",
+        "Tenancy.Models.ProductionEvidenceSubject",
+        "Tenancy.Models.ProductionReadiness",
+        "Tenancy.Models.ProviderAssurance",
+        "Tenancy.Models.ProviderAssuranceSubject",
+        "Tenancy.Services.ProductionEvidencePolicy",
+    ];
+
+    /// <summary>
+    /// Spec 016 T01 — the four existing startup-guard predicates the production
+    /// admission gate shares, now internal rather than private. Named per method
+    /// so no other PortalStartupGuards addition is approved.
+    /// </summary>
+    private static readonly string[] ApprovedPostBaselineStartupGuardMethods =
+    [
+        "HasDurableSessionStore",
+        "HasRegisteredDurableKeyRing",
+        "RunsInDevelopment",
+        "RunsInProcessTestServer",
     ];
 
     [Fact]
@@ -215,6 +257,7 @@ public sealed class UpgradeBaselineContractTests
                      ("ClientIntake", "src/ClientIntake/ClientIntake.csproj"),
                      ("ExtractionWorkflow", "src/ExtractionWorkflow/ExtractionWorkflow.csproj"),
                      ("DocumentIntelligence", "src/DocumentIntelligence/DocumentIntelligence.csproj"),
+                     ("TaxAI.AzureInfrastructure", "src/TaxAI.AzureInfrastructure/TaxAI.AzureInfrastructure.csproj"),
                  })
         {
             // Genuinely later than the baseline: a module named here must not be
@@ -270,6 +313,28 @@ public sealed class UpgradeBaselineContractTests
                         ApprovedPostBaselinePersistencePrefixes.Any(prefix =>
                             signature.Contains(prefix, StringComparison.Ordinal)),
                         $"Unapproved Persistence addition: {signature}"));
+                continue;
+            }
+
+            if (string.Equals(expected.Name, "Tenancy", StringComparison.Ordinal))
+            {
+                // Every baseline Tenancy signature survives unchanged, and each
+                // addition belongs to exactly one approved spec 016 type.
+                Assert.All(
+                    expected.Signatures,
+                    signature => Assert.Contains(signature, current.Signatures));
+                var tenancyAdditions = current.Signatures
+                    .Except(expected.Signatures, StringComparer.Ordinal)
+                    .ToArray();
+                Assert.NotEmpty(tenancyAdditions);
+                Assert.All(
+                    tenancyAdditions,
+                    signature => Assert.True(
+                        ApprovedPostBaselineTenancyTypes.Any(type =>
+                            signature.Contains($"|{type}|", StringComparison.Ordinal) ||
+                            signature.EndsWith($"|{type}", StringComparison.Ordinal) ||
+                            signature.Contains($"|{type}|base=", StringComparison.Ordinal)),
+                        $"Unapproved Tenancy addition: {signature}"));
                 continue;
             }
 
@@ -363,6 +428,10 @@ public sealed class UpgradeBaselineContractTests
                 "TaxAI.Portal.IntakeRateConfiguration",
                 "TaxAI.Portal.IntakeRuntimeConfiguration",
 
+                // Spec 016 T01 — the production profile reader and admission gate.
+                "TaxAI.Portal.Production.ProductionAdmissionGate",
+                "TaxAI.Portal.Production.ProductionConfiguration",
+
                 // SDK-generated, not user-declared. Referencing the Razor component
                 // model makes the toolchain embed these marker attributes into the
                 // assembly; no source file in this repository declares either, and
@@ -376,7 +445,8 @@ public sealed class UpgradeBaselineContractTests
                 additiveSignatures,
                 signature => Assert.True(
                     approvedAdditivePrefixes.Any(prefix =>
-                        signature.Contains(prefix, StringComparison.Ordinal)),
+                        signature.Contains(prefix, StringComparison.Ordinal)) ||
+                    IsApprovedStartupGuardMethod(signature),
                     $"Unapproved additive signature: {signature}"));
 
             // The endpoint's own additions stay internal; only the component tree
@@ -811,6 +881,11 @@ public sealed class UpgradeBaselineContractTests
                 $"|attributes={Attributes(method)}";
         }
     }
+
+    private static bool IsApprovedStartupGuardMethod(string signature) =>
+        signature.StartsWith("M|TaxAI.Portal.PortalStartupGuards|internal|", StringComparison.Ordinal) &&
+        ApprovedPostBaselineStartupGuardMethods.Any(method =>
+            signature.Contains($"|{method}|(", StringComparison.Ordinal));
 
     private static bool IncludeType(TypeInfo type) =>
         !type.IsNestedPrivate &&

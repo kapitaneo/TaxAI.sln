@@ -97,17 +97,26 @@ received filename, and the literal client-side filename `upload.bin`; bytes
 stream directly into the workflow. No `IFormFile`, `ReadFormAsync`, source
 content response, preview, or download path exists.
 
-## Dependencies point inward, and are exactly five
+## Dependencies point inward
 
-The production project references are exactly:
+At spec 014 the production project references were exactly five:
+`TaxLogicEngine`, `CaseProcessing`, `ClientIntake`, `Tenancy`, and
+`Persistence`. Spec 015 added `ExtractionWorkflow` and `DocumentIntelligence`.
+Spec 016 T01 adds exactly one more, `TaxAI.AzureInfrastructure`, whose
+production-profile validator and managed-identity probe the admission gate
+consumes. The current set is exactly these eight:
 
 - `TaxLogicEngine`;
 - `CaseProcessing`;
 - `ClientIntake`;
+- `DocumentIntelligence`;
+- `ExtractionWorkflow`;
 - `Tenancy`;
-- `Persistence`.
+- `Persistence`;
+- `TaxAI.AzureInfrastructure`.
 
-The portal does not directly reference `TaxCases`, `DocumentExtraction`, or
+The portal declares no Azure, EF Core or telemetry package itself. It does not
+directly reference `TaxCases`, `DocumentExtraction`, or
 `CaseReview`. Those modules stay behind inward contracts, and no module may
 reference `TaxAI.Portal`. All service registration remains rooted in
 `ModuleRegistration.cs`.
@@ -181,6 +190,37 @@ This build may not be deployed anywhere that can receive real taxpayer data
 until a deployment specification supplies and verifies the Canadian Azure
 Storage and Key Vault key ring, hosting, exposure, TLS, residency, secrets,
 operations, and provisioning posture.
+
+## Spec 016 T01: the production admission gate
+
+The unconditional non-Development refusal is replaced by an **enforced**
+production admission gate, not by a switch. `Production/ProductionConfiguration.cs`
+reads the closed `TaxAi:Production:*` profile (any other key under that
+section is an unapproved entry) plus the secret-free evidence manifest, and
+computes the configuration digest. `Production/ProductionAdmissionGate.cs`,
+invoked unconditionally by `Program.cs` after `PortalStartupGuards`, evaluates
+every rule and throws one fixed, value-free message unless all pass:
+
+- the host environment is exactly `Production` and the profile validates;
+- intake and extraction settings have the production shape — no Development
+  provider, no local encrypted filesystem store, root, key or reader;
+- the container holds a durable key ring, the durable session store, the
+  registered validator and the approved production Document Intelligence
+  adapter, source store and source reader;
+- the configured artifact version is the running build's informational version;
+- the platform-issued managed identity matches the configured binding, within
+  the validated probe deadline;
+- the manifest proves DEP-01 to DEP-24, both provider assurances and both role
+  approvals for this exact artifact and configuration digest.
+
+**As of T01 no deployable host can pass:** no production Document Intelligence
+adapter, source store or source reader exists, and their absence is itself a
+refusal. Development hosts and the in-process TestServer are not evaluated, and
+neither is ever production authorization. `PortalStartupGuards` now applies the
+durable key-ring and session-store refusals to every non-Development host,
+deployable ones included. The intake content-encryption key is required only in
+Development; outside it the key and the Development content root are refused by
+the production shape.
 
 ## The narrowed gate — read before adding a surface
 

@@ -151,6 +151,7 @@ public sealed class NoEgressTests
             TimeSpan.FromSeconds(1));
 
         var offenders = new List<string>();
+        var approvedExceptions = new List<string>();
 
         foreach (var project in RepositoryProjects())
         {
@@ -160,12 +161,39 @@ public sealed class NoEgressTests
                          .Select(element => element.Attribute("Include")?.Value ?? string.Empty)
                          .Where(name => forbidden.IsMatch(name)))
             {
-                offenders.Add($"{Path.GetFileName(project)} -> {package}");
+                var edge = $"{Path.GetFileName(project)} -> {package}";
+                if (ApprovedCloudPackageEdges.Contains(edge, StringComparer.Ordinal))
+                {
+                    approvedExceptions.Add(edge);
+                    continue;
+                }
+
+                offenders.Add(edge);
             }
         }
 
         Assert.True(offenders.Count == 0, string.Join(", ", offenders));
+
+        // Positive control and exactness: every approved edge still matches the
+        // prohibition, so it is an explicit exception and not a scanner gap, and
+        // each one actually exists exactly once.
+        Assert.Equal(
+            ApprovedCloudPackageEdges.OrderBy(edge => edge, StringComparer.Ordinal),
+            approvedExceptions.OrderBy(edge => edge, StringComparer.Ordinal));
     }
+
+    /// <summary>
+    /// Spec 016 exceptions to the whole-repository cloud-package prohibition,
+    /// each one project and one package, added only by the slice whose working
+    /// code consumes it. T01: the Azure infrastructure library's managed-identity
+    /// binding probe. The deterministic modules and this adapter stay cloud-free;
+    /// no Document Intelligence, storage, OCR, LLM or HTTP-client package is
+    /// approved anywhere.
+    /// </summary>
+    private static readonly string[] ApprovedCloudPackageEdges =
+    {
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Identity",
+    };
 
     [Fact]
     public void TheProjectScanActuallySeesTheRepositorysProjects()

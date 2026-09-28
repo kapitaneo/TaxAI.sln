@@ -1,0 +1,35 @@
+# Spec 016 — T01 complete
+
+Task: T01 — Azure infrastructure boundary and production configuration.
+Branch: `claude/spec-016-t01-azure-infra-9n33hl`
+PR: #147 — https://github.com/kapitaneo/TaxAI.sln/pull/147
+Implementation commit: `458f1251f291a7f0cc410cc9bd6edc6575fe319d`
+Verified branch head: `e4c363c0ab47b99b28c4c31030843389978df2f4`
+
+## Gate — committed branch state
+
+```powershell
+pwsh ./scripts/Invoke-SolutionTests.ps1
+```
+
+PASS on the supported Windows environment, as reported by the human: the .NET
+10 preflight passed and all 12 registered projects ran with no failure or skip
+and every floor met, including the new floors TaxAI.Portal.Tests 752,
+Tenancy.Tests 352 and TaxAI.AzureInfrastructure.Tests 148. Per-project counts
+for that run were not supplied. The Linux baseline, the reproduced four
+Windows-path failures on untouched `master`, and the proof that T01 added no
+new failure are recorded in `evidence/T01.md`.
+
+## Human-authorized scope exceptions
+
+- `tests/TaxAI.Portal.Tests/Extraction/PreservedSurfaceTests.cs`:
+  `IntakeConfiguration.cs` is guarded by an exact removed-line list and a
+  SHA-256 digest of the approved additions; every other preserved file stays
+  byte-identical.
+- `scripts/Assert-DotNet10Toolchain.ps1`: the two new project paths were added
+  to the closed `$approvedProjects` registry only.
+
+`tasks.md` was not edited. No task after T01 was selected; T02 was not started.
+This marker is not deployment or real-taxpayer authorization: no deployable
+host can pass the admission gate yet, and both provider assurance gaps remain
+unresolved. Not merged or self-approved; human review remains required.

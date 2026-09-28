@@ -56,6 +56,8 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "PortalContent.cs",
         "PortalIdentity.cs",
         "PortalStartupGuards.cs",
+        "ProductionAdmissionGate.cs",
+        "ProductionConfiguration.cs",
         "Program.cs",
         "ReviewEndpoints.cs",
         "ReviewPageModel.cs",
@@ -693,6 +695,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
+        // Spec 016 T01 adds exactly one consumer: the production admission gate
+        // reads the registered clock once, to decide whether release evidence is
+        // currently valid. It reads no system clock directly.
         Assert.Equal(
             new[]
             {
@@ -700,8 +705,18 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
                 "ExtractionEndpoints.cs",
                 "IntakeEndpoints.cs",
                 "ModuleRegistration.cs",
+                "ProductionAdmissionGate.cs",
             },
             matching);
+
+        var gate = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "Production", "ProductionAdmissionGate.cs")));
+        Assert.Single(
+            Regex.Matches(gate, @"\bTimeProvider\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)));
+        Assert.DoesNotMatch(
+            new Regex(@"\bDateTime(?:Offset)?\s*\.\s*(?:Utc)?Now\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
+            gate);
     }
 
     [Fact] // spec 011 FR-20 as amended

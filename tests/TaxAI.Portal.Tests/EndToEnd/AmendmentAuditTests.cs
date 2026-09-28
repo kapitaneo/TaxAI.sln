@@ -29,6 +29,16 @@ public sealed class AmendmentAuditTests
         "tests/Tenancy.Tests/Boundaries/TenancyBoundaryTests.cs";
     private const string PersistenceBoundary =
         "tests/Persistence.Tests/Boundaries/PersistenceBoundaryTests.cs";
+    private const string PreservedSurface =
+        "tests/TaxAI.Portal.Tests/Extraction/PreservedSurfaceTests.cs";
+    private const string ExtractionStartupGuard =
+        "tests/TaxAI.Portal.Tests/Extraction/ExtractionStartupGuardTests.cs";
+    private const string ProductionStartup =
+        "tests/TaxAI.Portal.Tests/Production/ProductionStartupTests.cs";
+    private const string UpgradeBaseline =
+        "tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs";
+    private const string InfrastructureBoundary =
+        "tests/TaxAI.AzureInfrastructure.Tests/Boundaries/AzureInfrastructureBoundaryTests.cs";
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
     private static readonly string PrdPath = Path.Combine(
@@ -209,6 +219,69 @@ public sealed class AmendmentAuditTests
             P(ShellPage, "TheShellReferencesNoExternalAsset"),
             P(ShellPage, "TheRootIsGetOnly")),
     ];
+
+    /// <summary>
+    /// Spec 016 T01 — every historical assertion this slice narrowed, each with
+    /// the live test that still proves the narrower rule. This ledger is owned by
+    /// spec 016 rather than by spec 011's PRD tables, which stay unchanged.
+    /// </summary>
+    private static readonly Amendment[] Spec016T01Amendments =
+    [
+        A("ProjectStructureTests.PortalProject_DeclaresNoOtherPackage", "declared package names",
+            "The host still declares no Azure, EF, SQL or telemetry package; only the raw-text scan is narrowed so the infrastructure project reference is allowed.",
+            P(ProjectStructure, "PortalProject_DeclaresNoOtherPackage"),
+            P(InfrastructureBoundary, "TheLibraryDeclaresExactlyTheConsumedPackagesAtPinnedVersions")),
+        A("ProjectStructureTests.PortalProject_ReferencesExactlyTheFourInwardModules", "exact reference set plus TaxAI.AzureInfrastructure",
+            "The exact set gains only the infrastructure library, and every contract-reached module remains forbidden.",
+            P(ProjectStructure, "PortalProject_ReferencesExactlyTheFourInwardModules"),
+            P(ProjectStructure, "PortalProject_ReferencesNoModuleReachedThroughAContract")),
+        A("PreservedSurfaceTests.ExistingIntakeTransportPoliciesCookieAndComponentsAreByteIdentical", "human-authorized IntakeConfiguration exception",
+            "Every other preserved intake file remains byte-identical; IntakeConfiguration.cs is fixed to one removed line and an exact digest of approved additions.",
+            P(PreservedSurface, "ExistingIntakeTransportPoliciesCookieAndComponentsAreByteIdentical"),
+            P(PreservedSurface, "IntakeConfigurationDiffersFromTheT05MergeOnlyByTheApprovedSpec016Change"),
+            P(PreservedSurface, "IntakeConfigurationExposesExactlyTheApprovedSpec016ProductionSurface")),
+        A("ExtractionStartupGuardTests.DeployableNonDevelopmentStartupRefuses", "enforced production admission gate",
+            "Every deployable Production or Staging host still refuses; the fixed refusal now comes from the admission gate and no deployable host can pass it.",
+            P(ExtractionStartupGuard, "DeployableNonDevelopmentStartupRefuses"),
+            P(ProductionStartup, "EachIndividualAdmissionRuleRefusesIndependently")),
+        A("SolutionAndRegressionTests.NoExtractionOcrLlmOrFilingCapabilityIsNamedByTheNewSurface", "three Key Vault configuration spellings in one file",
+            "Only the production profile reader's Key Vault configuration keys are removed before the scan; every SDK namespace stays forbidden.",
+            P(SolutionRegression, "NoExtractionOcrLlmOrFilingCapabilityIsNamedByTheNewSurface")),
+        A("PortalSecurityTests.TimeProviderIsConfinedToTheCompositionAndIntakeBoundaries", "one registered-clock read in the admission gate",
+            "The exact file set gains only the gate, which reads the registered clock exactly once and no system clock.",
+            P(PortalSecurity, "TimeProviderIsConfinedToTheCompositionAndIntakeBoundaries")),
+        A("UpgradeBaselineContractTests.UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline", "named Tenancy types and startup-guard methods",
+            "Every baseline signature is still compared; additions are allowed only for the named spec 016 types and four named guard predicates.",
+            P(UpgradeBaseline, "UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline")),
+        A("PortalBoundaryTests.TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule", "four contributing extensions",
+            "The composition root still calls exactly one extension per module; the infrastructure extension is declared exactly once by its own library.",
+            P(PortalBoundary, "TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule")),
+    ];
+
+    [Fact] // spec 016 T01
+    public void EverySpec016T01AmendmentNamesALiveNarrowerProof()
+    {
+        Assert.Equal(8, Spec016T01Amendments.Length);
+        Assert.Equal(
+            Spec016T01Amendments.Length,
+            Spec016T01Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var amendment in Spec016T01Amendments)
+        {
+            Assert.Matches(
+                new Regex(
+                    @"\b(exact|only|every|no|unchanged|preserv|forbid|narrow|fixed|allow|constrain|reduce|remain)\w*\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)),
+                amendment.WhyNarrower);
+            Assert.NotEmpty(amendment.Proofs);
+
+            foreach (var proof in amendment.Proofs)
+            {
+                AssertLiveTestProof(proof);
+            }
+        }
+    }
 
     [Fact]
     public void EveryRequirementAmendmentNamesALiveStrictlyNarrowerProof()

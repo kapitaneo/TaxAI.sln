@@ -1,5 +1,6 @@
 using System.Globalization;
 using ClientIntake.Models;
+using Tenancy.Models;
 
 namespace TaxAI.Portal;
 
@@ -100,8 +101,9 @@ internal static class IntakeConfiguration
                 out var maximumFilesPerRequest) ||
             !TryKey(configuration[DigestKeySetting], out var digestKey) ||
             !TryKey(configuration[FingerprintKeySetting], out var fingerprintKey) ||
-            !TryKey(
+            !TryContentEncryptionKey(
                 configuration[ContentEncryptionKeySetting],
+                environment,
                 out var contentEncryptionKey) ||
             digestKey.AsSpan().SequenceEqual(fingerprintKey) ||
             digestKey.AsSpan().SequenceEqual(contentEncryptionKey) ||
@@ -134,6 +136,52 @@ internal static class IntakeConfiguration
             fingerprintKey,
             contentEncryptionKey,
             contentRoot);
+    }
+
+    /// <summary>
+    /// Spec 016 T01: the production shape of intake configuration.
+    /// <para>
+    /// The two Development-store settings describe the local encrypted
+    /// filesystem content store. Production source content belongs in the
+    /// approved private Canadian store under a Key Vault-wrapped envelope, so
+    /// either setting in a production profile is a local-store refusal; it is
+    /// never silently ignored. Every Spec 014 bound above is unchanged and still
+    /// enforced by <see cref="Require"/>.
+    /// </para>
+    /// </summary>
+    internal static IReadOnlyList<ProductionAdmissionRefusal> ProductionShapeRefusals(
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        return configuration[DevelopmentContentRootSetting] is not null ||
+               configuration[ContentEncryptionKeySetting] is not null
+            ? new[] { ProductionAdmissionRefusal.LocalSourceStoreConfigured }
+            : Array.Empty<ProductionAdmissionRefusal>();
+    }
+
+    /// <summary>
+    /// Spec 016 T01: the content-encryption key protects only the Development
+    /// encrypted filesystem store, so it is required in Development and not
+    /// required elsewhere. When supplied it is validated exactly as before and
+    /// stays distinct from the digest and fingerprint keys.
+    /// </summary>
+    private static bool TryContentEncryptionKey(
+        string? candidate,
+        IWebHostEnvironment environment,
+        out byte[] key)
+    {
+        if (candidate is null &&
+            !string.Equals(
+                environment.EnvironmentName,
+                Environments.Development,
+                StringComparison.Ordinal))
+        {
+            key = [];
+            return true;
+        }
+
+        return TryKey(candidate, out key);
     }
 
     private static bool TryRates(

@@ -113,10 +113,21 @@ public sealed class ProjectStructureTests
         // The exact-set assertion above already forbids these; naming the ones
         // most likely to be reached for makes the failure legible rather than a
         // set mismatch nobody reads.
+        //
+        // Spec 016 T01 narrows this from the raw project text to the declared
+        // package names: the host now references the TaxAI.AzureInfrastructure
+        // project, whose name contains "Azure", while the Azure SDK itself stays
+        // in that library. The host still declares no Azure package.
         Assert.DoesNotContain(
-            forbidden,
-            File.ReadAllText(PortalProject),
-            StringComparison.OrdinalIgnoreCase);
+            Elements(PortalProject, "PackageReference")
+                .Select(element => element.Attribute("Include")!.Value),
+            package => package.Contains(forbidden, StringComparison.OrdinalIgnoreCase));
+
+        // Positive control: the scanned set is the real package list.
+        Assert.Contains(
+            "Microsoft.AspNetCore.Authentication.OpenIdConnect",
+            Elements(PortalProject, "PackageReference")
+                .Select(element => element.Attribute("Include")!.Value));
     }
 
     [Fact]
@@ -250,6 +261,7 @@ public sealed class ProjectStructureTests
                 "../DocumentIntelligence/DocumentIntelligence.csproj",
                 "../ExtractionWorkflow/ExtractionWorkflow.csproj",
                 "../Persistence/Persistence.csproj",
+                "../TaxAI.AzureInfrastructure/TaxAI.AzureInfrastructure.csproj",
                 "../TaxLogicEngine/TaxLogicEngine.csproj",
                 "../Tenancy/Tenancy.csproj",
             },

@@ -80,10 +80,17 @@ the same PR that introduces it, or the gate fails on it by design.
   migrations, repositories, the firm/case-scoped intake metadata store, the
   durable session store, identity directory, purge implementation, and one
   registration extension.
+- **`src/TaxAI.AzureInfrastructure/`** — the spec 016 non-Document-Intelligence
+  Azure adapter library (class library, not a host). As of T01 it references
+  exactly `Tenancy`, pins exactly `Azure.Identity` and the DI abstractions, and
+  owns the structural production-profile validator, the data-plane
+  managed-identity binding probe and one registration extension. Only the
+  portal references it; its local `CLAUDE.md` owns the boundary.
 - **`src/TaxAI.Portal/`** — the ASP.NET Core host: the repository's only
   executable project, and its single dependency-injection composition root. Its
   production project references are exactly `TaxLogicEngine`, `CaseProcessing`,
-  `ClientIntake`, `Tenancy`, and `Persistence`. Its local `CLAUDE.md` owns the
+  `ClientIntake`, `DocumentIntelligence`, `ExtractionWorkflow`, `Tenancy`,
+  `Persistence`, and (spec 016 T01) `TaxAI.AzureInfrastructure`. Its local `CLAUDE.md` owns the
   approved read-only review surface, the accountant/client intake surface, and
   the narrowed gate on every further taxpayer-data surface. **ASP.NET Core lives
   here and in its test project, and nowhere else.**
@@ -97,6 +104,12 @@ the same PR that introduces it, or the gate fails on it by design.
 - **`tests/Tenancy.Tests/`**, **`tests/Persistence.Tests/`** — contract,
   boundary, model, service, relational, schema, and composition coverage for
   the two spec 011 modules.
+- **`tests/TaxAI.AzureInfrastructure.Tests/`** — validator, managed-identity
+  probe (including the real credential over a controlled transport) and
+  boundary coverage for the Azure infrastructure library.
+- **`infra/azure/`**, **`scripts/azure/`** — spec 016 infrastructure-as-code and
+  tooling. T01 ships the closed runtime-configuration schema, a settings-only
+  Bicep module and the offline `Test-ProductionConfiguration.ps1` check.
 - **`tests/TaxAI.Portal.Tests/`** — xUnit host, composition-root, boundary,
   security, and repository-verification suites for the portal. Adds
   `Microsoft.AspNetCore.Mvc.Testing` for in-process host testing; no network
@@ -481,6 +494,37 @@ cross-module proof in
   override decisions, exact-version acceptance, one-time review association,
   safe refusal, no egress, and planted-value confinement. AC-1 through AC-119,
   including supplemental AC-45a, are recorded per criterion.
+
+Spec 016 (Canadian Azure Production Infrastructure) is approved and planned as
+ten sequential waves. **T01 (Azure infrastructure boundary and production
+configuration) is implemented; no later task is selected.** T01 delivers:
+
+- `TaxAI.AzureInfrastructure` — the structural `ProductionConfigurationValidator`
+  (explicit Production, Canada Central primary and Canada East recovery,
+  resource-bound private endpoints, GA `2024-11-30`/`prebuilt-layout`/
+  `keyValuePairs`, managed-identity SQL with strict encryption, monitoring,
+  source-envelope and separate Data Protection keys, exact FR-09 source
+  deadlines, finite resilience) and the `ManagedIdentityBindingProbe`, which
+  uses one data-plane token and no control-plane privilege or credential chain;
+- Tenancy's production-control contracts and pure `ProductionEvidencePolicy`
+  (all 24 DEP items, both provider assurances independently, both role
+  approvals, exact artifact/configuration binding, no affirmative default);
+- the portal's closed `TaxAi:Production:*` profile and enforced
+  `ProductionAdmissionGate`, invoked unconditionally after the startup guards.
+  It replaces the unconditional non-Development refusal with every FR-14 check,
+  accumulates closed refusals, and throws one fixed value-free message;
+- the runtime-configuration schema, settings-only Bicep module, offline check
+  script, evidence/runtime-profile contracts and initial threat model.
+
+**Deployment remains refused.** No production Document Intelligence adapter,
+source store or source reader exists, so no deployable host can be admitted,
+and DEP-05/AC-168/AC-169 keep real-taxpayer processing refused until
+authoritative provider evidence exists. Development and the in-process
+TestServer are never production authorization. The human authorized T01 to
+amend `PreservedSurfaceTests.cs` (IntakeConfiguration.cs is now fixed to one
+removed line and an exact digest of approved additions; every other preserved
+file stays byte-identical) and to register the two new projects in
+`scripts/Assert-DotNet10Toolchain.ps1`.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

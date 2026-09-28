@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taxai.invalid/specs/016/contracts/production-evidence.schema.json",
+  "title": "Spec 016 production release evidence manifest",
+  "description": "The secret-free evidence manifest for one exact release: the artifact version, the digest of its complete production configuration and its subscription; one record for each of DEP-01 through DEP-24; both provider assurance gaps (AC-168, AC-169); and both named role approvals. It carries infrastructure evidence states only - never a credential, connection string, key, taxpayer value or example affirmative outcome. The Portal admission gate (Tenancy ProductionEvidencePolicy) admits only when every item and assurance is Approved and unexpired and both roles approved exactly this release; any other state, a missing item, a duplicate or an unknown value refuses. Absent is never written: it is what a missing item means.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactVersion",
+    "configurationDigest",
+    "subscriptionId",
+    "evidence",
+    "assurances",
+    "approvals"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "artifactVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.+_-]{1,128}$"
+    },
+    "configurationDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "ProductionEvidencePolicy.ComputeConfigurationDigest of every TaxAi:Production key except the manifest itself."
+    },
+    "subscriptionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 24,
+      "maxItems": 24,
+      "items": {
+        "$ref": "#/$defs/evidenceItem"
+      },
+      "description": "Exactly one record per DEP subject; duplicates are invalid."
+    },
+    "assurances": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/assurance"
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/approval"
+      }
+    },
+    "release": {
+      "type": "object",
+      "description": "Optional echo of the release binding; ignored by the gate.",
+      "additionalProperties": false,
+      "properties": {
+        "artifactVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9.+_-]{1,128}$"
+        },
+        "configurationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "ProductionEvidencePolicy.ComputeConfigurationDigest of every TaxAi:Production key except the manifest itself."
+        },
+        "subscriptionId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "status": {
+      "enum": [
+        "Invalid",
+        "Unavailable",
+        "Pending",
+        "Approved"
+      ],
+      "description": "Only Approved counts toward admission. Pending is the honest state of evidence not yet observed against the exact resources."
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "status",
+        "observedAtUtc",
+        "expiresAtUtc"
+      ],
+      "properties": {
+        "subject": {
+          "enum": [
+            "DEP-01",
+            "DEP-02",
+            "DEP-03",
+            "DEP-04",
+            "DEP-05",
+            "DEP-06",
+            "DEP-07",
+            "DEP-08",
+            "DEP-09",
+            "DEP-10",
+            "DEP-11",
+            "DEP-12",
+            "DEP-13",
+            "DEP-14",
+            "DEP-15",
+            "DEP-16",
+            "DEP-17",
+            "DEP-18",
+            "DEP-19",
+            "DEP-20",
+            "DEP-21",
+            "DEP-22",
+            "DEP-23",
+            "DEP-24"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "observedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$",
+          "description": "UTC instant."
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$",
+          "description": "UTC instant."
+        }
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "status",
+        "observedAtUtc",
+        "expiresAtUtc"
+      ],
+      "properties": {
+        "subject": {
+          "enum": [
+            "InputCustomerManagedKeyCoverage",
+            "RetentionDeletionClock"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "observedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$",
+          "description": "UTC instant."
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$",
+          "description": "UTC instant."
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "approvedAtUtc",
+        "artifactVersion",
+        "configurationDigest",
+        "subscriptionId"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "ProductOwner",
+            "SecurityPrivacy"
+          ]
+        },
+        "approvedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$",
+          "description": "UTC instant."
+        },
+        "artifactVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9.+_-]{1,128}$"
+        },
+        "configurationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "ProductionEvidencePolicy.ComputeConfigurationDigest of every TaxAi:Production key except the manifest itself."
+        },
+        "subscriptionId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}

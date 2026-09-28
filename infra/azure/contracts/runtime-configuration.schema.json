@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taxai.invalid/infra/azure/contracts/runtime-configuration.schema.json",
+  "title": "TaxAI production runtime configuration (spec 016 T01)",
+  "description": "The closed set of App Service application settings for the production Portal. Every key is required and no other key is permitted; values are infrastructure identifiers and policy constants, never secrets or taxpayer data. Key names use the App Service double-underscore form of the TaxAi:Production:* configuration keys validated by TaxAI.AzureInfrastructure.ProductionConfigurationValidator. Passing this schema is necessary and never sufficient: the Portal admission gate also verifies registrations, the issued managed identity, the exact artifact version and the release evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "TaxAi__Production__Environment",
+    "TaxAi__Production__PrimaryRegion",
+    "TaxAi__Production__RecoveryRegion",
+    "TaxAi__Production__TenantId",
+    "TaxAi__Production__SubscriptionId",
+    "TaxAi__Production__ResourceGroup",
+    "TaxAi__Production__ArtifactVersion",
+    "TaxAi__Production__ManagedIdentity__ClientId",
+    "TaxAi__Production__ManagedIdentity__PrincipalId",
+    "TaxAi__Production__ManagedIdentity__ResourceId",
+    "TaxAi__Production__DocumentIntelligence__Endpoint",
+    "TaxAi__Production__DocumentIntelligence__ResourceId",
+    "TaxAi__Production__DocumentIntelligence__Region",
+    "TaxAi__Production__DocumentIntelligence__PublicNetworkAccess",
+    "TaxAi__Production__DocumentIntelligence__PrivateEndpoint",
+    "TaxAi__Production__DocumentIntelligence__ApiVersion",
+    "TaxAi__Production__DocumentIntelligence__Model",
+    "TaxAi__Production__DocumentIntelligence__Features",
+    "TaxAi__Production__SourceStorage__Endpoint",
+    "TaxAi__Production__SourceStorage__ResourceId",
+    "TaxAi__Production__SourceStorage__Region",
+    "TaxAi__Production__SourceStorage__PublicNetworkAccess",
+    "TaxAi__Production__SourceStorage__PrivateEndpoint",
+    "TaxAi__Production__KeyVault__Endpoint",
+    "TaxAi__Production__KeyVault__ResourceId",
+    "TaxAi__Production__KeyVault__Region",
+    "TaxAi__Production__KeyVault__PublicNetworkAccess",
+    "TaxAi__Production__KeyVault__PrivateEndpoint",
+    "TaxAi__Production__Sql__Endpoint",
+    "TaxAi__Production__Sql__ResourceId",
+    "TaxAi__Production__Sql__Region",
+    "TaxAi__Production__Sql__PublicNetworkAccess",
+    "TaxAi__Production__Sql__PrivateEndpoint",
+    "TaxAi__Production__Monitoring__WorkspaceResourceId",
+    "TaxAi__Production__Monitoring__Region",
+    "TaxAi__Production__Monitoring__RetentionDays",
+    "TaxAi__Production__SourceEnvelope__KeyUri",
+    "TaxAi__Production__DataProtection__StorageEndpoint",
+    "TaxAi__Production__DataProtection__StorageResourceId",
+    "TaxAi__Production__DataProtection__KeyRingContainer",
+    "TaxAi__Production__DataProtection__KeyUri",
+    "TaxAi__Production__DataProtection__ApplicationDiscriminator",
+    "TaxAi__Production__Retention__FinalizedSourceDays",
+    "TaxAi__Production__Retention__RejectedSourceDays",
+    "TaxAi__Production__Retention__DuplicateSourceDays",
+    "TaxAi__Production__Retention__AbandonedSourceDays",
+    "TaxAi__Production__Retention__StagedUploadHours",
+    "TaxAi__Production__Resilience__MaximumAttempts",
+    "TaxAi__Production__Resilience__OperationDeadline",
+    "TaxAi__Production__Resilience__ProbeDeadline",
+    "TaxAi__Production__EvidenceManifest",
+    "TaxAi__Extraction__Provider",
+    "TaxAi__Extraction__ContentReader",
+    "ConnectionStrings__TaxAiDatabase"
+  ],
+  "properties": {
+    "TaxAi__Production__Environment": {
+      "const": "Production",
+      "description": "Exact host environment; there is no enable switch."
+    },
+    "TaxAi__Production__PrimaryRegion": {
+      "const": "canadacentral",
+      "description": "Primary region for all normal-operation resources (FR-01)."
+    },
+    "TaxAi__Production__RecoveryRegion": {
+      "const": "canadaeast",
+      "description": "Recovery-only region (FR-01, FR-11)."
+    },
+    "TaxAi__Production__TenantId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Entra tenant of the managed identity."
+    },
+    "TaxAi__Production__SubscriptionId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Subscription holding the approved inventory."
+    },
+    "TaxAi__Production__ResourceGroup": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._()-]{0,89}[A-Za-z0-9_()-]$",
+      "description": "Resource group holding the approved inventory."
+    },
+    "TaxAi__Production__ArtifactVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.+_-]{1,128}$",
+      "description": "Exact artifact version; must equal the running build's informational version."
+    },
+    "TaxAi__Production__ManagedIdentity__ClientId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "User-assigned managed identity client id."
+    },
+    "TaxAi__Production__ManagedIdentity__PrincipalId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "User-assigned managed identity object (principal) id."
+    },
+    "TaxAi__Production__ManagedIdentity__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.ManagedIdentity/userAssignedIdentities/[A-Za-z0-9-]{1,64}$",
+      "description": "User-assigned managed identity resource id."
+    },
+    "TaxAi__Production__DocumentIntelligence__Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9-]{2,64}\\.cognitiveservices\\.azure\\.com/$",
+      "description": "Document Intelligence custom-subdomain resource-specific endpoint; must be the named resource's own host."
+    },
+    "TaxAi__Production__DocumentIntelligence__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.CognitiveServices/accounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Document Intelligence custom-subdomain resource id in the configured subscription and resource group."
+    },
+    "TaxAi__Production__DocumentIntelligence__Region": {
+      "const": "canadacentral",
+      "description": "Document Intelligence custom-subdomain region."
+    },
+    "TaxAi__Production__DocumentIntelligence__PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "TaxAi__Production__DocumentIntelligence__PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "TaxAi__Production__DocumentIntelligence__ApiVersion": {
+      "const": "2024-11-30",
+      "description": "GA REST API version (FR-06)."
+    },
+    "TaxAi__Production__DocumentIntelligence__Model": {
+      "const": "prebuilt-layout",
+      "description": "Approved model (FR-06)."
+    },
+    "TaxAi__Production__DocumentIntelligence__Features": {
+      "const": "keyValuePairs",
+      "description": "Approved optional feature (FR-06)."
+    },
+    "TaxAi__Production__SourceStorage__Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Source content storage account resource-specific endpoint; must be the named resource's own host."
+    },
+    "TaxAi__Production__SourceStorage__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Source content storage account resource id in the configured subscription and resource group."
+    },
+    "TaxAi__Production__SourceStorage__Region": {
+      "const": "canadacentral",
+      "description": "Source content storage account region."
+    },
+    "TaxAi__Production__SourceStorage__PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "TaxAi__Production__SourceStorage__PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "TaxAi__Production__KeyVault__Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-zA-Z0-9-]{3,24}\\.vault\\.azure\\.net/$",
+      "description": "Key Vault resource-specific endpoint; must be the named resource's own host."
+    },
+    "TaxAi__Production__KeyVault__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.KeyVault/vaults/[A-Za-z0-9-]{1,64}$",
+      "description": "Key Vault resource id in the configured subscription and resource group."
+    },
+    "TaxAi__Production__KeyVault__Region": {
+      "const": "canadacentral",
+      "description": "Key Vault region."
+    },
+    "TaxAi__Production__KeyVault__PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "TaxAi__Production__KeyVault__PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "TaxAi__Production__Sql__Endpoint": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,63}\\.database\\.windows\\.net$",
+      "description": "Azure SQL logical server resource-specific endpoint; must be the named resource's own host."
+    },
+    "TaxAi__Production__Sql__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Sql/servers/[A-Za-z0-9-]{1,64}$",
+      "description": "Azure SQL logical server resource id in the configured subscription and resource group."
+    },
+    "TaxAi__Production__Sql__Region": {
+      "const": "canadacentral",
+      "description": "Azure SQL logical server region."
+    },
+    "TaxAi__Production__Sql__PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "TaxAi__Production__Sql__PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "TaxAi__Production__Monitoring__WorkspaceResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.OperationalInsights/workspaces/[A-Za-z0-9-]{1,64}$",
+      "description": "Canada Central Log Analytics workspace."
+    },
+    "TaxAi__Production__Monitoring__Region": {
+      "const": "canadacentral",
+      "description": "Monitoring region (FR-13)."
+    },
+    "TaxAi__Production__Monitoring__RetentionDays": {
+      "const": "30",
+      "description": "Approved default retention (FR-13)."
+    },
+    "TaxAi__Production__SourceEnvelope__KeyUri": {
+      "type": "string",
+      "pattern": "^https://[a-zA-Z0-9-]{3,24}\\.vault\\.azure\\.net/keys/[A-Za-z0-9-]{1,127}$",
+      "description": "Versionless Key Vault key wrapping per-content source keys; in the configured vault."
+    },
+    "TaxAi__Production__DataProtection__StorageEndpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Control storage account for the key ring; must differ from source storage."
+    },
+    "TaxAi__Production__DataProtection__StorageResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Control storage account resource id."
+    },
+    "TaxAi__Production__DataProtection__KeyRingContainer": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?!.*--)[a-z0-9-]{1,61}[a-z0-9]$",
+      "description": "Key-ring blob container."
+    },
+    "TaxAi__Production__DataProtection__KeyUri": {
+      "type": "string",
+      "pattern": "^https://[a-zA-Z0-9-]{3,24}\\.vault\\.azure\\.net/keys/[A-Za-z0-9-]{1,127}$",
+      "description": "Versionless Key Vault key wrapping the key ring; distinct from the source envelope key."
+    },
+    "TaxAi__Production__DataProtection__ApplicationDiscriminator": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$",
+      "description": "Discriminator shared only by intended production instances."
+    },
+    "TaxAi__Production__Retention__FinalizedSourceDays": {
+      "const": "30",
+      "description": "FR-09: final acceptance + 30 days."
+    },
+    "TaxAi__Production__Retention__RejectedSourceDays": {
+      "const": "7",
+      "description": "FR-09: terminal rejection + 7 days."
+    },
+    "TaxAi__Production__Retention__DuplicateSourceDays": {
+      "const": "7",
+      "description": "FR-09: confirmed duplicate + 7 days."
+    },
+    "TaxAi__Production__Retention__AbandonedSourceDays": {
+      "const": "30",
+      "description": "FR-09: abandonment + 30 days."
+    },
+    "TaxAi__Production__Retention__StagedUploadHours": {
+      "const": "24",
+      "description": "FR-09: failed/staged upload within 24 hours."
+    },
+    "TaxAi__Production__Resilience__MaximumAttempts": {
+      "type": "string",
+      "pattern": "^[1-5]$",
+      "description": "[ASSUMED] finite attempts, 1 to 5."
+    },
+    "TaxAi__Production__Resilience__OperationDeadline": {
+      "type": "string",
+      "pattern": "^(?!00:00:00$)00:(0[0-9]:[0-5][0-9]|10:00)$",
+      "description": "[ASSUMED] finite operation deadline, greater than zero and at most 00:10:00."
+    },
+    "TaxAi__Production__Resilience__ProbeDeadline": {
+      "type": "string",
+      "pattern": "^(?!00:00:00$)00:(00:[0-5][0-9]|01:00)$",
+      "description": "[ASSUMED] finite identity-probe deadline, greater than zero and at most 00:01:00."
+    },
+    "TaxAi__Production__EvidenceManifest": {
+      "type": "string",
+      "minLength": 2,
+      "description": "Release evidence manifest JSON conforming to specs/016-canadian-azure-production-infrastructure/contracts/production-evidence.schema.json. Never contains a secret."
+    },
+    "TaxAi__Extraction__Provider": {
+      "const": "AzureDocumentIntelligence",
+      "description": "The only production provider name. No adapter ships in T01, so admission stays refused."
+    },
+    "TaxAi__Extraction__ContentReader": {
+      "const": "AzureBlobSourceReader",
+      "description": "The only production reader name. No adapter ships in T01, so admission stays refused."
+    },
+    "ConnectionStrings__TaxAiDatabase": {
+      "type": "string",
+      "pattern": "^Server=tcp:[a-z0-9-]{1,63}\\.database\\.windows\\.net,1433;Database=[A-Za-z0-9_-]{1,128};Encrypt=Strict;TrustServerCertificate=False;Authentication=Active Directory Managed Identity;User Id=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Managed-identity SQL connection with strict encryption. Carries no password."
+    }
+  }
+}

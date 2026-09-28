@@ -1,6 +1,8 @@
 using System.Globalization;
 using DocumentIntelligence;
 using ExtractionWorkflow.Models;
+using TaxAI.AzureInfrastructure.Configuration;
+using Tenancy.Models;
 
 namespace TaxAI.Portal;
 
@@ -23,6 +25,15 @@ internal static class ExtractionConfiguration
     internal const string DeterministicProvider = "Deterministic";
     internal const string EncryptedIntakeContentReader =
         "DevelopmentEncryptedIntakeContentStore";
+
+    /// <summary>
+    /// Spec 016 T01: the only production provider and reader names the approved
+    /// structure admits. Naming them is not supplying them — no adapter behind
+    /// either name ships in T01, so production admission stays refused until the
+    /// implementing slices register real, verified adapters.
+    /// </summary>
+    internal const string AzureDocumentIntelligenceProvider = "AzureDocumentIntelligence";
+    internal const string AzureBlobSourceReader = "AzureBlobSourceReader";
 
     internal const string InvalidConfigurationMessage =
         "Document extraction configuration is missing or invalid.";
@@ -84,6 +95,50 @@ internal static class ExtractionConfiguration
             {
                 ProviderCallLimit = providerCallLimit,
             });
+    }
+
+    /// <summary>
+    /// Spec 016 T01: the production structure of extraction configuration. The
+    /// deterministic Development provider or the Development encrypted
+    /// filesystem reader in a production profile is refused outright; any other
+    /// value than the approved production names is a missing adapter, never a
+    /// fallback. Provider bounds must still be finite and positive.
+    /// </summary>
+    internal static IReadOnlyList<ProductionAdmissionRefusal> ProductionShapeRefusals(
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var refusals = new List<ProductionAdmissionRefusal>();
+        var provider = configuration[ProviderSetting];
+        var reader = configuration[ContentReaderSetting];
+
+        if (string.Equals(provider, DeterministicProvider, StringComparison.Ordinal))
+        {
+            refusals.Add(ProductionAdmissionRefusal.DevelopmentProviderConfigured);
+        }
+        else if (!string.Equals(provider, AzureDocumentIntelligenceProvider, StringComparison.Ordinal))
+        {
+            refusals.Add(ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing);
+        }
+
+        if (string.Equals(reader, EncryptedIntakeContentReader, StringComparison.Ordinal))
+        {
+            refusals.Add(ProductionAdmissionRefusal.LocalSourceStoreConfigured);
+        }
+        else if (!string.Equals(reader, AzureBlobSourceReader, StringComparison.Ordinal))
+        {
+            refusals.Add(ProductionAdmissionRefusal.ProductionSourceReaderMissing);
+        }
+
+        if (!TryPositiveDuration(configuration[ProviderCallLimitSetting], out var callLimit) ||
+            callLimit > ProductionConfigurationValidator.OperationDeadlineBound ||
+            !TryPositiveLong(configuration[MaximumSourceBytesSetting], out _))
+        {
+            refusals.Add(ProductionAdmissionRefusal.ResilienceUnbounded);
+        }
+
+        return refusals;
     }
 
     private static bool TryPositiveDuration(

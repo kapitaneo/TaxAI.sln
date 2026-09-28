@@ -139,6 +139,68 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
                     line.StartsWith("#else", StringComparison.Ordinal));
     }
 
+    // ------------------------------------------------------ spec 016 T01
+
+    [Fact] // spec 016 T01, FR-14
+    public void ProgramInvokesTheProductionAdmissionGateUnconditionallyAfterTheStartupGuards()
+    {
+        // The gate replaces the unconditional refusal, so it must be as
+        // unconditional as the refusal was: one top-level call, after the
+        // durable key-ring and session checks and before any route is mapped.
+        var lines = ExecutableLines(PortalFile("Program.cs")).ToArray();
+
+        var gate = Array.FindIndex(
+            lines,
+            line => line.StartsWith("ProductionAdmissionGate.RequireAdmission(", StringComparison.Ordinal));
+        var guards = Array.FindIndex(
+            lines,
+            line => line.StartsWith("PortalStartupGuards.RequireSafeStartup(", StringComparison.Ordinal));
+        var firstRoute = Array.FindIndex(
+            lines,
+            line => line.StartsWith("app.Map", StringComparison.Ordinal));
+
+        Assert.True(gate >= 0, "Program must invoke the production admission gate.");
+        Assert.Single(lines, line => line.Contains("ProductionAdmissionGate.RequireAdmission(", StringComparison.Ordinal));
+        Assert.False(IsInsideAConditionalBlock(lines, gate), "The admission gate must not be conditional.");
+        Assert.True(guards >= 0 && guards < gate, "The gate must follow the startup guards.");
+        Assert.True(firstRoute > gate, "The gate must run before any route is mapped.");
+    }
+
+    [Fact] // spec 016 T01: real module composition in the Production branch.
+    public void TheProductionHostRegistersTheRealInfrastructureValidationBoundary()
+    {
+        using var client = _factory.CreateClient();
+
+        Assert.IsType<TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator>(
+            _factory.Services.GetRequiredService<TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator>());
+        Assert.IsType<TaxAI.AzureInfrastructure.Configuration.ManagedIdentityBindingProbe>(
+            _factory.Services.GetRequiredService<IManagedIdentityBindingProbe>());
+        Assert.NotNull(_factory.Services.GetRequiredService<TaxAI.AzureInfrastructure.Configuration.AzureInfrastructureOptions>());
+    }
+
+    [Fact] // spec 016 T01: the production boundary is keyed on Production only.
+    public void TheInfrastructureRegistrationIsTheOnlyProductionKeyedBranchAndEnablesNothing()
+    {
+        var registration = ExecutableLines(PortalFile("ModuleRegistration.cs")).ToArray();
+
+        var production = Array.FindIndex(
+            registration,
+            line => line.Contains("Environments.Production,", StringComparison.Ordinal));
+        Assert.True(production >= 0);
+        Assert.Single(registration, line => line.Contains("Environments.Production", StringComparison.Ordinal));
+
+        var block = GuardedBlock(registration, production);
+        Assert.Contains("AddTaxAiAzureInfrastructure(", block, StringComparison.Ordinal);
+        foreach (var forbidden in ControlsNoEnvironmentBranchMayDisable)
+        {
+            Assert.DoesNotMatch(new Regex(forbidden, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), block);
+        }
+
+        Assert.DoesNotContain("IIntakeContentStore", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("IDocumentIntelligenceProvider", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("IExtractionContentReader", block, StringComparison.Ordinal);
+    }
+
     // --------------------------------------------------------- spec 011 AC-32
 
     /// <summary>

@@ -50,6 +50,8 @@ public sealed class PortalBoundaryTests
         "PortalContent.cs",
         "PortalIdentity.cs",
         "PortalStartupGuards.cs",
+        "ProductionAdmissionGate.cs",
+        "ProductionConfiguration.cs",
         "Program.cs",
         "ReviewEndpoints.cs",
         "ReviewPageModel.cs",
@@ -162,6 +164,7 @@ public sealed class PortalBoundaryTests
                 "DocumentIntelligence",
                 "ExtractionWorkflow",
                 "Persistence",
+                "TaxAI.AzureInfrastructure",
                 "TaxCases",
                 "TaxLogicEngine",
                 "Tenancy",
@@ -287,6 +290,7 @@ public sealed class PortalBoundaryTests
                 "AddRazorComponents",
                 "AddScoped",
                 "AddSingleton",
+                "AddTaxAiAzureInfrastructure",
                 "AddTaxAiModules",
                 "AddTaxAiPersistence",
             }
@@ -294,6 +298,11 @@ public sealed class PortalBoundaryTests
         { "PortalAuthorization.cs", new[] { "AddClaim" } },
         { "PortalContent.cs", Array.Empty<string>() },
         { "PortalStartupGuards.cs", Array.Empty<string>() },
+
+        // Spec 016 T01: the production gate and profile reader evaluate; they
+        // register nothing.
+        { "ProductionAdmissionGate.cs", Array.Empty<string>() },
+        { "ProductionConfiguration.cs", Array.Empty<string>() },
         { "ReviewEndpoints.cs", Array.Empty<string>() },
 
         // The review page model is data only: it registers nothing and reaches
@@ -387,8 +396,9 @@ public sealed class PortalBoundaryTests
             .OrderBy(token => token, StringComparer.Ordinal)
             .ToArray();
 
-        // Three contributing modules, three extensions: document intelligence,
-        // storage, and this host's own identity wiring.
+        // Four contributing modules, four extensions: document intelligence,
+        // storage, the spec 016 Azure infrastructure validation boundary, and
+        // this host's own identity wiring.
         //
         // AddRazorComponents is excluded above because it is a framework builder
         // call, not a contributing module's entry point — the same reason
@@ -399,9 +409,19 @@ public sealed class PortalBoundaryTests
             {
                 "AddDeterministicDocumentIntelligence",
                 "AddPortalIdentity",
+                "AddTaxAiAzureInfrastructure",
                 "AddTaxAiPersistence",
             },
             moduleExtensions);
+
+        Assert.Equal(
+            1,
+            ModuleSourceFiles("TaxAI.AzureInfrastructure")
+                .Sum(path => Regex.Matches(
+                    File.ReadAllText(path),
+                    @"IServiceCollection\s+AddTaxAiAzureInfrastructure\s*\(",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)).Count));
 
         Assert.Equal(
             1,

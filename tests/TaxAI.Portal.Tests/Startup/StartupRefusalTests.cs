@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
@@ -527,6 +528,95 @@ public sealed class StartupRefusalTests
                  })
         {
             Assert.DoesNotContain(value, refusal, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    // ------------------------------------------------------ spec 016 T01
+
+    [Fact] // spec 016 T01
+    public void ADeployableHostNowFacesTheDurableKeyRingAndSessionRefusalsToo()
+    {
+        // Before spec 016 a deployable non-Development host was refused before
+        // these checks ran. They now apply to every non-Development host, so a
+        // deployable one cannot reach the admission gate without them.
+        var withSettingsOnly = GuardFailure(services => { });
+        Assert.Equal(ExpectedUnregisteredKeyRing, withSettingsOnly);
+
+        var withKeyRingOnly = GuardFailure(services => services.AddApprovedDurableDataProtection());
+        Assert.Equal(ExpectedNonDurableSessionStore, withKeyRingOnly);
+    }
+
+    [Fact] // spec 016 T01: a started TestServer host is never production authorization.
+    public void AStartedProductionTestServerIsStillRefusedByTheAdmissionGate()
+    {
+        using var host = Host(
+            "Production",
+            services: collection => collection.AddApprovedDurableDataProtection());
+        using var client = host.CreateClient();
+
+        var readiness = (ProductionReadiness)typeof(Program).Assembly
+            .GetType("TaxAI.Portal.Production.ProductionAdmissionGate", throwOnError: true)!
+            .GetMethod("Evaluate", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, new object[]
+            {
+                host.Services,
+                host.Services.GetRequiredService<IConfiguration>(),
+                "Production",
+                DateTimeOffset.UnixEpoch,
+            })!;
+
+        Assert.False(readiness.IsAdmitted);
+        Assert.Contains(ProductionAdmissionRefusal.EvidenceManifestMissing, readiness.Refusals);
+        Assert.Contains(ProductionAdmissionRefusal.ProductionSourceStoreMissing, readiness.Refusals);
+    }
+
+    private static string GuardFailure(Action<IServiceCollection> register)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(new GuardEnvironment());
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.Server.IServer, DeployableServer>();
+        register(services);
+        using var provider = services.BuildServiceProvider();
+
+        var configuration = new ConfigurationBuilder()
+            .AddEnvironmentVariables()
+            .Build();
+
+        var guard = typeof(Program).Assembly
+            .GetType("TaxAI.Portal.PortalStartupGuards", throwOnError: true)!
+            .GetMethod("RequireSafeStartup", BindingFlags.Static | BindingFlags.NonPublic)!;
+
+        var failure = Assert.Throws<TargetInvocationException>(() =>
+            guard.Invoke(null, new object[] { provider, configuration, "Production" }));
+        return failure.InnerException!.Message;
+    }
+
+    private sealed class GuardEnvironment : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "TaxAI.Portal.Tests";
+        public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
+        public string WebRootPath { get; set; } = Path.GetTempPath();
+        public string EnvironmentName { get; set; } = "Production";
+        public string ContentRootPath { get; set; } = Path.GetTempPath();
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
+    }
+
+    private sealed class DeployableServer : Microsoft.AspNetCore.Hosting.Server.IServer
+    {
+        public Microsoft.AspNetCore.Http.Features.IFeatureCollection Features { get; } =
+            new Microsoft.AspNetCore.Http.Features.FeatureCollection();
+
+        public Task StartAsync<TContext>(
+            Microsoft.AspNetCore.Hosting.Server.IHttpApplication<TContext> application,
+            CancellationToken cancellationToken)
+            where TContext : notnull => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose()
+        {
         }
     }
 

@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taxai.invalid/specs/016/contracts/runtime-profile.schema.json",
+  "title": "Spec 016 primary production runtime profile",
+  "description": "The logical TaxAi:Production configuration profile validated by TaxAI.AzureInfrastructure.ProductionConfigurationValidator, keyed by the colon-form configuration names below the TaxAi:Production section. This is the primary Canada Central profile only; T01 approves no other profile. A recovery profile (Canada East application recovery with Canada Central-only Document Intelligence) is introduced by T06 and is not accepted here. The closed key set is identical to infra/azure/contracts/runtime-configuration.schema.json without the TaxAi__Production__ prefix and without the evidence manifest; any other key is an unapproved configuration entry and refuses admission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "Environment",
+    "PrimaryRegion",
+    "RecoveryRegion",
+    "TenantId",
+    "SubscriptionId",
+    "ResourceGroup",
+    "ArtifactVersion",
+    "ManagedIdentity:ClientId",
+    "ManagedIdentity:PrincipalId",
+    "ManagedIdentity:ResourceId",
+    "DocumentIntelligence:Endpoint",
+    "DocumentIntelligence:ResourceId",
+    "DocumentIntelligence:Region",
+    "DocumentIntelligence:PublicNetworkAccess",
+    "DocumentIntelligence:PrivateEndpoint",
+    "DocumentIntelligence:ApiVersion",
+    "DocumentIntelligence:Model",
+    "DocumentIntelligence:Features",
+    "SourceStorage:Endpoint",
+    "SourceStorage:ResourceId",
+    "SourceStorage:Region",
+    "SourceStorage:PublicNetworkAccess",
+    "SourceStorage:PrivateEndpoint",
+    "KeyVault:Endpoint",
+    "KeyVault:ResourceId",
+    "KeyVault:Region",
+    "KeyVault:PublicNetworkAccess",
+    "KeyVault:PrivateEndpoint",
+    "Sql:Endpoint",
+    "Sql:ResourceId",
+    "Sql:Region",
+    "Sql:PublicNetworkAccess",
+    "Sql:PrivateEndpoint",
+    "Monitoring:WorkspaceResourceId",
+    "Monitoring:Region",
+    "Monitoring:RetentionDays",
+    "SourceEnvelope:KeyUri",
+    "DataProtection:StorageEndpoint",
+    "DataProtection:StorageResourceId",
+    "DataProtection:KeyRingContainer",
+    "DataProtection:KeyUri",
+    "DataProtection:ApplicationDiscriminator",
+    "Retention:FinalizedSourceDays",
+    "Retention:RejectedSourceDays",
+    "Retention:DuplicateSourceDays",
+    "Retention:AbandonedSourceDays",
+    "Retention:StagedUploadHours",
+    "Resilience:MaximumAttempts",
+    "Resilience:OperationDeadline",
+    "Resilience:ProbeDeadline"
+  ],
+  "properties": {
+    "Environment": {
+      "const": "Production",
+      "description": "Exact host environment; there is no enable switch."
+    },
+    "PrimaryRegion": {
+      "const": "canadacentral",
+      "description": "Primary region for all normal-operation resources (FR-01)."
+    },
+    "RecoveryRegion": {
+      "const": "canadaeast",
+      "description": "Recovery-only region (FR-01, FR-11)."
+    },
+    "TenantId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Entra tenant of the managed identity."
+    },
+    "SubscriptionId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Subscription holding the approved inventory."
+    },
+    "ResourceGroup": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._()-]{0,89}[A-Za-z0-9_()-]$",
+      "description": "Resource group holding the approved inventory."
+    },
+    "ArtifactVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.+_-]{1,128}$",
+      "description": "Exact artifact version; must equal the running build's informational version."
+    },
+    "ManagedIdentity:ClientId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "User-assigned managed identity client id."
+    },
+    "ManagedIdentity:PrincipalId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "User-assigned managed identity object (principal) id."
+    },
+    "ManagedIdentity:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.ManagedIdentity/userAssignedIdentities/[A-Za-z0-9-]{1,64}$",
+      "description": "User-assigned managed identity resource id."
+    },
+    "DocumentIntelligence:Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9-]{2,64}\\.cognitiveservices\\.azure\\.com/$",
+      "description": "Document Intelligence custom-subdomain resource-specific endpoint; must be the named resource's own host."
+    },
+    "DocumentIntelligence:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.CognitiveServices/accounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Document Intelligence custom-subdomain resource id in the configured subscription and resource group."
+    },
+    "DocumentIntelligence:Region": {
+      "const": "canadacentral",
+      "description": "Document Intelligence custom-subdomain region."
+    },
+    "DocumentIntelligence:PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "DocumentIntelligence:PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "DocumentIntelligence:ApiVersion": {
+      "const": "2024-11-30",
+      "description": "GA REST API version (FR-06)."
+    },
+    "DocumentIntelligence:Model": {
+      "const": "prebuilt-layout",
+      "description": "Approved model (FR-06)."
+    },
+    "DocumentIntelligence:Features": {
+      "const": "keyValuePairs",
+      "description": "Approved optional feature (FR-06)."
+    },
+    "SourceStorage:Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Source content storage account resource-specific endpoint; must be the named resource's own host."
+    },
+    "SourceStorage:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Source content storage account resource id in the configured subscription and resource group."
+    },
+    "SourceStorage:Region": {
+      "const": "canadacentral",
+      "description": "Source content storage account region."
+    },
+    "SourceStorage:PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "SourceStorage:PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "KeyVault:Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-zA-Z0-9-]{3,24}\\.vault\\.azure\\.net/$",
+      "description": "Key Vault resource-specific endpoint; must be the named resource's own host."
+    },
+    "KeyVault:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.KeyVault/vaults/[A-Za-z0-9-]{1,64}$",
+      "description": "Key Vault resource id in the configured subscription and resource group."
+    },
+    "KeyVault:Region": {
+      "const": "canadacentral",
+      "description": "Key Vault region."
+    },
+    "KeyVault:PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "KeyVault:PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "Sql:Endpoint": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,63}\\.database\\.windows\\.net$",
+      "description": "Azure SQL logical server resource-specific endpoint; must be the named resource's own host."
+    },
+    "Sql:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Sql/servers/[A-Za-z0-9-]{1,64}$",
+      "description": "Azure SQL logical server resource id in the configured subscription and resource group."
+    },
+    "Sql:Region": {
+      "const": "canadacentral",
+      "description": "Azure SQL logical server region."
+    },
+    "Sql:PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "Sql:PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "Monitoring:WorkspaceResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.OperationalInsights/workspaces/[A-Za-z0-9-]{1,64}$",
+      "description": "Canada Central Log Analytics workspace."
+    },
+    "Monitoring:Region": {
+      "const": "canadacentral",
+      "description": "Monitoring region (FR-13)."
+    },
+    "Monitoring:RetentionDays": {
+      "const": "30",
+      "description": "Approved default retention (FR-13)."
+    },
+    "SourceEnvelope:KeyUri": {
+      "type": "string",
+      "pattern": "^https://[a-zA-Z0-9-]{3,24}\\.vault\\.azure\\.net/keys/[A-Za-z0-9-]{1,127}$",
+      "description": "Versionless Key Vault key wrapping per-content source keys; in the configured vault."
+    },
+    "DataProtection:StorageEndpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Control storage account for the key ring; must differ from source storage."
+    },
+    "DataProtection:StorageResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Control storage account resource id."
+    },
+    "DataProtection:KeyRingContainer": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?!.*--)[a-z0-9-]{1,61}[a-z0-9]$",
+      "description": "Key-ring blob container."
+    },
+    "DataProtection:KeyUri": {
+      "type": "string",
+      "pattern": "^https://[a-zA-Z0-9-]{3,24}\\.vault\\.azure\\.net/keys/[A-Za-z0-9-]{1,127}$",
+      "description": "Versionless Key Vault key wrapping the key ring; distinct from the source envelope key."
+    },
+    "DataProtection:ApplicationDiscriminator": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$",
+      "description": "Discriminator shared only by intended production instances."
+    },
+    "Retention:FinalizedSourceDays": {
+      "const": "30",
+      "description": "FR-09: final acceptance + 30 days."
+    },
+    "Retention:RejectedSourceDays": {
+      "const": "7",
+      "description": "FR-09: terminal rejection + 7 days."
+    },
+    "Retention:DuplicateSourceDays": {
+      "const": "7",
+      "description": "FR-09: confirmed duplicate + 7 days."
+    },
+    "Retention:AbandonedSourceDays": {
+      "const": "30",
+      "description": "FR-09: abandonment + 30 days."
+    },
+    "Retention:StagedUploadHours": {
+      "const": "24",
+      "description": "FR-09: failed/staged upload within 24 hours."
+    },
+    "Resilience:MaximumAttempts": {
+      "type": "string",
+      "pattern": "^[1-5]$",
+      "description": "[ASSUMED] finite attempts, 1 to 5."
+    },
+    "Resilience:OperationDeadline": {
+      "type": "string",
+      "pattern": "^(?!00:00:00$)00:(0[0-9]:[0-5][0-9]|10:00)$",
+      "description": "[ASSUMED] finite operation deadline, greater than zero and at most 00:10:00."
+    },
+    "Resilience:ProbeDeadline": {
+      "type": "string",
+      "pattern": "^(?!00:00:00$)00:(00:[0-5][0-9]|01:00)$",
+      "description": "[ASSUMED] finite identity-probe deadline, greater than zero and at most 00:01:00."
+    }
+  }
+}
