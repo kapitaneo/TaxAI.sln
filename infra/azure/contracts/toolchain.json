@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "Spec 016 T02 - the pinned infrastructure toolchain.",
+    "",
+    "scripts/azure/Test-ProductionPlan.ps1 compiles and lints the Bicep templates",
+    "only with this exact Bicep CLI version, restored from its official NuGet",
+    "package and verified against the recorded SHA-512 before it is executed. A",
+    "locally installed or floating Bicep version is never used. Changing the version",
+    "requires re-recording every hash below from the official package."
+  ],
+  "bicep": {
+    "version": "0.47.16",
+    "source": "https://api.nuget.org/v3-flatcontainer",
+    "packageIdPrefix": "azure.bicep.commandline.",
+    "packages": {
+      "win-x64": "5ea5bf4411acaf20a03a67b986c40f8ac92e05f2ed64de90db14a6fffd363f140450a8b4ba49ed07726d63372ff8d07a31cbb4c018aeb88177c0fe55ae0acf13",
+      "linux-x64": "ba5df7f04542573b25688e8475858f864e57631498ac1b7a2c6dba8cd346c44498db49f2f5406cd7655508300cd0d8310770692bfe06921f791c2b67a202dc65",
+      "linux-arm64": "89c22cec620f91f9dea2543b242d4c558e5e4c8afc8f6c925835ffc05cfd509ae9a74ad46778094f32bdef8fe1f913af4fa5ae868d884635cd8131377f7a8086",
+      "osx-x64": "3e4f8c32015645a45f3b8e7c3d66b1da3c8fca8956f24dfd49040ebff987aaa1d80cac8d91946c9c6090454fee70f3008bcf2fb4c4b5314e8dc6109bb13f82a0",
+      "osx-arm64": "59831fd8d029c703ef70b5fb7fb2e433ca7f2334b4952c337a412da0f75cc80dbe06e1cf07d6e2820de4a3d1f4890bbda9a169344ce0d56b59bb58f195fd5c53"
+    }
+  }
+}

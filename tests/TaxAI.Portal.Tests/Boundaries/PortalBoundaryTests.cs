@@ -56,6 +56,7 @@ public sealed class PortalBoundaryTests
         "ReviewEndpoints.cs",
         "ReviewPageModel.cs",
         "SessionTicketStore.cs",
+        "TrustedIngressConfiguration.cs",
     };
 
     /// <summary>
@@ -331,6 +332,10 @@ public sealed class PortalBoundaryTests
         // The ticket store registers nothing at all. It builds a principal, and
         // AddClaim is the only registration-shaped token in it.
         { "SessionTicketStore.cs", new[] { "AddClaim" } },
+
+        // Spec 016 T02: the trusted ingress policy configures the framework's
+        // forwarded-header middleware in Production; it registers nothing.
+        { "TrustedIngressConfiguration.cs", Array.Empty<string>() },
     };
 
     [Theory] // AC-22, spec 011 AC-31

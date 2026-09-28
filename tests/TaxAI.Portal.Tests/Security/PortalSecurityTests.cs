@@ -62,6 +62,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "ReviewEndpoints.cs",
         "ReviewPageModel.cs",
         "SessionTicketStore.cs",
+        "TrustedIngressConfiguration.cs",
     };
 
     private readonly WebApplicationFactory<Program> _factory;
@@ -1052,6 +1053,46 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /// <summary>
+    /// Spec 016 T02 — the trusted ingress policy is the only forwarded-header
+    /// surface. It reads exactly one configuration key (to refuse the platform
+    /// switch), writes no diagnostic, trusts no configurable proxy list, and
+    /// honours neither forwarded host nor prefix, so no header can move the
+    /// application's origin, cookie scope or sign-in callback.
+    /// </summary>
+    [Fact]
+    public void TrustedIngressIsTheOnlyForwardedHeaderSurfaceAndCannotMoveTheOrigin()
+    {
+        var callers = ProductionSourceFiles()
+            .Where(path => Regex.IsMatch(
+                string.Join("\n", ExecutableLines(path)),
+                @"\b(?:UseForwardedHeaders|ForwardedHeadersOptions|X-Forwarded)",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            .Select(Path.GetFileName)
+            .ToArray();
+        Assert.Equal(new[] { "TrustedIngressConfiguration.cs" }, callers);
+
+        var policy = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PortalRoot, "Production", "TrustedIngressConfiguration.cs")));
+
+        Assert.Single(Regex.Matches(policy, @"configuration\[", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)));
+        Assert.Contains("configuration[PlatformForwardedHeadersSetting]", policy, StringComparison.Ordinal);
+        Assert.Contains("ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto", policy, StringComparison.Ordinal);
+        Assert.Contains("TrustedForwardLimit = 1;", policy, StringComparison.Ordinal);
+        Assert.Contains("options.KnownProxies.Clear();", policy, StringComparison.Ordinal);
+        Assert.Contains("options.KnownIPNetworks.Clear();", policy, StringComparison.Ordinal);
+        foreach (var forbidden in new[]
+                 {
+                     "XForwardedHost", "XForwardedPrefix", "ForwardedHeaders.All", "KnownProxies.Add",
+                     "KnownIPNetworks.Add", "ILogger", "Console.", "Debug.", "Trace.", "Environment.GetEnvironmentVariable",
+                 })
+        {
+            Assert.DoesNotContain(forbidden, policy, StringComparison.Ordinal);
+        }
+    }
 
     private static void AssertNoProductionMatch(string label, string pattern)
     {

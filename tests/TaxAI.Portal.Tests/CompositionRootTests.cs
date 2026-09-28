@@ -166,6 +166,39 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
         Assert.True(firstRoute > gate, "The gate must run before any route is mapped.");
     }
 
+    // ------------------------------------------------------ spec 016 T02
+
+    [Fact] // spec 016 T02, FR-02: trusted ingress is unconditional in Program.
+    public void ProgramAppliesTrustedIngressUnconditionallyBeforeRouting()
+    {
+        // The environment decision lives inside the ingress policy, keyed on
+        // Production only; Program itself never branches around it, and it runs
+        // after the admission gate and before routing and rate limiting.
+        var lines = ExecutableLines(PortalFile("Program.cs")).ToArray();
+
+        var ingress = Array.FindIndex(
+            lines,
+            line => line.StartsWith("app.UseTrustedIngress(", StringComparison.Ordinal));
+        var gate = Array.FindIndex(
+            lines,
+            line => line.StartsWith("ProductionAdmissionGate.RequireAdmission(", StringComparison.Ordinal));
+        var routing = Array.FindIndex(
+            lines,
+            line => line.StartsWith("app.UseRouting(", StringComparison.Ordinal));
+
+        Assert.True(ingress >= 0, "Program must apply trusted ingress.");
+        Assert.Single(lines, line => line.Contains("UseTrustedIngress(", StringComparison.Ordinal));
+        Assert.False(IsInsideAConditionalBlock(lines, ingress), "Trusted ingress must not be conditional in Program.");
+        Assert.True(gate >= 0 && gate < ingress, "Trusted ingress follows the admission gate.");
+        Assert.True(routing > ingress, "Trusted ingress precedes routing.");
+        Assert.DoesNotContain(lines, line => line.Contains("UseForwardedHeaders", StringComparison.Ordinal));
+
+        var policy = ExecutableLines(PortalFile(Path.Combine("Production", "TrustedIngressConfiguration.cs"))).ToArray();
+        Assert.Single(policy, line => line.Contains("Environments.", StringComparison.Ordinal));
+        Assert.Contains(policy, line => line.Contains("Environments.Production,", StringComparison.Ordinal));
+        Assert.Single(policy, line => line.Contains("app.UseForwardedHeaders(CreateOptions())", StringComparison.Ordinal));
+    }
+
     [Fact] // spec 016 T01: real module composition in the Production branch.
     public void TheProductionHostRegistersTheRealInfrastructureValidationBoundary()
     {
