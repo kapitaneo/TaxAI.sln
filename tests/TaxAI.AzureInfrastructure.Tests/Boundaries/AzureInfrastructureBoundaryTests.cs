@@ -7,12 +7,22 @@ namespace TaxAI.AzureInfrastructure.Tests.Boundaries;
 
 /// <summary>
 /// Spec 016 T01 — the boundary of the new Azure infrastructure library
-/// (AC-003–008).
+/// (AC-003–008), extended by T03 with its working key-protection consumers.
 /// <para>
 /// Everything this library may own is pinned exactly: its one project
-/// reference, its two packages, its source inventory and its public surface.
+/// reference, its packages, its source inventory and its public surface.
 /// Later slices extend each pin only with a working consumer. Every negative
 /// scan has a positive control so an empty result cannot pass for free.
+/// </para>
+/// <para>
+/// T03 adds exactly the Key Vault key and secret clients, the Azure Blob and
+/// Key Vault Data Protection integrations and the Data Protection abstractions
+/// they configure, each consumed by the wrapper, the runtime-material
+/// provider, the key-ring configuration or the approved-resource probe. The
+/// only ASP.NET Core assemblies the library may name are the two Data
+/// Protection ones; hosting, HTTP and routing stay in the portal. No
+/// <c>ClientIntake</c> reference is added: the credential port implementation
+/// stays in the portal and consumes the loaded material unchanged.
 /// </para>
 /// </summary>
 public sealed class AzureInfrastructureBoundaryTests
@@ -41,7 +51,7 @@ public sealed class AzureInfrastructureBoundaryTests
     }
 
     [Fact] // AC-005
-    public void TheLibraryReferencesExactlyTenancyInThisSlice()
+    public void TheLibraryReferencesExactlyTenancyThroughT03()
     {
         Assert.Equal(
             new[] { @"..\Tenancy\Tenancy.csproj" },
@@ -61,15 +71,55 @@ public sealed class AzureInfrastructureBoundaryTests
         Assert.Equal(
             new[]
             {
+                ("Azure.Core", "1.54.0"),
+                ("Azure.Extensions.AspNetCore.DataProtection.Blobs", "1.5.2"),
+                ("Azure.Extensions.AspNetCore.DataProtection.Keys", "1.6.2"),
                 ("Azure.Identity", "1.21.0"),
+                ("Azure.Security.KeyVault.Keys", "4.10.1"),
+                ("Azure.Security.KeyVault.Secrets", "4.11.1"),
+                ("Azure.Storage.Blobs", "12.26.0"),
+                ("Microsoft.AspNetCore.DataProtection", "10.0.10"),
                 ("Microsoft.Extensions.DependencyInjection.Abstractions", "10.0.10"),
             },
             packages);
     }
 
+    [Fact] // No preview, floating or ranged version anywhere in the library.
+    public void EveryPackageVersionIsAnExactStableRelease()
+    {
+        var versions = XDocument.Load(LibraryProject)
+            .Descendants()
+            .Where(e => e.Name.LocalName == "PackageReference")
+            .Select(e => e.Attribute("Version")!.Value)
+            .ToArray();
+
+        Assert.NotEmpty(versions);
+        Assert.All(versions, version => Assert.Matches(@"^\d+\.\d+\.\d+$", version));
+    }
+
+    [Fact] // T03: the only ASP.NET Core assemblies are the Data Protection pair.
+    public void TheOnlyAspNetCoreAssembliesNamedAreDataProtection()
+    {
+        var aspNetCore = Library.GetReferencedAssemblies()
+            .Select(name => name.Name!)
+            .Where(name => name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Contains("Microsoft.AspNetCore.DataProtection", aspNetCore);
+        Assert.All(aspNetCore, name => Assert.Contains(
+            name,
+            new[] { "Microsoft.AspNetCore.DataProtection", "Microsoft.AspNetCore.DataProtection.Abstractions" }));
+    }
+
     [Theory] // AC-004, AC-006, AC-007
     [InlineData("Microsoft.EntityFrameworkCore")]
-    [InlineData("Microsoft.AspNetCore")]
+    [InlineData("Microsoft.AspNetCore.Http")]
+    [InlineData("Microsoft.AspNetCore.Hosting")]
+    [InlineData("Microsoft.AspNetCore.Routing")]
+    [InlineData("Microsoft.AspNetCore.Mvc")]
+    [InlineData("Microsoft.AspNetCore.Authentication")]
+    [InlineData("Microsoft.AspNetCore.Components")]
     [InlineData("Azure.AI.DocumentIntelligence")]
     [InlineData("Azure.AI.FormRecognizer")]
     [InlineData("DocumentIntelligence")]
@@ -90,6 +140,7 @@ public sealed class AzureInfrastructureBoundaryTests
         // what records the Azure.Identity dependency.
         Assert.Contains("Tenancy", referenced);
         Assert.Contains("Azure.Core", referenced);
+        Assert.Contains("Azure.Security.KeyVault.Keys", referenced);
         Assert.DoesNotContain(
             referenced,
             name => name.StartsWith(forbidden, StringComparison.Ordinal));
@@ -110,7 +161,7 @@ public sealed class AzureInfrastructureBoundaryTests
     }
 
     [Fact]
-    public void TheSourceInventoryIsExactlyTheT01Slice()
+    public void TheSourceInventoryIsExactlyTheT01AndT03Slices()
     {
         var files = SourceFiles()
             .Select(path => Path.GetRelativePath(LibraryRoot, path).Replace('\\', '/'))
@@ -121,9 +172,14 @@ public sealed class AzureInfrastructureBoundaryTests
             new[]
             {
                 "AzureInfrastructureRegistration.cs",
+                "Configuration/ApprovedResourceProbe.cs",
                 "Configuration/AzureInfrastructureOptions.cs",
                 "Configuration/ManagedIdentityBindingProbe.cs",
                 "Configuration/ProductionConfigurationValidator.cs",
+                "Keys/KeyVaultContentKeyWrapper.cs",
+                "Keys/KeyVaultRuntimeMaterialProvider.cs",
+                "Keys/KeyVersionUsageGuard.cs",
+                "Protection/AzureDataProtectionConfiguration.cs",
             },
             files);
     }
@@ -135,9 +191,14 @@ public sealed class AzureInfrastructureBoundaryTests
             new[]
             {
                 "TaxAI.AzureInfrastructure.AzureInfrastructureRegistration",
+                "TaxAI.AzureInfrastructure.Configuration.ApprovedResourceFinding",
+                "TaxAI.AzureInfrastructure.Configuration.ApprovedResourceProbe",
+                "TaxAI.AzureInfrastructure.Configuration.ApprovedResourceProbeResult",
                 "TaxAI.AzureInfrastructure.Configuration.AzureInfrastructureOptions",
                 "TaxAI.AzureInfrastructure.Configuration.DataProtectionSettings",
                 "TaxAI.AzureInfrastructure.Configuration.DocumentIntelligenceSettings",
+                "TaxAI.AzureInfrastructure.Configuration.IApprovedResourceProbe",
+                "TaxAI.AzureInfrastructure.Configuration.KeyPostureViolation",
                 "TaxAI.AzureInfrastructure.Configuration.ManagedIdentityBindingProbe",
                 "TaxAI.AzureInfrastructure.Configuration.ManagedIdentitySettings",
                 "TaxAI.AzureInfrastructure.Configuration.MonitoringSettings",
@@ -146,6 +207,22 @@ public sealed class AzureInfrastructureBoundaryTests
                 "TaxAI.AzureInfrastructure.Configuration.ResilienceSettings",
                 "TaxAI.AzureInfrastructure.Configuration.RetentionSettings",
                 "TaxAI.AzureInfrastructure.Configuration.SourceEnvelopeSettings",
+                "TaxAI.AzureInfrastructure.Keys.EmergencyRevocationRequest",
+                "TaxAI.AzureInfrastructure.Keys.KeyGuardDecision",
+                "TaxAI.AzureInfrastructure.Keys.KeyGuardRefusal",
+                "TaxAI.AzureInfrastructure.Keys.KeyRetirementRequest",
+                "TaxAI.AzureInfrastructure.Keys.KeyUsageEvidence",
+                "TaxAI.AzureInfrastructure.Keys.KeyUsageSource",
+                "TaxAI.AzureInfrastructure.Keys.KeyVaultContentKeyWrapper",
+                "TaxAI.AzureInfrastructure.Keys.KeyVaultRuntimeMaterialProvider",
+                "TaxAI.AzureInfrastructure.Keys.KeyVersionUsageGuard",
+                "TaxAI.AzureInfrastructure.Keys.PrivilegedElevation",
+                "TaxAI.AzureInfrastructure.Keys.RevocationJustification",
+                "TaxAI.AzureInfrastructure.Keys.RuntimeMaterial",
+                "TaxAI.AzureInfrastructure.Keys.RuntimeMaterialOutcome",
+                "TaxAI.AzureInfrastructure.Keys.WrappedContentKey",
+                "TaxAI.AzureInfrastructure.Protection.AzureDataProtectionConfiguration",
+                "TaxAI.AzureInfrastructure.Protection.ProtectedKeyRingSettings",
             },
             Library.GetExportedTypes().Select(type => type.FullName!).OrderBy(n => n, StringComparer.Ordinal));
     }
@@ -183,7 +260,10 @@ public sealed class AzureInfrastructureBoundaryTests
     [InlineData("clock", @"\bDateTime\.(Utc)?Now\b|\bDateTimeOffset\.(Utc)?Now\b")]
     [InlineData("environment", @"\bEnvironment\.GetEnvironmentVariable\b")]
     [InlineData("EF", @"\bDbContext\b|\bEntityFrameworkCore\b")]
-    [InlineData("web", @"\bMicrosoft\.AspNetCore\b|\bHttpContext\b")]
+    [InlineData("web", @"\bMicrosoft\.AspNetCore\.(?!DataProtection\b)\w+|\bHttpContext\b|\bIApplicationBuilder\b|\bWebApplication\b")]
+    [InlineData("key export", @"\bExportParameters\b|\bExportRSAPrivateKey\w*|\bReleaseKey\w*|\bGetRandomBytes\b|\bBackupKey\w*")]
+    [InlineData("secret access", @"\bStorageSharedKeyCredential\b|\bSasBuilder\b|\bGenerateSasUri\b|AccountKey=|SharedAccessSignature")]
+    [InlineData("TLS bypass", @"ServerCertificateCustomValidationCallback|DangerousAcceptAnyServerCertificateValidator|RemoteCertificateValidationCallback|TrustServerCertificate\s*=\s*true")]
     public void ExecutableSourceContainsNoForbiddenToken(string boundary, string pattern)
     {
         var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
@@ -207,6 +287,17 @@ public sealed class AzureInfrastructureBoundaryTests
         Assert.Matches(new Regex(@"vault\.azure\.net/\.default"), executable);
         Assert.Matches(new Regex(@"\bProductionAdmissionRefusal\b"), executable);
         Assert.Matches(new Regex(@"\bDbConnectionStringBuilder\b"), executable);
+
+        // T03 positive controls: the scanners see the real key-protection code,
+        // and the narrowed web pattern still recognizes a forbidden host token.
+        Assert.Matches(new Regex(@"\bWrapKeyAsync\b"), executable);
+        Assert.Matches(new Regex(@"\bGetSecretAsync\b"), executable);
+        Assert.Matches(new Regex(@"\bProtectKeysWithAzureKeyVault\b"), executable);
+        Assert.Matches(new Regex(@"\bPersistKeysToAzureBlobStorage\b"), executable);
+        Assert.Matches(new Regex(@"using Microsoft\.AspNetCore\.DataProtection;"), executable);
+        var web = new Regex(@"\bMicrosoft\.AspNetCore\.(?!DataProtection\b)\w+");
+        Assert.Matches(web, "using Microsoft.AspNetCore.Http;");
+        Assert.DoesNotMatch(web, "using Microsoft.AspNetCore.DataProtection;");
     }
 
     [Fact]

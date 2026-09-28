@@ -186,13 +186,25 @@ public sealed class NoEgressTests
     /// Spec 016 exceptions to the whole-repository cloud-package prohibition,
     /// each one project and one package, added only by the slice whose working
     /// code consumes it. T01: the Azure infrastructure library's managed-identity
-    /// binding probe. The deterministic modules and this adapter stay cloud-free;
-    /// no Document Intelligence, storage, OCR, LLM or HTTP-client package is
-    /// approved anywhere.
+    /// binding probe. T03: in the same library only, the Key Vault key client
+    /// (content-key wrapping and the approved-resource probe), the Key Vault
+    /// secret client (intake credential material) and the Azure Blob and Key
+    /// Vault Data Protection integrations (the shared protected key ring), with
+    /// Azure.Core and the key-ring Blob client pinned explicitly because the
+    /// library names their types directly. The
+    /// deterministic modules and this adapter stay cloud-free; no Document
+    /// Intelligence, source-storage, OCR, LLM or HTTP-client package is approved
+    /// anywhere.
     /// </summary>
     private static readonly string[] ApprovedCloudPackageEdges =
     {
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Core",
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Extensions.AspNetCore.DataProtection.Blobs",
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Extensions.AspNetCore.DataProtection.Keys",
         "TaxAI.AzureInfrastructure.csproj -> Azure.Identity",
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Security.KeyVault.Keys",
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Security.KeyVault.Secrets",
+        "TaxAI.AzureInfrastructure.csproj -> Azure.Storage.Blobs",
     };
 
     [Fact]

@@ -458,9 +458,10 @@ public sealed class PortalBoundaryTests
                     TimeSpan.FromSeconds(1)).Count));
 
         // The tax, intake, extraction-configuration, clock, and cookie singleton
-        // registrations remain explicit and exact.
+        // registrations remain explicit and exact. Spec 016 T03 adds exactly one:
+        // the Key Vault-loaded intake material the admission gate verifies.
         Assert.Equal(
-            10,
+            11,
             new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
                 .Matches(compositionRoot)
                 .Count);

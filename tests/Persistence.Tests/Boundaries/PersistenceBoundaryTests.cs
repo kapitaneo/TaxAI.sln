@@ -242,6 +242,56 @@ public sealed class PersistenceBoundaryTests
         }
     }
 
+    // ------------------------------------------ spec 016 T03: SQL protection
+
+    [Theory] // T03: key and credential handling belong to the Azure library, never here.
+    [InlineData("cloud SDK", @"\bAzure\.(Identity|Core|Security|Storage|Extensions)\b")]
+    [InlineData("credential", @"\b(ManagedIdentityCredential|DefaultAzureCredential|ClientSecretCredential|TokenCredential)\b")]
+    [InlineData("key vault", @"\bKeyVault\w*|\bCryptographyClient\b|\bSecretClient\b")]
+    [InlineData("TLS bypass", @"ServerCertificateCustomValidationCallback|DangerousAcceptAnyServerCertificateValidator|TrustServerCertificate\s*=\s*true")]
+    public void ProductionSource_HoldsNoKeyCredentialOrTransportBypass(string boundary, string pattern)
+    {
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+        var offenders = ProductionSourceFiles()
+            .SelectMany(path => ExecutableLines(path).Select(line => (path, line)))
+            .Where(entry => regex.IsMatch(entry.line))
+            .Select(entry => $"{Path.GetFileName(entry.path)}: {entry.line}")
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, $"{boundary} boundary crossed: {string.Join(" | ", offenders)}");
+
+        // Positive control: each pattern recognizes a planted line.
+        Assert.Matches(regex, boundary switch
+        {
+            "cloud SDK" => "using Azure.Identity;",
+            "credential" => "new DefaultAzureCredential()",
+            "key vault" => "new SecretClient(uri, credential)",
+            _ => "TrustServerCertificate = true",
+        });
+    }
+
+    [Fact] // T03: the connection guard names exactly the approved authentication modes.
+    public void TheConnectionGuardAcceptsOnlyTheApprovedAuthenticationModes()
+    {
+        var guard = string.Join(
+            "\n",
+            ExecutableLines(Path.Combine(PersistenceRoot, "Services", "SqlConnectionStringGuard.cs")));
+
+        var named = Regex.Matches(guard, @"SqlAuthenticationMethod\.(?<mode>\w+)")
+            .Select(match => match.Groups["mode"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(mode => mode, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[] { "ActiveDirectoryMSI", "ActiveDirectoryManagedIdentity", "NotSpecified", "SqlPassword" },
+            named);
+        Assert.Contains("HostNameInCertificate", guard, StringComparison.Ordinal);
+        Assert.Contains("TrustServerCertificate", guard, StringComparison.Ordinal);
+        Assert.Contains("PersistSecurityInfo", guard, StringComparison.Ordinal);
+    }
+
     // -------------------------------------------------------------- guards
 
     [Fact]

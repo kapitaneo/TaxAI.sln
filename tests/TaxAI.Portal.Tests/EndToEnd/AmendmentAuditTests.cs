@@ -39,6 +39,10 @@ public sealed class AmendmentAuditTests
         "tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs";
     private const string InfrastructureBoundary =
         "tests/TaxAI.AzureInfrastructure.Tests/Boundaries/AzureInfrastructureBoundaryTests.cs";
+    private const string NoEgress =
+        "tests/DocumentIntelligence.Tests/NoEgressTests.cs";
+    private const string DataTemplate =
+        "tests/TaxAI.Portal.Tests/Production/DataTemplateTests.cs";
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
     private static readonly string PrdPath = Path.Combine(
@@ -257,6 +261,68 @@ public sealed class AmendmentAuditTests
             "The composition root still calls exactly one extension per module; the infrastructure extension is declared exactly once by its own library.",
             P(PortalBoundary, "TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule")),
     ];
+
+    /// <summary>
+    /// Spec 016 T03 — every historical assertion the key-protection slice
+    /// narrowed, each with the live test that still proves the narrower rule.
+    /// </summary>
+    private static readonly Amendment[] Spec016T03Amendments =
+    [
+        A("AzureInfrastructureBoundaryTests.TheLibraryDeclaresExactlyTheConsumedPackagesAtPinnedVersions", "nine exact packages",
+            "The set is still exact; it gains only the Key Vault, key-ring Blob and Data Protection packages that working T03 code consumes, every one pinned to an exact stable version.",
+            P(InfrastructureBoundary, "TheLibraryDeclaresExactlyTheConsumedPackagesAtPinnedVersions"),
+            P(InfrastructureBoundary, "EveryPackageVersionIsAnExactStableRelease")),
+        A("AzureInfrastructureBoundaryTests.TheCompiledLibraryNamesNoForbiddenAssembly(Microsoft.AspNetCore)", "Data Protection pair only",
+            "Only the two Data Protection assemblies are allowed; every hosting, HTTP, routing, MVC, authentication and component assembly remains forbidden.",
+            P(InfrastructureBoundary, "TheOnlyAspNetCoreAssembliesNamedAreDataProtection"),
+            P(InfrastructureBoundary, "TheCompiledLibraryNamesNoForbiddenAssembly")),
+        A("AzureInfrastructureBoundaryTests.ExecutableSourceContainsNoForbiddenToken(web)", "DataProtection namespace excepted",
+            "Only the Data Protection namespace is excepted, with a positive control; key-export, shared-key/SAS and TLS-bypass scanners are added.",
+            P(InfrastructureBoundary, "ExecutableSourceContainsNoForbiddenToken"),
+            P(InfrastructureBoundary, "TheScannerSeesTheSourceAndMatchesKnownPositiveTokens")),
+        A("NoEgressTests.NoProjectInTheRepositoryDeclaresAProviderOrTransportPackage", "six more exact edges",
+            "Each approved edge is still one project and one package, only in the Azure infrastructure library; every other project stays cloud-free.",
+            P(NoEgress, "NoProjectInTheRepositoryDeclaresAProviderOrTransportPackage")),
+        A("CompositionRootTests.TheInfrastructureRegistrationIsTheOnlyProductionKeyedBranchAndEnablesNothing", "one Production comparison, two branches",
+            "The single Production comparison now keys exactly two branches, neither of which may touch an authentication, authorization, antiforgery or validation control.",
+            P(CompositionRoot, "TheInfrastructureRegistrationIsTheOnlyProductionKeyedBranchAndEnablesNothing")),
+        A("PortalBoundaryTests.TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule", "eleven exact singletons",
+            "The singleton count stays exact and gains only the vault-loaded intake material the gate verifies.",
+            P(PortalBoundary, "TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule")),
+        A("UpgradeBaselineContractTests.UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline", "two named internal methods",
+            "Every baseline signature is still compared; the only new approvals are HasConfiguredKeyRing and RegisterTaxAiModules, each named exactly.",
+            P(UpgradeBaseline, "UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline")),
+        A("ProductionStartupTests.EachIndividualAdmissionRuleRefusesIndependently(durable key ring omitted)", "exact protected Azure key ring",
+            "A durable ring is no longer enough in Production; only the exact Azure Blob plus Key Vault ring with the approved discriminator is admitted, and each T03 rule refuses independently.",
+            P(ProductionStartup, "EachIndividualAdmissionRuleRefusesIndependently"),
+            P(ProductionStartup, "OnlyTheLaterSliceProductionAdaptersRemainWhenEveryT01RuleIsSatisfied"),
+            P(DataTemplate, "EachUnsafeTemplateChangeIsRefusedByItsOwnRule")),
+    ];
+
+    [Fact] // spec 016 T03
+    public void EverySpec016T03AmendmentNamesALiveNarrowerProof()
+    {
+        Assert.Equal(8, Spec016T03Amendments.Length);
+        Assert.Equal(
+            Spec016T03Amendments.Length,
+            Spec016T03Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var amendment in Spec016T03Amendments)
+        {
+            Assert.Matches(
+                new Regex(
+                    @"\b(exact|only|every|no|unchanged|preserv|forbid|narrow|fixed|allow|constrain|reduce|remain)\w*\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)),
+                amendment.WhyNarrower);
+            Assert.NotEmpty(amendment.Proofs);
+
+            foreach (var proof in amendment.Proofs)
+            {
+                AssertLiveTestProof(proof);
+            }
+        }
+    }
 
     [Fact] // spec 016 T01
     public void EverySpec016T01AmendmentNamesALiveNarrowerProof()

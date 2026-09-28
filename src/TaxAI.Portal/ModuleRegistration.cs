@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Persistence;
 using TaxAI.AzureInfrastructure;
+using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.Portal.Production;
 using TaxLogicEngine.Services;
 
@@ -72,16 +74,57 @@ internal static class ModuleRegistration
         this IServiceCollection services,
         IConfiguration configuration,
         IWebHostEnvironment environment,
-        string databaseConnectionString)
+        string databaseConnectionString) =>
+        RegisterTaxAiModules(
+            services,
+            configuration,
+            environment,
+            databaseConnectionString,
+            AzureInfrastructureRegistration.LoadProductionRuntimeMaterial);
+
+    /// <summary>
+    /// The composition root with an explicit production runtime-material loader.
+    /// Program uses the managed-identity vault loader; tests pass one built over a
+    /// controlled transport, so no test contacts a vault.
+    /// </summary>
+    internal static IServiceCollection RegisterTaxAiModules(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IWebHostEnvironment environment,
+        string databaseConnectionString,
+        Func<AzureInfrastructureOptions, string, RuntimeMaterial> runtimeMaterialLoader)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(databaseConnectionString);
+        ArgumentNullException.ThrowIfNull(runtimeMaterialLoader);
 
         services.AddSingleton<IT4LineMapProvider, EmbeddedT4LineMapProvider>();
         services.AddSingleton<IT5LineMapProvider, EmbeddedT5LineMapProvider>();
         services.AddSingleton<T4CaseProcessor>();
+
+        var runsInProduction = string.Equals(
+            environment.EnvironmentName,
+            Environments.Production,
+            StringComparison.Ordinal);
+
+        // Spec 016 T03: in Production the intake digest and fingerprint keys come
+        // from Key Vault by managed identity, never from a plaintext setting. The
+        // loaded material is supplied to the unchanged intake validation below;
+        // a refusal leaves it absent, so intake configuration refuses to start.
+        // Plaintext material is never loaded over: the admission gate refuses it.
+        if (runsInProduction)
+        {
+            var material = SupplyProductionRuntimeMaterial(
+                configuration,
+                databaseConnectionString,
+                runtimeMaterialLoader);
+            if (material is not null)
+            {
+                services.AddSingleton(material);
+            }
+        }
 
         var intake = IntakeConfiguration.Require(configuration, environment);
         services.AddSingleton(intake);
@@ -126,14 +169,12 @@ internal static class ModuleRegistration
 
         services.AddTaxAiPersistence(databaseConnectionString);
 
-        // Spec 016 T01: the production validation boundary is registered only
-        // for the Production environment, from the closed production profile.
-        // It registers validation and identity verification only; no production
-        // source store, reader or provider exists yet, so admission is refused.
-        if (string.Equals(
-                environment.EnvironmentName,
-                Environments.Production,
-                StringComparison.Ordinal))
+        // Spec 016 T01/T03: the production validation boundary is registered
+        // only for the Production environment, from the closed production
+        // profile: validation, identity verification and (T03) the approved key
+        // and key-ring probe. No production source store, reader or provider
+        // exists yet, so admission is refused.
+        if (runsInProduction)
         {
             services.AddTaxAiAzureInfrastructure(
                 ProductionConfiguration.Read(configuration).Options);
@@ -220,6 +261,45 @@ internal static class ModuleRegistration
             PortalAuthorization.ConfigureSelectionIssuance);
 
         return services;
+    }
+
+    /// <summary>
+    /// Loads the production intake credential material and supplies it to the
+    /// configuration the intake validation reads. Returns the loaded material,
+    /// or <see langword="null"/> when plaintext material is configured or the
+    /// load is refused. Never throws for a refusal: the unchanged intake
+    /// validation then refuses startup with its fixed message.
+    /// </summary>
+    private static RuntimeMaterial? SupplyProductionRuntimeMaterial(
+        IConfiguration configuration,
+        string databaseConnectionString,
+        Func<AzureInfrastructureOptions, string, RuntimeMaterial> runtimeMaterialLoader)
+    {
+        if (configuration[IntakeConfiguration.DigestKeySetting] is not null ||
+            configuration[IntakeConfiguration.FingerprintKeySetting] is not null)
+        {
+            return null;
+        }
+
+        var material = runtimeMaterialLoader(
+            ProductionConfiguration.Read(configuration).Options,
+            databaseConnectionString);
+        if (!material.IsLoaded)
+        {
+            return null;
+        }
+
+        try
+        {
+            configuration[IntakeConfiguration.DigestKeySetting] = material.DigestKey;
+            configuration[IntakeConfiguration.FingerprintKeySetting] = material.FingerprintKey;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+
+        return material;
     }
 
     private static object CreateDocumentExtractionIngress()

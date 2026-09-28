@@ -576,6 +576,56 @@ public sealed class ProjectStructureTests
             StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact] // spec 016 T03
+    public void KeyProtectionInstructions_StateTheSliceTheyDeliver()
+    {
+        var infrastructure = NormalizeWhitespace(File.ReadAllText(
+            Path.Combine(RepositoryRoot, "src", "TaxAI.AzureInfrastructure", "CLAUDE.md")));
+        var portal = NormalizeWhitespace(File.ReadAllText(Path.Combine(PortalRoot, "CLAUDE.md")));
+        var persistence = NormalizeWhitespace(File.ReadAllText(Path.Combine(PersistenceRoot, "CLAUDE.md")));
+
+        foreach (var required in new[]
+                 {
+                     "Keys/KeyVaultContentKeyWrapper.cs",
+                     "Keys/KeyVersionUsageGuard.cs",
+                     "Keys/KeyVaultRuntimeMaterialProvider.cs",
+                     "Protection/AzureDataProtectionConfiguration.cs",
+                     "Configuration/ApprovedResourceProbe.cs",
+                     "exactly one project and nine packages",
+                     "No key leaves Key Vault",
+                 })
+        {
+            Assert.Contains(required, infrastructure, StringComparison.Ordinal);
+        }
+
+        foreach (var required in new[]
+                 {
+                     "Spec 016 T03: key protection in Production",
+                     "declares no Azure package",
+                     "never loaded over",
+                     "No new `TaxAi:Production:*` setting exists",
+                     "Production admission is still refused",
+                 })
+        {
+            Assert.Contains(required, portal, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("Spec 016 T03 tightens `SqlConnectionStringGuard`", persistence, StringComparison.Ordinal);
+        Assert.Contains("no cloud SDK, credential or key dependency", persistence, StringComparison.Ordinal);
+    }
+
+    [Fact] // spec 016 T03: the host still carries no Azure SDK package.
+    public void PortalProject_GainsNoPackageFromTheKeyProtectionSlice()
+    {
+        var packages = XDocument.Load(PortalProject)
+            .Descendants()
+            .Where(element => element.Name.LocalName == "PackageReference")
+            .Select(element => element.Attribute("Include")!.Value)
+            .ToArray();
+
+        Assert.Equal(new[] { "Microsoft.AspNetCore.Authentication.OpenIdConnect" }, packages);
+    }
+
     [Fact]
     public void PortalAgentsBridge_IsAPointerNotARulebook() // AC-45
     {

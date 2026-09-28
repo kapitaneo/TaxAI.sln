@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taxai.invalid/infra/azure/contracts/data-configuration.schema.json",
+  "title": "TaxAI data-protection configuration (spec 016 T03)",
+  "description": "The closed, reviewed key, customer-managed-key, SQL and key-ring posture. Every policy value is a constant: the Bicep modules must declare exactly these values, and the operator-run rotation drill compares a live, read-only inventory of the deployed resources with them. It carries infrastructure identifiers and posture only - never a key, secret, connection string or taxpayer value. Matching it is not deployment evidence by itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "keyVault",
+    "keys",
+    "runtimeSecrets",
+    "keyRingStorage",
+    "sql"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "keyVault": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "sku",
+        "enableRbacAuthorization",
+        "enableSoftDelete",
+        "softDeleteRetentionInDays",
+        "enablePurgeProtection",
+        "publicNetworkAccess",
+        "networkDefaultAction"
+      ],
+      "properties": {
+        "location": { "const": "canadacentral" },
+        "sku": { "const": "premium" },
+        "enableRbacAuthorization": { "const": true },
+        "enableSoftDelete": { "const": true },
+        "softDeleteRetentionInDays": { "const": 90 },
+        "enablePurgeProtection": { "const": true },
+        "publicNetworkAccess": { "const": "Disabled" },
+        "networkDefaultAction": { "const": "Deny" }
+      }
+    },
+    "keys": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/key" }
+    },
+    "runtimeSecrets": {
+      "const": [
+        "taxai-intake-digest-key",
+        "taxai-intake-fingerprint-key"
+      ]
+    },
+    "keyRingStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "sku",
+        "allowSharedKeyAccess",
+        "allowBlobPublicAccess",
+        "minimumTlsVersion",
+        "publicNetworkAccess",
+        "requireInfrastructureEncryption",
+        "isVersioningEnabled",
+        "deleteRetentionDays",
+        "keyRingBlobName"
+      ],
+      "properties": {
+        "location": { "const": "canadacentral" },
+        "sku": { "const": "Standard_GZRS" },
+        "allowSharedKeyAccess": { "const": false },
+        "allowBlobPublicAccess": { "const": false },
+        "minimumTlsVersion": { "const": "TLS1_2" },
+        "publicNetworkAccess": { "const": "Disabled" },
+        "requireInfrastructureEncryption": { "const": true },
+        "isVersioningEnabled": { "const": true },
+        "deleteRetentionDays": { "const": 30 },
+        "keyRingBlobName": { "const": "key-ring.xml" }
+      }
+    },
+    "sql": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "minimalTlsVersion",
+        "publicNetworkAccess",
+        "restrictOutboundNetworkAccess",
+        "azureADOnlyAuthentication",
+        "encryptionProtectorType",
+        "autoRotationEnabled",
+        "zoneRedundant",
+        "tdeKeyName"
+      ],
+      "properties": {
+        "location": { "const": "canadacentral" },
+        "minimalTlsVersion": { "const": "1.2" },
+        "publicNetworkAccess": { "const": "Disabled" },
+        "restrictOutboundNetworkAccess": { "const": "Enabled" },
+        "azureADOnlyAuthentication": { "const": true },
+        "encryptionProtectorType": { "const": "AzureKeyVault" },
+        "autoRotationEnabled": { "const": true },
+        "zoneRedundant": { "const": true },
+        "tdeKeyName": { "const": "sql-tde-protector" }
+      }
+    }
+  },
+  "$defs": {
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "name",
+        "kty",
+        "keySize",
+        "keyOps",
+        "exportable",
+        "rotateAfterCreate"
+      ],
+      "properties": {
+        "purpose": {
+          "enum": [
+            "SourceEnvelope",
+            "DataProtection",
+            "SqlTde",
+            "SourceBlobEncryption"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,127}$"
+        },
+        "kty": { "const": "RSA-HSM" },
+        "keySize": { "const": 3072 },
+        "keyOps": { "const": [ "wrapKey", "unwrapKey" ] },
+        "exportable": { "const": false },
+        "rotateAfterCreate": { "const": "P90D" }
+      }
+    },
+    "keyUsageEvidence": {
+      "description": "One usage inventory from one source, as the rotation drill consumes it. Retirement of a key version is refused unless complete, current evidence from every source shows nothing still needs it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "isComplete",
+        "observedAtUtc",
+        "referencedKeyVersionIds"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "RetainedCiphertext",
+            "DataProtectionKeyRing",
+            "RecoverableBackup"
+          ]
+        },
+        "isComplete": { "type": "boolean" },
+        "observedAtUtc": { "type": "string", "format": "date-time" },
+        "referencedKeyVersionIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^https://[a-z0-9-]{3,24}\\.vault\\.azure\\.net/keys/[A-Za-z0-9-]{1,127}/[0-9a-fA-F]{32}$"
+          }
+        }
+      }
+    }
+  }
+}

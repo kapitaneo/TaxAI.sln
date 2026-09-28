@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using TaxAI.AzureInfrastructure.Protection;
+using TaxAI.Portal.Production;
 using Tenancy.Contracts;
 
 namespace TaxAI.Portal;
@@ -81,7 +83,8 @@ internal static class PortalIdentity
     /// The developer-local key ring folder, under the content root and ignored by
     /// source control. Development only: outside it,
     /// <see cref="PortalStartupGuards"/> requires a registered durable key ring
-    /// and refuses to start without one.
+    /// and refuses to start without one, and in Production (spec 016 T03) the
+    /// admission gate accepts only the protected Azure key ring below.
     /// </summary>
     internal const string DeveloperKeyRingFolder = "DataProtection-Keys";
 
@@ -127,10 +130,13 @@ internal static class PortalIdentity
             throw new InvalidOperationException(UnconfiguredIdentityProviderMessage);
         }
 
-        // The only environment-sensitive behaviour here, and it adds a local key
-        // ring rather than removing a control. A deployed host reaches this file
-        // with no key ring registered at all and is refused at startup, which is
-        // decision B-3: ship the refusal, not a half-built Azure provider.
+        // The environment-sensitive behaviour here only ever adds a key ring; it
+        // never removes a control. Development gets its local key ring. Spec 016
+        // T03: Production gets the shared Canadian Blob key ring protected by the
+        // Key Vault key and reached by the managed identity, configured from the
+        // closed production profile. A profile that does not describe one
+        // registers none, and the host is refused at startup (decision B-3).
+        // Every other environment registers none and is refused as before.
         if (environment.IsDevelopment())
         {
             // Written on one line so the only file-system expression in this
@@ -139,6 +145,15 @@ internal static class PortalIdentity
             var developerKeyRing = new DirectoryInfo(Path.Combine(environment.ContentRootPath, DeveloperKeyRingFolder));
 
             services.AddDataProtection().PersistKeysToFileSystem(developerKeyRing);
+        }
+        else if (string.Equals(environment.EnvironmentName, Environments.Production, StringComparison.Ordinal))
+        {
+            if (AzureDataProtectionConfiguration.TryCreateSettings(
+                    ProductionConfiguration.Read(configuration).Options,
+                    out var keyRing))
+            {
+                services.AddDataProtection().ProtectWithAzureKeyRing(keyRing!);
+            }
         }
 
         // Singleton because the cookie handler's options hold one instance for

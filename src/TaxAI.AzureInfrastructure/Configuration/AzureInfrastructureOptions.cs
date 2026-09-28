@@ -127,7 +127,8 @@ public sealed class MonitoringSettings
 
 /// <summary>
 /// The Key Vault key that wraps per-content source encryption keys. It must be a
-/// versionless key identifier in the configured vault.
+/// versionless key identifier in the configured vault. Spec 016 T03 probes its
+/// posture and wrap capability at admission; T04 wraps source envelopes with it.
 /// </summary>
 public sealed class SourceEnvelopeSettings
 {
@@ -140,6 +141,9 @@ public sealed class SourceEnvelopeSettings
 /// The shared protected Data Protection key ring: a private control storage
 /// account separate from source content, the container holding the key ring,
 /// the Key Vault wrapping key, and the production application discriminator.
+/// Spec 016 T03 configures the production key ring from exactly these values
+/// (key-ring blob <c>key-ring.xml</c> in the container) and the configured
+/// managed identity; no other key-ring setting exists.
 /// </summary>
 public sealed class DataProtectionSettings
 {
