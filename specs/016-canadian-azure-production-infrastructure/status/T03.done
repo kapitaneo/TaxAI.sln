@@ -1,0 +1,38 @@
+# Spec 016 — T03 complete
+
+Task: T03 — Key Vault, CMK and Data Protection.
+Branch: `feat/016-w3-t03`
+PR: #149 — https://github.com/kapitaneo/TaxAI.sln/pull/149
+Implementation commit: `56999c1`
+
+## Gate — committed branch state (Windows)
+
+```powershell
+dotnet build TaxAI.sln
+pwsh ./scripts/Invoke-SolutionTests.ps1
+pwsh ./scripts/azure/Test-ProductionPlan.ps1
+pwsh ./scripts/azure/Invoke-KeyRotationDrill.ps1
+```
+
+- Build: 0 errors; no warning in a T03 file.
+- Solution gate on the clean committed tree at `56999c1`: PASS. All 12
+  registered projects ran with no failure or skip and every floor met; 4,910
+  tests. Floors raised: TaxAI.Portal.Tests 998 (was 899), Persistence.Tests 260
+  (was 236), TaxAI.AzureInfrastructure.Tests 324 (was 148); every other floor
+  unchanged, none lowered.
+- Offline plan check: exit 0, policy passed; the pinned Bicep 0.47.16 compile,
+  lint and build-params passed with 0 warnings.
+- Rotation drill: Offline exit 0, all 16 checks held (simulated, not
+  deployment evidence); Live without explicit authority exit 3, unexecuted.
+
+Details, [ASSUMED] decisions, package rationale and AC/DEP traceability are in
+`evidence/T03.md`. The human approved the reported T03 decisions (unchanged
+`IntakeConfiguration.cs`, no `ClientIntake` reference, the key-ring private
+endpoint, the pinned Data Protection package versions).
+
+DEP-14 is pending: the executable drill ships, but it was not run against
+deployed resources. This marker is not deployment or real-taxpayer
+authorization; production admission stays REFUSED (no production Document
+Intelligence adapter, source store or source reader; evidence unobserved; both
+provider assurance gaps unresolved). `tasks.md` was not edited; T04 was not
+started. Not merged or self-approved; human review remains required.
