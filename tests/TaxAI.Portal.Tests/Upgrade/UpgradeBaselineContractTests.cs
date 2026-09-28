@@ -432,6 +432,9 @@ public sealed class UpgradeBaselineContractTests
                 "TaxAI.Portal.Production.ProductionAdmissionGate",
                 "TaxAI.Portal.Production.ProductionConfiguration",
 
+                // Spec 016 T02 — the fixed single-hop trusted ingress policy.
+                "TaxAI.Portal.Production.TrustedIngressConfiguration",
+
                 // SDK-generated, not user-declared. Referencing the Razor component
                 // model makes the toolchain embed these marker attributes into the
                 // assembly; no source file in this repository declares either, and

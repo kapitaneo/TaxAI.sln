@@ -1,0 +1,30 @@
+# Spec 016 — T02 complete
+
+Task: T02 — Production hosting and private network topology.
+Branch: `feat/016-w2-t02`
+PR: #148 — https://github.com/kapitaneo/TaxAI.sln/pull/148
+Implementation commit: `35eea51`
+
+## Gate — committed branch state (Windows)
+
+```powershell
+dotnet build TaxAI.sln
+pwsh ./scripts/Invoke-SolutionTests.ps1
+pwsh ./scripts/azure/Test-ProductionPlan.ps1
+```
+
+- Build: 0 errors, 15 warnings (identical to master).
+- Solution gate: PASS. All 12 registered projects ran with no failure or skip
+  and every floor met; 4,613 tests. TaxAI.Portal.Tests 899 (floor raised from
+  752 to 899); every other floor unchanged.
+- Offline plan check: exit 0. Policy passed; the pinned Bicep 0.47.16 (SHA-512
+  verified) compile, lint and build-params passed with 0 warnings.
+
+Details, per-suite counts, [ASSUMED] decisions and AC/DEP traceability are in
+`evidence/T02.md`.
+
+DEP-06 to DEP-09 are pending: the executable probes ship, but none was run
+against deployed resources. This marker is not deployment or real-taxpayer
+authorization; both provider assurance gaps remain unresolved and production
+stays REFUSED. `tasks.md` was not edited; T03 was not started. Not merged or
+self-approved; human review remains required.

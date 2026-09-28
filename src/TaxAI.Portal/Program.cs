@@ -102,6 +102,13 @@ app.Use(async (context, next) =>
 // refusal, and authorization result. Endpoint rate limiting runs after explicit
 // routing but before any token/session validity check.
 app.Use(IntakeHttpSecurity.ApplyResponseHeadersAsync);
+
+// Spec 016 T02: in Production the only path here is the Canada Central WAF v2
+// gateway re-encrypting to the private App Service, so exactly one appended
+// forwarded hop (client address and scheme) is honoured, before routing and the
+// rate-limit partition read them. Forwarded host and prefix are never honoured,
+// and no other environment honours any forwarded header.
+app.UseTrustedIngress();
 app.UseRouting();
 app.UseRateLimiter();
 

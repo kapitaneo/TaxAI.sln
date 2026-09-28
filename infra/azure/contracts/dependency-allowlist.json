@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "Spec 016 T02 (FR-05) - the complete reviewed outbound allowlist for the",
+    "production App Service integration subnet.",
+    "",
+    "Runtime outbound is deny by default. Application AND configuration traffic",
+    "is routed through the regional Azure Firewall, whose policy admits only the",
+    "public destinations below, over HTTPS (or HTTP for certificate revocation",
+    "only), from the integration subnet only. There are no wildcards, no FQDN",
+    "tags, no service tags and no configurable destination. None of these",
+    "destinations may ever receive a taxpayer payload: identity endpoints receive",
+    "only authentication protocol messages, and revocation endpoints receive only",
+    "certificate status queries.",
+    "",
+    "The four approved private dependencies are reached only through their private",
+    "endpoints inside the virtual network. They are listed here so the plan check",
+    "can prove each has exactly one private endpoint binding and private DNS zone,",
+    "and so no public route to them is ever allowlisted.",
+    "",
+    "[ASSUMED] The certificate/CRL set is the minimum observed for the Microsoft",
+    "and DigiCert chains that serve Entra ID; the live egress probe (DEP-08)",
+    "records any required addition, which is a reviewed change to this file."
+  ],
+  "schemaVersion": 1,
+  "publicDestinations": [
+    { "category": "identity", "fqdn": "login.microsoftonline.com", "protocol": "Https", "port": 443 },
+    { "category": "certificateStatus", "fqdn": "crl.microsoft.com", "protocol": "Http", "port": 80 },
+    { "category": "certificateStatus", "fqdn": "oneocsp.microsoft.com", "protocol": "Http", "port": 80 },
+    { "category": "certificateStatus", "fqdn": "www.microsoft.com", "protocol": "Http", "port": 80 },
+    { "category": "certificateStatus", "fqdn": "crl3.digicert.com", "protocol": "Http", "port": 80 },
+    { "category": "certificateStatus", "fqdn": "crl4.digicert.com", "protocol": "Http", "port": 80 },
+    { "category": "certificateStatus", "fqdn": "ocsp.digicert.com", "protocol": "Http", "port": 80 }
+  ],
+  "privateDependencies": [
+    { "name": "SourceStorage", "groupId": "blob", "zone": "privatelink.blob.core.windows.net", "port": 443 },
+    { "name": "Sql", "groupId": "sqlServer", "zone": "privatelink.database.windows.net", "port": 1433 },
+    { "name": "KeyVault", "groupId": "vault", "zone": "privatelink.vaultcore.azure.net", "port": 443 },
+    { "name": "DocumentIntelligence", "groupId": "account", "zone": "privatelink.cognitiveservices.azure.com", "port": 443 }
+  ],
+  "privateApplication": {
+    "name": "Portal", "groupId": "sites", "zone": "privatelink.azurewebsites.net", "port": 443
+  }
+}

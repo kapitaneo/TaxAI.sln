@@ -1,0 +1,30 @@
+{
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "rules": {
+        "no-hardcoded-env-urls": { "level": "error" },
+        "no-unused-params": { "level": "error" },
+        "no-unused-vars": { "level": "error" },
+        "no-unused-existing-resources": { "level": "error" },
+        "prefer-interpolation": { "level": "error" },
+        "secure-parameter-default": { "level": "error" },
+        "secure-secrets-in-params": { "level": "error" },
+        "outputs-should-not-contain-secrets": { "level": "error" },
+        "protect-commandtoexecute-secrets": { "level": "error" },
+        "no-hardcoded-location": { "level": "error" },
+        "explicit-values-for-loc-params": { "level": "error" },
+        "no-loc-expr-outside-params": { "level": "error" },
+        "use-stable-resource-identifiers": { "level": "error" },
+        "use-stable-vm-image": { "level": "error" },
+        "use-resource-id-functions": { "level": "error" },
+        "use-parent-property": { "level": "error" },
+        "simplify-interpolation": { "level": "error" },
+        "no-unnecessary-dependson": { "level": "error" },
+        "use-recent-api-versions": { "level": "off" },
+        "use-secure-value-for-secure-inputs": { "level": "error" }
+      }
+    }
+  },
+  "experimentalFeaturesEnabled": {}
+}
