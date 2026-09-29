@@ -878,6 +878,59 @@ namespace Persistence.Migrations
                     b.ToTable("MedicalEvidenceVersions", (string)null);
                 });
 
+            modelBuilder.Entity("Persistence.Entities.SourceRegistrationEntity", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ResourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("BoundAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ContentKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .UseCollation("Latin1_General_BIN2");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("PurgeRecordedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("StagedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.HasKey("FirmId", "CaseId", "ResourceId");
+
+                    b.HasIndex("FirmId", "CaseId", "ContentKey")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "CaseId", "DocumentId");
+
+                    b.HasIndex("FirmId", "State", "StagedAtUtc");
+
+                    b.ToTable("SourceRegistrations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SourceRegistrations_Binding", "([DocumentId] IS NULL AND [BoundAtUtc] IS NULL) OR ([DocumentId] IS NOT NULL AND [BoundAtUtc] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_SourceRegistrations_BoundState", "[State] <> 2 OR [DocumentId] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_SourceRegistrations_PurgeState", "([State] IN (3, 4) AND [PurgeRecordedAtUtc] IS NOT NULL) OR ([State] IN (1, 2) AND [PurgeRecordedAtUtc] IS NULL)");
+
+                            t.HasCheckConstraint("CK_SourceRegistrations_State", "[State] IN (1, 2, 3, 4)");
+                        });
+                });
+
             modelBuilder.Entity("Tenancy.Models.AuthenticationSession", b =>
                 {
                     b.Property<Guid>("SessionId")
@@ -1423,6 +1476,20 @@ namespace Persistence.Migrations
                         .HasForeignKey("FirmId", "CaseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Persistence.Entities.SourceRegistrationEntity", b =>
+                {
+                    b.HasOne("Persistence.Entities.IntakeCaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Persistence.Entities.IntakeDocumentEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CaseId", "DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Tenancy.Models.AuthenticationSession", b =>

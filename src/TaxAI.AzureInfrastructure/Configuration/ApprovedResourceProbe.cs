@@ -1,10 +1,14 @@
 using System.Security.Cryptography;
 using Azure;
 using Azure.Core;
+using Azure.Core.Pipeline;
 using Azure.Identity;
 using Azure.Security.KeyVault.Keys;
 using Azure.Security.KeyVault.Keys.Cryptography;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.DataProtection;
+using TaxAI.AzureInfrastructure.Content;
 using TaxAI.AzureInfrastructure.Keys;
 using Tenancy.Models;
 
@@ -41,6 +45,16 @@ public interface IApprovedResourceProbe
 /// rotation drill, which hold those privileges; the application does not.
 /// Nothing probed is taxpayer data, and a result carries closed findings only.
 /// </para>
+/// <para>
+/// Spec 016 T04 adds the source store (AC-025, AC-028, AC-029): through the
+/// Blob data plane it requires the source account to be general-purpose v2
+/// with geo-zone-redundant storage, and the private source container to allow
+/// no public access and carry no immutability policy, legal hold or
+/// version-level immutability. It writes, lists and reads no object. Soft
+/// delete, versioning, snapshots, the source CMK and the private endpoint are
+/// account-management facts the application identity cannot read; the
+/// reviewed template and <c>scripts/azure/Test-SourceProtection.ps1</c> verify them.
+/// </para>
 /// </summary>
 public sealed class ApprovedResourceProbe : IApprovedResourceProbe
 {
@@ -49,6 +63,12 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
 
     /// <summary>The fixed, non-sensitive purpose of the key-ring round trip.</summary>
     public const string KeyRingProbePurpose = "TaxAI.Production.KeyRingProbe.v1";
+
+    /// <summary>The approved source account SKU (spec 016 FR-03, AC-025).</summary>
+    public const string ApprovedSourceSku = "Standard_GZRS";
+
+    /// <summary>The approved source account kind: general-purpose v2.</summary>
+    public const string ApprovedSourceAccountKind = "StorageV2";
 
     private static readonly string[] PurgeProtectedRecoveryLevels =
     {
@@ -61,13 +81,20 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
     private readonly IDataProtectionProvider _keyRing;
     private readonly KeyClientOptions _keyOptions;
     private readonly CryptographyClientOptions _cryptographyOptions;
+    private readonly BlobClientOptions _blobOptions;
 
     /// <summary>Creates the production probe.</summary>
     public ApprovedResourceProbe(
         AzureInfrastructureOptions options,
         TokenCredential credential,
         IDataProtectionProvider keyRing)
-        : this(options, credential, keyRing, new KeyClientOptions(), new CryptographyClientOptions())
+        : this(
+            options,
+            credential,
+            keyRing,
+            new KeyClientOptions(),
+            new CryptographyClientOptions(),
+            new BlobClientOptions())
     {
     }
 
@@ -80,19 +107,22 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
         TokenCredential credential,
         IDataProtectionProvider keyRing,
         KeyClientOptions keyOptions,
-        CryptographyClientOptions cryptographyOptions)
+        CryptographyClientOptions cryptographyOptions,
+        BlobClientOptions blobOptions)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(credential);
         ArgumentNullException.ThrowIfNull(keyRing);
         ArgumentNullException.ThrowIfNull(keyOptions);
         ArgumentNullException.ThrowIfNull(cryptographyOptions);
+        ArgumentNullException.ThrowIfNull(blobOptions);
 
         _options = options;
         _credential = credential;
         _keyRing = keyRing;
         _keyOptions = keyOptions;
         _cryptographyOptions = cryptographyOptions;
+        _blobOptions = blobOptions;
     }
 
     public async Task<ApprovedResourceProbeResult> ProbeAsync(CancellationToken cancellationToken)
@@ -130,7 +160,38 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
             findings.Add(ApprovedResourceFinding.KeyRingRoundTripFailed);
         }
 
+        var source = await ProbeSourceStorageAsync(cancellationToken).ConfigureAwait(false);
+        if (source is not null)
+        {
+            findings.Add(source.Value);
+        }
+
         return new ApprovedResourceProbeResult(findings);
+    }
+
+    /// <summary>
+    /// The source account and container posture rules (T04). Public so they are
+    /// tested directly and applied identically everywhere.
+    /// </summary>
+    /// <remarks>
+    /// The account facts are the raw service header values, because the Blob
+    /// SDK's closed SKU enumeration has no geo-zone-redundant member.
+    /// </remarks>
+    public static bool IsApprovedSourceStorage(
+        string? skuName,
+        string? accountKind,
+        string? hierarchicalNamespace,
+        BlobContainerProperties container)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+
+        return string.Equals(accountKind, ApprovedSourceAccountKind, StringComparison.Ordinal) &&
+               string.Equals(skuName, ApprovedSourceSku, StringComparison.Ordinal) &&
+               !string.Equals(hierarchicalNamespace, "true", StringComparison.OrdinalIgnoreCase) &&
+               container.PublicAccess is null or PublicAccessType.None &&
+               container.HasImmutabilityPolicy != true &&
+               container.HasLegalHold != true &&
+               container.HasImmutableStorageWithVersioning != true;
     }
 
     /// <summary>
@@ -220,6 +281,47 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
         }
     }
 
+    private async Task<ApprovedResourceFinding?> ProbeSourceStorageAsync(CancellationToken cancellationToken)
+    {
+        if (!AzureInfrastructureRegistration.TryReadBlobServiceRoot(_options.SourceStorage.Endpoint, out var root))
+        {
+            return ApprovedResourceFinding.ConfigurationUnusable;
+        }
+
+        var capture = new AccountHeaderCapture();
+        var options = new BlobClientOptions { Transport = _blobOptions.Transport };
+        options.Retry.MaxRetries = _blobOptions.Retry.MaxRetries;
+        options.Retry.NetworkTimeout = _blobOptions.Retry.NetworkTimeout;
+        options.AddPolicy(capture, HttpPipelinePosition.PerCall);
+        var container = new BlobServiceClient(root, _credential, options)
+            .GetBlobContainerClient(AzureIntakeContentStore.SourceContainerName);
+        try
+        {
+            try
+            {
+                await container.GetAccountInfoAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // The SDK cannot name a GZRS SKU; the captured header can.
+            }
+
+            var properties = await container.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            return capture.Captured &&
+                   IsApprovedSourceStorage(capture.SkuName, capture.AccountKind, capture.HierarchicalNamespace, properties.Value)
+                ? null
+                : ApprovedResourceFinding.SourceStorageNotApproved;
+        }
+        catch (RequestFailedException failure) when (failure.Status is 403 or 404)
+        {
+            return ApprovedResourceFinding.SourceStorageNotApproved;
+        }
+        catch (Exception failure) when (IsUnavailable(failure, cancellationToken))
+        {
+            return ApprovedResourceFinding.SourceStorageUnavailable;
+        }
+    }
+
     private async Task<bool> RoundTripsKeyRingAsync(CancellationToken cancellationToken)
     {
         var probe = RandomNumberGenerator.GetBytes(32);
@@ -266,6 +368,34 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
             AggregateException ||
         (failure is OperationCanceledException && !cancellationToken.IsCancellationRequested);
 
+    /// <summary>Records the account headers of a successful account-information response.</summary>
+    private sealed class AccountHeaderCapture : HttpPipelineSynchronousPolicy
+    {
+        internal bool Captured { get; private set; }
+
+        internal string? SkuName { get; private set; }
+
+        internal string? AccountKind { get; private set; }
+
+        internal string? HierarchicalNamespace { get; private set; }
+
+        public override void OnReceivedResponse(HttpMessage message)
+        {
+            if (message.Response.Status == 200 &&
+                message.Response.Headers.TryGetValue("x-ms-sku-name", out var sku) &&
+                message.Response.Headers.TryGetValue("x-ms-account-kind", out var kind))
+            {
+                message.Response.Headers.TryGetValue("x-ms-is-hns-enabled", out var hns);
+                SkuName = sku;
+                AccountKind = kind;
+                HierarchicalNamespace = hns;
+                Captured = true;
+            }
+        }
+
+        public override string ToString() => nameof(AccountHeaderCapture);
+    }
+
     private static bool TryReadVault(string? candidate, out Uri? vault)
     {
         vault = null;
@@ -311,6 +441,8 @@ public enum ApprovedResourceFinding
     DataProtectionKeyNotApproved = 5,
     DataProtectionWrapFailed = 6,
     KeyRingRoundTripFailed = 7,
+    SourceStorageNotApproved = 8,
+    SourceStorageUnavailable = 9,
 }
 
 /// <summary>The closed ways a Key Vault key misses the approved posture.</summary>
@@ -357,7 +489,8 @@ public sealed class ApprovedResourceProbeResult
     /// The findings as admission refusals: a source-envelope key problem refuses
     /// source envelope encryption, a Data Protection key problem refuses the
     /// key-ring configuration, a failed key-ring round trip refuses durable Data
-    /// Protection, and an unusable configuration or unavailable vault refuses the
+    /// Protection, an unapproved or unreachable source account refuses the storage
+    /// binding (T04), and an unusable configuration or unavailable vault refuses the
     /// Key Vault binding.
     /// </summary>
     public IReadOnlyList<ProductionAdmissionRefusal> Refusals =>
@@ -371,6 +504,9 @@ public sealed class ApprovedResourceProbeResult
                     ProductionAdmissionRefusal.DataProtectionConfigurationMissing,
                 ApprovedResourceFinding.KeyRingRoundTripFailed =>
                     ProductionAdmissionRefusal.DurableDataProtectionMissing,
+                ApprovedResourceFinding.SourceStorageNotApproved or
+                ApprovedResourceFinding.SourceStorageUnavailable =>
+                    ProductionAdmissionRefusal.StorageBindingInvalid,
                 _ => ProductionAdmissionRefusal.KeyVaultBindingInvalid,
             })
             .Distinct()

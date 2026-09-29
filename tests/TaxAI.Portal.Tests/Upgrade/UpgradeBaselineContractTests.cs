@@ -79,6 +79,12 @@ public sealed class UpgradeBaselineContractTests
         "Persistence.Entities.MedicalEvidence",
         "Persistence.Migrations.AddDocumentExtraction",
         "Persistence.Repositories.SqlExtractionStore",
+
+        // Spec 016 T04 — the consumed source registry, named exactly.
+        "Persistence.Configurations.SourceRegistrationConfiguration",
+        "Persistence.Entities.SourceRegistrationEntity",
+        "Persistence.Migrations.AddSourceRegistry",
+        "Persistence.Repositories.SqlSourceRegistryStore",
     ];
 
     /// <summary>

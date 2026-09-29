@@ -270,6 +270,22 @@ public sealed class EfCore10CompatibilityTests
         Assert.False(context.Database.HasPendingModelChanges());
     }
 
+    [Fact] // Spec 016 T04: the source registry keeps the existing SQL Server dispositions.
+    public void TheSourceRegistryUsesTheExistingSqlServerColumnDispositions()
+    {
+        using var context = RelationalTestContext.CreateSqlServerContext();
+        var entity = context.GetService<Microsoft.EntityFrameworkCore.Metadata.IDesignTimeModel>().Model.FindEntityType(typeof(Persistence.Entities.SourceRegistrationEntity))!;
+
+        Assert.Equal("SourceRegistrations", entity.GetTableName());
+        Assert.Equal("uniqueidentifier", entity.FindProperty("FirmId")!.GetColumnType());
+        Assert.Equal("uniqueidentifier", entity.FindProperty("ResourceId")!.GetColumnType());
+        Assert.Equal("datetimeoffset", entity.FindProperty("StagedAtUtc")!.GetColumnType());
+        Assert.Equal("datetimeoffset", entity.FindProperty("PurgeRecordedAtUtc")!.GetColumnType());
+        Assert.Equal("Latin1_General_BIN2", entity.FindProperty("ContentKey")!.GetCollation());
+        Assert.Equal("int", entity.FindProperty("State")!.GetColumnType());
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", context.Database.ProviderName);
+    }
+
     private static void AssertMultipleScalarParameterSql(
         string sql,
         string parameterStem)

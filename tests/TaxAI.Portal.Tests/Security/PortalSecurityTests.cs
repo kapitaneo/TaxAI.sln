@@ -1155,6 +1155,33 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             $"Forbidden {label} pattern /{pattern}/ found in: {string.Join(", ", violations)}");
     }
 
+    [Fact] // Spec 016 T04, DEP-10: no portal surface can return source bytes or a source address.
+    public void NoPortalSurfaceCanServeSourceBytesOrASourceAddress()
+    {
+        var pattern = new Regex(
+            @"Results\.(File|Stream|Bytes)\(|TypedResults\.(File|Stream|Bytes)\(|SendFileAsync|FileStreamResult|PhysicalFile|GenerateSasUri|BlobSasBuilder|blob\.core\.windows\.net|\bsig=|ExtractionSourceLease|\.OpenAsync\(",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+        // The approved Development reader is the one file that constructs a
+        // lease; no other portal file may open or hold one.
+        var offenders = ProductionSourceFiles()
+            .Where(path => Path.GetFileName(path) != "DevelopmentEncryptedIntakeContentStore.cs")
+            .SelectMany(path => ExecutableLines(path).Select(line => (path, line)))
+            .Where(entry => pattern.IsMatch(entry.line))
+            .Select(entry => $"{Path.GetFileName(entry.path)}: {entry.line}")
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, string.Join(" | ", offenders));
+        Assert.Contains(
+            ProductionSourceFiles(),
+            path => Path.GetFileName(path) == "DevelopmentEncryptedIntakeContentStore.cs");
+
+        // Positive controls: each shape of a source-serving line is recognized.
+        Assert.Matches(pattern, "return Results.File(bytes, \"application/pdf\");");
+        Assert.Matches(pattern, "var url = blob.GenerateSasUri(builder);");
+        Assert.Matches(pattern, "await using var lease = await reader.OpenAsync(firm, caseId, documentId, key, token);");
+    }
     private static string[] ProductionSourceFiles() =>
         Directory.EnumerateFiles(PortalRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsBuildOutput(path))

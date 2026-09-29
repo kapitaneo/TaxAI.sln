@@ -655,7 +655,7 @@ public sealed class ClientIntakeSecurityAcceptanceTests
 
         foreach (var path in intakeSources)
         {
-            var text = string.Join("\n", ExecutableLines(path));
+            var text = WithoutApprovedCleanupMembers(path, string.Join("\n", ExecutableLines(path)));
 
             foreach (var forbidden in new[]
                      {
@@ -671,6 +671,64 @@ public sealed class ClientIntakeSecurityAcceptanceTests
         }
 
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Spec 016 T04 narrows this prohibition by exactly two declarations in one
+    /// file: the source registry's compensating-cleanup record and the scoped
+    /// physical purger of an object that never became reachable. No retention
+    /// rule, deadline, due purge or other purge member is allowed, and the same
+    /// file is still scanned for everything else.
+    /// </summary>
+    internal static readonly string[] ApprovedCleanupDeclarations =
+    [
+        "Task<SourceRegistryWriteCode> RecordPurgeAsync(",
+        "Task<SourceObjectPurgeOutcome> PurgeAsync(",
+    ];
+
+    internal static string WithoutApprovedCleanupMembers(string path, string executable)
+    {
+        if (!string.Equals(Path.GetFileName(path), "SourceRegistryContracts.cs", StringComparison.Ordinal))
+        {
+            return executable;
+        }
+
+        foreach (var declaration in ApprovedCleanupDeclarations)
+        {
+            Assert.Equal(1, CountOf(executable, declaration));
+            executable = executable.Replace(declaration, "Task<approved>(", StringComparison.Ordinal);
+        }
+
+        return executable;
+    }
+
+    [Fact] // spec 016 T04: the narrowed scan still catches any other purge member.
+    public async Task TheNarrowedIntakePurgeScanStillCatchesAnyOtherPurgeMember()
+    {
+        var contracts = ProductionSources("ClientIntake")
+            .Single(path => Path.GetFileName(path) == "SourceRegistryContracts.cs");
+        var actual = string.Join("\n", ExecutableLines(contracts));
+        var planted = actual + "\nTask<int> PurgeDueSourcesAsync(TrustedFirmId firm);\nDateTimeOffset RetentionUntilUtc { get; }";
+
+        Assert.DoesNotContain("PurgeAsync", WithoutApprovedCleanupMembers(contracts, actual), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PurgeDueSourcesAsync", WithoutApprovedCleanupMembers(contracts, planted), StringComparison.Ordinal);
+        Assert.Contains("RetentionUntilUtc", WithoutApprovedCleanupMembers(contracts, planted), StringComparison.Ordinal);
+        Assert.Contains("PurgeAsync", WithoutApprovedCleanupMembers("Other.cs", actual), StringComparison.Ordinal);
+
+        await Task.CompletedTask;
+    }
+
+    private static int CountOf(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal);
+             index >= 0;
+             index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     // ---------------------------------------------------------------- helpers

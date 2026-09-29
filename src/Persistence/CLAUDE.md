@@ -50,6 +50,19 @@ authentication and the private endpoint are infrastructure
 (`infra/azure/modules/sql.bicep`), not code here: this module still takes no
 cloud SDK, credential or key dependency.
 
+Spec 016 T04 adds the source registry: `SourceRegistrationEntity`, its one
+configuration, `SqlSourceRegistryStore` (the `ISourceRegistryStore`
+implementation, registered by `AddTaxAiPersistence` with an unchanged
+signature) and the additive migration `20260927000000_AddSourceRegistry`,
+which creates only the firm-scoped `SourceRegistrations` table. Every key and
+index leads with the firm; the row references its intake case and, once bound,
+its committed intake document. `SqlIntakeStore` binds a staged registration
+to the accepted document inside the same serializable upload transaction, and
+refuses the whole commit when compensating cleanup already took the object.
+State changes are single conditional updates, so cleanup and a racing commit
+cannot both win. The table holds no source byte, key material, file name,
+provider identifier or taxpayer value, and no row is deleted here.
+
 Migration `20260730000000_AddClientIntake` is additive: it creates only the
 twelve intake metadata tables. It does not alter the initial migration or any
 existing firm, identity, session, or review table. Source content remains

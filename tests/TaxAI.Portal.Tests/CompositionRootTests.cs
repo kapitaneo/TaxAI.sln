@@ -253,6 +253,17 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
         }
 
         Assert.NotEqual(material, infrastructure);
+
+        // Spec 016 T04: the source adapters arrive only through the infrastructure
+        // extension, handed the vault-loaded fingerprint key and the validated
+        // source bound; the composition root names no Azure adapter type itself.
+        Assert.Contains("new SourceContentSettings(", infrastructure, StringComparison.Ordinal);
+        Assert.Contains("intake.FingerprintKey", infrastructure, StringComparison.Ordinal);
+        Assert.Contains("ExtractionConfiguration.ProductionMaximumSourceBytes(configuration)", infrastructure, StringComparison.Ordinal);
+        Assert.DoesNotContain(registration, line =>
+            line.Contains("AzureIntakeContentStore", StringComparison.Ordinal) ||
+            line.Contains("AzureExtractionContentReader", StringComparison.Ordinal) ||
+            line.Contains("AzureSourceObjectPurger", StringComparison.Ordinal));
     }
 
     [Fact] // spec 016 T03: the Production host registers the approved key protection.

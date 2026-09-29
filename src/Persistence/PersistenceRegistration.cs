@@ -45,6 +45,7 @@ public static class PersistenceRegistration
 
         services.AddScoped<IReviewRecordRepository, SqlReviewRecordRepository>();
         services.AddScoped<IIntakeStore, SqlIntakeStore>();
+        services.AddScoped<ISourceRegistryStore, SqlSourceRegistryStore>();
         services.AddScoped<IExtractionStore, SqlExtractionStore>();
         services.AddScoped<IAuthenticationSessionStore, SqlAuthenticationSessionStore>();
         services.AddScoped<IIdentityDirectory, SqlIdentityDirectory>();

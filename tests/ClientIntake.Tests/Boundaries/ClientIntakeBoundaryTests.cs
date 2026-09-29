@@ -59,6 +59,9 @@ public sealed class ClientIntakeBoundaryTests
         "IntakeUploadValidator.cs",
         "IntakeViews.cs",
         "IntakeWorkflowOptionsGuard.cs",
+        // Spec 016 T04: the source registry contract and its closed models.
+        "SourceRegistryContracts.cs",
+        "SourceRegistryModels.cs",
     };
 
     // ------------------------------------------------- the approved dependencies

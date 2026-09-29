@@ -519,7 +519,20 @@ internal sealed class SqlIntakeStore : IIntakeStore
                 }
             },
             duplicateOnFailure: document is not null,
-            cancellationToken);
+            cancellationToken,
+            // Spec 016 T04: an accepted upload's staged source object is bound to
+            // the committed document in the same transaction. A registration that
+            // cleanup already took refuses the whole commit.
+            bindAfterSave: document is null
+                ? null
+                : token => SqlSourceRegistryStore.BindAsync(
+                    _context,
+                    scope.Firm.Value,
+                    scope.CaseId,
+                    document.DocumentId,
+                    document.ContentKey,
+                    document.UploadedAtUtc,
+                    token));
     }
 
     public Task<IntakeStoreWriteCode> AppendSubmissionAsync(
@@ -627,7 +640,8 @@ internal sealed class SqlIntakeStore : IIntakeStore
         IReadOnlyList<IntakeAuditEventRecord> audits,
         Action addRows,
         bool duplicateOnFailure,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task<bool>>? bindAfterSave = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(audits);
@@ -667,6 +681,14 @@ internal sealed class SqlIntakeStore : IIntakeStore
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+            if (bindAfterSave is not null &&
+                !await bindAfterSave(cancellationToken))
+            {
+                await RollbackAsync(transaction);
+                _context.ChangeTracker.Clear();
+                return IntakeStoreWriteCode.Conflict;
+            }
+
             await transaction.CommitAsync(cancellationToken);
             return IntakeStoreWriteCode.Success;
         }

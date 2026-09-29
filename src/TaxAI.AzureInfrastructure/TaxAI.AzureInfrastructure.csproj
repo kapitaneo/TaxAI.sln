@@ -44,13 +44,16 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
   </ItemGroup>
 
-  <!-- Dependencies point inward, and are exactly one through T03: Tenancy owns
-       the production-control vocabulary, evidence shapes and the identity-probe
-       port this library implements. ClientIntake is not referenced: the
-       credential-port implementation stays in the portal and consumes the
-       loaded material unchanged. ExtractionWorkflow is referenced only when a
-       later slice consumes it. -->
+  <!-- Dependencies point inward. Tenancy owns the production-control
+       vocabulary, evidence shapes and the identity-probe port (T01). Spec 016
+       T04 adds exactly the two ports its working source adapters implement:
+       ClientIntake (the write-only IIntakeContentStore, the source registry and
+       the source-object purger) and ExtractionWorkflow (the extraction-only
+       IExtractionContentReader). The intake credential port still stays in the
+       portal. -->
   <ItemGroup>
+    <ProjectReference Include="..\ClientIntake\ClientIntake.csproj" />
+    <ProjectReference Include="..\ExtractionWorkflow\ExtractionWorkflow.csproj" />
     <ProjectReference Include="..\Tenancy\Tenancy.csproj" />
   </ItemGroup>
 

@@ -28,9 +28,10 @@ internal static class ExtractionConfiguration
 
     /// <summary>
     /// Spec 016 T01: the only production provider and reader names the approved
-    /// structure admits. Naming them is not supplying them — no adapter behind
-    /// either name ships in T01, so production admission stays refused until the
-    /// implementing slices register real, verified adapters.
+    /// structure admits. Naming them is not supplying them: admission inspects
+    /// the actual registrations. T04 registers the real Azure Blob source reader
+    /// behind <see cref="AzureBlobSourceReader"/>; no production provider exists
+    /// until T05, so production admission stays refused.
     /// </summary>
     internal const string AzureDocumentIntelligenceProvider = "AzureDocumentIntelligence";
     internal const string AzureBlobSourceReader = "AzureBlobSourceReader";
@@ -139,6 +140,21 @@ internal static class ExtractionConfiguration
         }
 
         return refusals;
+    }
+
+    /// <summary>
+    /// Spec 016 T04: the production source bound the Azure source reader
+    /// enforces, from the same setting the production shape validates. An
+    /// absent or invalid value is <c>0</c>, which registers no reader; it is
+    /// never replaced by a default.
+    /// </summary>
+    internal static long ProductionMaximumSourceBytes(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        return TryPositiveLong(configuration[MaximumSourceBytesSetting], out var maximum)
+            ? maximum
+            : 0;
     }
 
     private static bool TryPositiveDuration(

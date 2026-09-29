@@ -69,6 +69,12 @@ public sealed class ContractOmissionTests
         { nameof(NewIntakeSession), "SessionDigest" },
         { nameof(StagedIntakeContent), "ContentKey" },
         { nameof(StagedIntakeContent), "Fingerprint" },
+        // Spec 016 T04: the source registry's scope, opaque resource and key.
+        { nameof(SourceRegistration), "Firm" },
+        { nameof(SourceRegistration), "CaseId" },
+        { nameof(SourceRegistration), "ResourceId" },
+        { nameof(SourceRegistration), "ContentKey" },
+        { nameof(SourceRegistration), "DocumentId" },
     };
 
     [Theory]
@@ -175,6 +181,9 @@ public sealed class ContractOmissionTests
             new IntakeClientScope(firm, caseId, itemId, digest, instant, instant, instant),
             new NewIntakeSession(itemId, digest, instant, instant, instant),
             new StagedIntakeContent(ContentKeyMarker, 10, fingerprint),
+            new SourceRegistration(
+                firm, caseId, itemId, ContentKeyMarker, SourceRegistryState.Bound,
+                instant, itemId, instant, null),
             new AccountantIntakeView(
                 DisplayNameMarker, 2025, CaseStatus.InformationGathering, ReadinessState.NotReady,
                 1, 1, [], 0, 2, null, false, IntakeLinkState.Active, instant, instant, null, null,
