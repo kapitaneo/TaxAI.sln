@@ -259,6 +259,29 @@ Production admission is still refused: no production Document Intelligence
 adapter, source store or source reader exists, and both provider assurance
 gaps remain unresolved.
 
+## Spec 016 T04: source storage in Production
+
+In Production the composition root passes the vault-loaded fingerprint key and
+the validated `TaxAi:Extraction:MaximumSourceBytes` bound to
+`AddTaxAiAzureInfrastructure` as `SourceContentSettings`; the library
+registers the Azure Blob `IIntakeContentStore`, the scoped purger and the
+`AzureExtractionContentReader` **as its concrete type only**. The portal
+names no Azure adapter type in its composition root and declares no new
+setting; the source container is fixed in code and template.
+
+- **The gate now requires the real adapters.** The intake port must resolve to
+  exactly `AzureIntakeContentStore`; exactly `AzureExtractionContentReader`
+  must be registered, and a general `IExtractionContentReader` registration is
+  a local-store refusal. An unusable source endpoint, wrapping key, identity or
+  bound registers nothing and is refused. The approved-resource probe also
+  requires a GPv2 `Standard_GZRS` source account and a non-public,
+  non-immutable source container.
+- **Still refused.** The extraction workflows still refuse outside Development
+  because no production Document Intelligence adapter exists (T05), and both
+  provider assurance gaps remain unresolved. No source preview, download,
+  export, SAS, blob address or content route exists; no portal file opens a
+  source lease except the Development reader.
+
 ## The narrowed gate — read before adding a surface
 
 The identity, trusted-firm, session, logging, and residency decisions made by

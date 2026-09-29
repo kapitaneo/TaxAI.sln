@@ -17,6 +17,7 @@ using Azure.Core;
 using Azure.Core.Pipeline;
 using Azure.Security.KeyVault.Secrets;
 using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Content;
 using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.Portal.Tests.Support;
 using Tenancy.Contracts;
@@ -46,6 +47,12 @@ namespace TaxAI.Portal.Tests.Production;
 /// each probe finding are then refused one at a time.
 /// </para>
 /// <para>
+/// Spec 016 T04 makes the real Azure Blob source store and the concrete-only
+/// Azure extraction reader part of the complete profile. A substituted store, a
+/// removed reader, a reader exposed as a general service, an unusable source
+/// endpoint or bound and each source-storage probe finding are refused.
+/// </para>
+/// <para>
 /// All identifiers are synthetic and resolve to nothing. No network, cloud
 /// resource, database connection or taxpayer value is involved.
 /// </para>
@@ -70,11 +77,14 @@ public sealed class ProductionStartupTests
 
     private static readonly DateTimeOffset Now = new(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// What a complete profile still lacks. T04 replaced the source store and
+    /// reader absences with the real Azure adapters, so only the production
+    /// Document Intelligence adapter (T05) remains.
+    /// </summary>
     private static readonly ProductionAdmissionRefusal[] LaterSliceAdapters =
     {
         ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing,
-        ProductionAdmissionRefusal.ProductionSourceStoreMissing,
-        ProductionAdmissionRefusal.ProductionSourceReaderMissing,
     };
 
     // ------------------------------------------------------------ settings
@@ -268,6 +278,38 @@ public sealed class ProductionStartupTests
         Assert.True(material.IsLoaded);
         Assert.Equal(Key(0x11), configuration["TaxAi:Intake:DigestKey"]);
         Assert.Equal(Key(0x22), configuration["TaxAi:Intake:FingerprintKey"]);
+    }
+
+    [Fact] // T04: the complete profile registers the real source adapters, and nothing more.
+    public void TheCompleteProfileRegistersTheRealAzureSourceAdaptersOnly()
+    {
+        var (provider, _) = Scenario.Complete().BuildHost();
+        using var _ = provider;
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<AzureIntakeContentStore>(scope.ServiceProvider.GetRequiredService<ClientIntake.Contracts.IIntakeContentStore>());
+        Assert.NotNull(scope.ServiceProvider.GetService<AzureExtractionContentReader>());
+        Assert.Null(scope.ServiceProvider.GetService<IExtractionContentReader>());
+        Assert.NotNull(provider.GetService<ClientIntake.Contracts.ISourceObjectPurger>());
+        Assert.Null(provider.GetService(typeof(Program).Assembly.GetType("TaxAI.Portal.DevelopmentEncryptedIntakeContentStore", throwOnError: true)!));
+    }
+
+    [Theory] // T04: an unusable source endpoint or bound registers no source adapter.
+    [InlineData("TaxAi:Production:SourceStorage:Endpoint", "https://sttaxaisrccc.file.core.windows.net/")]
+    [InlineData("TaxAi:Production:SourceEnvelope:KeyUri", null)]
+    [InlineData("TaxAi:Production:ManagedIdentity:ClientId", null)]
+    [InlineData("TaxAi:Extraction:MaximumSourceBytes", "0")]
+    public void AnUnusableSourceSettingRegistersNoSourceAdapter(string key, string? value)
+    {
+        var (provider, _) = Scenario.Complete().Set(key, value).BuildHost();
+        using var _ = provider;
+        using var scope = provider.CreateScope();
+
+        Assert.Null(scope.ServiceProvider.GetService<ClientIntake.Contracts.IIntakeContentStore>());
+        Assert.Null(scope.ServiceProvider.GetService<AzureExtractionContentReader>());
+        var result = Evaluate(Scenario.Complete().Set(key, value));
+        Assert.Contains(ProductionAdmissionRefusal.ProductionSourceStoreMissing, result);
+        Assert.Contains(ProductionAdmissionRefusal.ProductionSourceReaderMissing, result);
     }
 
     [Fact] // T03: the production loader is handed the profile, not a free-form destination.
@@ -465,6 +507,23 @@ public sealed class ProductionStartupTests
                 ProductionAdmissionRefusal.LocalSourceStoreConfigured),
             ["local store reader configured"] = (Scenario.Complete().Set("TaxAi:Extraction:ContentReader", "DevelopmentEncryptedIntakeContentStore"),
                 ProductionAdmissionRefusal.LocalSourceStoreConfigured),
+            // T04: exactly the Azure source store and concrete-only reader.
+            ["source store substituted"] = (Scenario.Complete() with { SubstituteSourceStore = true },
+                ProductionAdmissionRefusal.ProductionSourceStoreMissing),
+            ["source store unregistered"] = (Scenario.Complete() with { RemoveSourceStore = true },
+                ProductionAdmissionRefusal.ProductionSourceStoreMissing),
+            ["source reader unregistered"] = (Scenario.Complete() with { RemoveSourceReader = true },
+                ProductionAdmissionRefusal.ProductionSourceReaderMissing),
+            ["source reader exposed as a general service"] = (Scenario.Complete() with { ExposeGeneralReader = true },
+                ProductionAdmissionRefusal.LocalSourceStoreConfigured),
+            ["source reader unbounded"] = (Scenario.Complete().Set("TaxAi:Extraction:MaximumSourceBytes", null),
+                ProductionAdmissionRefusal.ResilienceUnbounded),
+            ["source endpoint not a blob service"] = (Scenario.Complete().Set("TaxAi:Production:SourceStorage:Endpoint", "https://sttaxaisrccc.file.core.windows.net/"),
+                ProductionAdmissionRefusal.ProductionSourceStoreMissing),
+            ["source account not approved"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.SourceStorageNotApproved),
+                ProductionAdmissionRefusal.StorageBindingInvalid),
+            ["source account unavailable"] = (Scenario.Complete().WithFindings(ApprovedResourceFinding.SourceStorageUnavailable),
+                ProductionAdmissionRefusal.StorageBindingInvalid),
             // AC-143
             ["durable key ring omitted"] = (Scenario.Complete().Set("TaxAi:Production:DataProtection:StorageEndpoint", null),
                 ProductionAdmissionRefusal.DurableDataProtectionMissing),
@@ -756,6 +815,14 @@ public sealed class ProductionStartupTests
 
         public bool RegisterLocalStore { get; init; }
 
+        public bool SubstituteSourceStore { get; init; }
+
+        public bool RemoveSourceStore { get; init; }
+
+        public bool RemoveSourceReader { get; init; }
+
+        public bool ExposeGeneralReader { get; init; }
+
         public bool DriftAfterManifest { get; init; }
 
         public Func<string, string?> ManifestFactory { get; init; } = digest => Manifest(digest);
@@ -869,8 +936,39 @@ public sealed class ProductionStartupTests
                 services.AddScoped(localStore, _ => throw new InvalidOperationException("never resolved"));
             }
 
+            if (SubstituteSourceStore)
+            {
+                services.RemoveAll<ClientIntake.Contracts.IIntakeContentStore>();
+                services.AddScoped<ClientIntake.Contracts.IIntakeContentStore, SubstituteContentStore>();
+            }
+
+            if (RemoveSourceStore)
+            {
+                services.RemoveAll<ClientIntake.Contracts.IIntakeContentStore>();
+            }
+
+            if (RemoveSourceReader)
+            {
+                services.RemoveAll<AzureExtractionContentReader>();
+            }
+
+            if (ExposeGeneralReader)
+            {
+                services.AddScoped<IExtractionContentReader>(provider => provider.GetRequiredService<AzureExtractionContentReader>());
+            }
+
             return (services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true }), configuration);
         }
+    }
+
+    /// <summary>A store that is not the approved Azure source store.</summary>
+    private sealed class SubstituteContentStore : ClientIntake.Contracts.IIntakeContentStore
+    {
+        public Task<ClientIntake.Models.StagedIntakeContent> StageAsync(TrustedFirmId firm, Guid caseId, Stream content, long maximumBytes, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DeleteIfExistsAsync(TrustedFirmId firm, Guid caseId, string contentKey, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>

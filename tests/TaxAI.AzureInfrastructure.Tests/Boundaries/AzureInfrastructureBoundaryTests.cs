@@ -24,6 +24,15 @@ namespace TaxAI.AzureInfrastructure.Tests.Boundaries;
 /// <c>ClientIntake</c> reference is added: the credential port implementation
 /// stays in the portal and consumes the loaded material unchanged.
 /// </para>
+/// <para>
+/// T04 adds exactly the two inward references its working source adapters
+/// implement — <c>ClientIntake</c> (the write-only intake content port, the
+/// source registry and the purger) and <c>ExtractionWorkflow</c> (the
+/// extraction-only reader) — and the four <c>Content/</c> sources. No package
+/// changes: the Blob client was already pinned by T03. The source adapters get
+/// their own scans: no filesystem, no SAS or shared key, and every write
+/// upload-once, each with a positive control.
+/// </para>
 /// </summary>
 public sealed class AzureInfrastructureBoundaryTests
 {
@@ -51,11 +60,26 @@ public sealed class AzureInfrastructureBoundaryTests
     }
 
     [Fact] // AC-005
-    public void TheLibraryReferencesExactlyTenancyThroughT03()
+    public void TheLibraryReferencesExactlyTheConsumedInwardProjects()
     {
         Assert.Equal(
-            new[] { @"..\Tenancy\Tenancy.csproj" },
+            new[]
+            {
+                @"..\ClientIntake\ClientIntake.csproj",
+                @"..\ExtractionWorkflow\ExtractionWorkflow.csproj",
+                @"..\Tenancy\Tenancy.csproj",
+            },
             ProjectReferences(LibraryProject));
+    }
+
+    [Fact] // T04: the two new references are consumed, not merely declared.
+    public void TheCompiledLibraryNamesTheConsumedPortAssemblies()
+    {
+        var referenced = Library.GetReferencedAssemblies().Select(name => name.Name!).ToArray();
+
+        Assert.Contains("ClientIntake", referenced);
+        Assert.Contains("ExtractionWorkflow", referenced);
+        Assert.Contains("Azure.Storage.Blobs", referenced);
     }
 
     [Fact] // AC-004, AC-006
@@ -123,8 +147,6 @@ public sealed class AzureInfrastructureBoundaryTests
     [InlineData("Azure.AI.DocumentIntelligence")]
     [InlineData("Azure.AI.FormRecognizer")]
     [InlineData("DocumentIntelligence")]
-    [InlineData("ExtractionWorkflow")]
-    [InlineData("ClientIntake")]
     [InlineData("Persistence")]
     [InlineData("TaxAI.Portal")]
     [InlineData("TaxLogicEngine")]
@@ -161,7 +183,7 @@ public sealed class AzureInfrastructureBoundaryTests
     }
 
     [Fact]
-    public void TheSourceInventoryIsExactlyTheT01AndT03Slices()
+    public void TheSourceInventoryIsExactlyTheT01T03AndT04Slices()
     {
         var files = SourceFiles()
             .Select(path => Path.GetRelativePath(LibraryRoot, path).Replace('\\', '/'))
@@ -176,6 +198,10 @@ public sealed class AzureInfrastructureBoundaryTests
                 "Configuration/AzureInfrastructureOptions.cs",
                 "Configuration/ManagedIdentityBindingProbe.cs",
                 "Configuration/ProductionConfigurationValidator.cs",
+                "Content/AzureExtractionContentReader.cs",
+                "Content/AzureIntakeContentStore.cs",
+                "Content/AzureSourceObjectPurger.cs",
+                "Content/SourceEnvelopeCodec.cs",
                 "Keys/KeyVaultContentKeyWrapper.cs",
                 "Keys/KeyVaultRuntimeMaterialProvider.cs",
                 "Keys/KeyVersionUsageGuard.cs",
@@ -207,6 +233,11 @@ public sealed class AzureInfrastructureBoundaryTests
                 "TaxAI.AzureInfrastructure.Configuration.ResilienceSettings",
                 "TaxAI.AzureInfrastructure.Configuration.RetentionSettings",
                 "TaxAI.AzureInfrastructure.Configuration.SourceEnvelopeSettings",
+                "TaxAI.AzureInfrastructure.Content.AzureExtractionContentReader",
+                "TaxAI.AzureInfrastructure.Content.AzureIntakeContentStore",
+                "TaxAI.AzureInfrastructure.Content.AzureSourceObjectPurger",
+                "TaxAI.AzureInfrastructure.Content.SourceEnvelopeCodec",
+                "TaxAI.AzureInfrastructure.Content.SourceEnvelopeScope",
                 "TaxAI.AzureInfrastructure.Keys.EmergencyRevocationRequest",
                 "TaxAI.AzureInfrastructure.Keys.KeyGuardDecision",
                 "TaxAI.AzureInfrastructure.Keys.KeyGuardRefusal",
@@ -223,6 +254,7 @@ public sealed class AzureInfrastructureBoundaryTests
                 "TaxAI.AzureInfrastructure.Keys.WrappedContentKey",
                 "TaxAI.AzureInfrastructure.Protection.AzureDataProtectionConfiguration",
                 "TaxAI.AzureInfrastructure.Protection.ProtectedKeyRingSettings",
+                "TaxAI.AzureInfrastructure.SourceContentSettings",
             },
             Library.GetExportedTypes().Select(type => type.FullName!).OrderBy(n => n, StringComparer.Ordinal));
     }
@@ -300,6 +332,50 @@ public sealed class AzureInfrastructureBoundaryTests
         Assert.DoesNotMatch(web, "using Microsoft.AspNetCore.DataProtection;");
     }
 
+    [Theory] // T04: the source adapters (AC-028, AC-037).
+    [InlineData("temporary files", @"\bPath\s*\.|\bGetTempFileName\b|\bGetTempPath\b|\bFileInfo\b|\bIsolatedStorage\w*")]
+    [InlineData("source addressing", @"\bGenerateSasUri\b|\bGenerateUserDelegationSasUri\b|\bGetUserDelegationKey\w*|\bBlobSasBuilder\b|\bPublicAccessType\.(Blob|BlobContainer)\b|\bSetAccessPolicy\w*")]
+    [InlineData("shadow retention", @"\bCreateSnapshot\w*|\bSetImmutabilityPolicy\w*|\bSetLegalHold\w*|\bUndelete\w*|\bStartCopyFromUri\w*|\bSyncCopyFromUri\w*")]
+    [InlineData("overwrite", @"\bUploadAsync\s*\([^)]*overwrite\s*:\s*true|\bOpenWrite\w*")]
+    public void TheSourceAdaptersContainNoForbiddenToken(string boundary, string pattern)
+    {
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+        var offenders = ContentFiles()
+            .SelectMany(path => ExecutableLines(path).Select(line => (path, line)))
+            .Where(entry => regex.IsMatch(entry.line))
+            .Select(entry => $"{Path.GetFileName(entry.path)}: {entry.line}")
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, $"{boundary}: {string.Join(" | ", offenders)}");
+    }
+
+    [Fact] // The positive controls for the source-adapter scans.
+    public void TheSourceScansSeeTheRealAdaptersAndRecognizeForbiddenTokens()
+    {
+        var executable = string.Join("\n", ContentFiles().SelectMany(ExecutableLines));
+
+        Assert.Equal(4, ContentFiles().Length);
+        Assert.Matches(new Regex(@"IfNoneMatch = ETag\.All"), executable);
+        Assert.Matches(new Regex(@"\bCommitBlockListAsync\b"), executable);
+        Assert.Matches(new Regex(@"\bDeleteSnapshotsOption\.IncludeSnapshots\b"), executable);
+        Assert.Matches(new Regex(@"\bFindBoundAsync\b"), executable);
+        Assert.Matches(new Regex(@"\bRegisterStagedAsync\b"), executable);
+        Assert.Matches(new Regex(@"\bAesGcm\b"), executable);
+        Assert.Matches(new Regex(@"\bGenerateSasUri\b"), "var uri = blob.GenerateSasUri(builder);");
+        Assert.Matches(new Regex(@"\bPath\s*\."), "var path = Path.GetTempFileName();");
+        Assert.Matches(new Regex(@"\bCreateSnapshot\w*"), "await blob.CreateSnapshotAsync();");
+    }
+
+    [Fact] // Every source write is upload-once: each upload/commit call site is conditioned.
+    public void EveryUploadAndCommitInTheSourceStoreIsConditionedOnAbsence()
+    {
+        var store = File.ReadAllText(Path.Combine(LibraryRoot, "Content", "AzureIntakeContentStore.cs"));
+
+        Assert.Equal(2, Regex.Matches(store, @"\.(UploadAsync|CommitBlockListAsync)\(").Count);
+        Assert.Equal(2, Regex.Matches(store, @"IfNoneMatch = ETag\.All").Count);
+    }
+
     [Fact]
     public void TheCommentFilterRemovesDocumentationButKeepsCode()
     {
@@ -316,6 +392,11 @@ public sealed class AzureInfrastructureBoundaryTests
         Directory.EnumerateFiles(LibraryRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsBuildOutput(path))
             .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+    private static string[] ContentFiles() =>
+        SourceFiles()
+            .Where(path => path.Contains($"{Path.DirectorySeparatorChar}Content{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToArray();
 
     private static string[] ProjectReferences(string project) =>

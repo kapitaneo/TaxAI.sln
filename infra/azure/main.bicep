@@ -28,6 +28,12 @@
 // the secure Azure SQL Database with its TDE protector (sql.bicep). The
 // dependency private endpoints are created only after the Key Vault and SQL
 // resources they bind exist.
+//
+// Spec 016 T04 adds the encrypted Canadian source store (storage.bicep): the
+// GPv2 GZRS account named by the same runtime input, its Key Vault source-Blob
+// CMK, the one private source container and no versioning, soft delete,
+// snapshot or immutability retention. Its private endpoint is T02's existing
+// source-storage binding, created only after the account exists.
 
 targetScope = 'resourceGroup'
 
@@ -214,6 +220,18 @@ module keyRingStorage 'modules/key-ring-storage.bicep' = if (isPrimary) {
   }
 }
 
+module sourceStorage 'modules/storage.bicep' = if (isPrimary) {
+  name: 'source-storage'
+  params: {
+    location: primaryRegion
+    namePrefix: namePrefix
+    accountName: primaryInputs!.runtime.sourceStorageAccountName
+    keyVaultName: primaryInputs!.runtime.keyVaultName
+    sourceBlobKeyName: keyVault!.outputs.sourceBlobKeyName
+    applicationPrincipalId: primaryInputs!.runtime.managedIdentityPrincipalId
+  }
+}
+
 module sql 'modules/sql.bicep' = if (isPrimary) {
   name: 'sql'
   params: {
@@ -291,6 +309,7 @@ module privateEndpoints 'modules/private-endpoints.bicep' = if (isPrimary) {
   dependsOn: [
     keyVault
     sql
+    sourceStorage
   ]
 }
 

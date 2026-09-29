@@ -169,15 +169,20 @@ internal static class ModuleRegistration
 
         services.AddTaxAiPersistence(databaseConnectionString);
 
-        // Spec 016 T01/T03: the production validation boundary is registered
-        // only for the Production environment, from the closed production
-        // profile: validation, identity verification and (T03) the approved key
-        // and key-ring probe. No production source store, reader or provider
-        // exists yet, so admission is refused.
+        // Spec 016 T01/T03/T04: the production boundary is registered only for
+        // the Production environment, from the closed production profile:
+        // validation, identity verification, (T03) the approved key and key-ring
+        // probe, and (T04) the Blob source store, scoped purger and the
+        // extraction-only reader, fingerprinting with the vault-loaded key. No
+        // production Document Intelligence adapter exists yet, so the extraction
+        // workflows below still refuse and admission is refused.
         if (runsInProduction)
         {
             services.AddTaxAiAzureInfrastructure(
-                ProductionConfiguration.Read(configuration).Options);
+                ProductionConfiguration.Read(configuration).Options,
+                new SourceContentSettings(
+                    intake.FingerprintKey,
+                    ExtractionConfiguration.ProductionMaximumSourceBytes(configuration)));
         }
         services.AddScoped<IAccountantIntakeWorkflow, AccountantIntakeWorkflow>();
         services.AddScoped<IClientIntakeWorkflow>(provider =>

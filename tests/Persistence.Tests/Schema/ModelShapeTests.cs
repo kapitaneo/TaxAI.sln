@@ -34,6 +34,8 @@ public sealed class ModelShapeTests
         typeof(IntakeSubmissionEntity),
         typeof(IntakeUploadAttemptEntity),
         typeof(MedicalEvidenceVersionEntity),
+        // Spec 016 T04: the consumed source registry, and nothing else.
+        typeof(SourceRegistrationEntity),
         typeof(AuthenticationSession),
         typeof(Firm),
         typeof(FirmMembership),

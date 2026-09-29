@@ -221,6 +221,50 @@ public sealed class RepositoryContractTests
         }
     }
 
+    // ------------------------------------------- spec 016 T04 source storage
+
+    [Fact] // T04 adds its IaC, contract and probe without a secret or SAS.
+    public void EveryT04TemplateContractAndProbeIsSecretFree()
+    {
+        var files = new[]
+        {
+            Path.Combine(RepositoryRoot, "infra", "azure", "contracts", "data-configuration.schema.json"),
+            Path.Combine(RepositoryRoot, "infra", "azure", "modules", "storage.bicep"),
+            Path.Combine(RepositoryRoot, "scripts", "azure", "Test-SourceProtection.ps1"),
+        };
+        var secret = new Regex(
+            @"AccountKey=|SharedAccessSignature|\bsig=[A-Za-z0-9%]|\bsv=\d{4}-|Password\s*=|BEGIN (RSA |EC )?PRIVATE KEY|client_secret|listKeys\(|listAccountSas\(|listServiceSas\(",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+        Assert.All(files, file => Assert.True(File.Exists(file), file));
+        Assert.All(files, file => Assert.DoesNotMatch(secret, File.ReadAllText(file)));
+
+        // Positive controls: a SAS query and a listed account key are caught.
+        Assert.Matches(secret, "https://x.blob.core.windows.net/c/b?sv=2025-01-05&sig=abc%2Bdef");
+        Assert.Matches(secret, "var key = listKeys(account.id, '2023-05-01')");
+    }
+
+    [Fact] // T04 consumes the existing closed profile and adds no production setting.
+    public void SourceStorageAddsNoProductionRuntimeSetting()
+    {
+        var names = PortalSettingNames();
+
+        Assert.DoesNotContain(names, name =>
+            Regex.IsMatch(name, "Container(?!.*KeyRing)|Sas|SharedKey|Purge|Snapshot|Versioning|Immutab|Block", RegexOptions.IgnoreCase) &&
+            !name.EndsWith("DataProtection:KeyRingContainer", StringComparison.Ordinal));
+        foreach (var consumed in new[]
+                 {
+                     "TaxAi:Production:SourceStorage:Endpoint",
+                     "TaxAi:Production:SourceStorage:ResourceId",
+                     "TaxAi:Production:SourceEnvelope:KeyUri",
+                     "TaxAi:Production:ManagedIdentity:ClientId",
+                 })
+        {
+            Assert.Contains(consumed, names);
+        }
+    }
+
     // ------------------------------------------- the executable offline check
 
     [Fact]

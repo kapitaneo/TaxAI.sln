@@ -33,6 +33,10 @@ public sealed class PersistenceBoundaryTests
         "AssemblyInfo.cs",
         "PersistenceRegistration.cs",
         "TaxAiDbContext.cs",
+        // Spec 016 T04: every scan above must also reach the source registry.
+        "SourceRegistryConfiguration.cs",
+        "SourceRegistryEntities.cs",
+        "SqlSourceRegistryStore.cs",
     };
 
     // -------------------------------------------------------- project shape
@@ -217,6 +221,9 @@ public sealed class PersistenceBoundaryTests
                 "20260730000000_AddClientIntake.Designer.cs",
                 "20260730000000_AddClientIntake.cs",
                 "20260803000000_AddDocumentExtraction.Designer.cs",
+                // Spec 016 T04: the generated target model of the additive source
+                // registry migration restates the existing constraint; it adds none.
+                "20260927000000_AddSourceRegistry.Designer.cs",
                 "IntakeModelConfiguration.cs",
                 "TaxAiDbContextModelSnapshot.cs",
             },
@@ -314,6 +321,23 @@ public sealed class PersistenceBoundaryTests
 
         Assert.Matches(new Regex(@"\bDbContext\b"), allExecutable);
         Assert.Matches(new Regex(@"\bAddTaxAiPersistence\b"), allExecutable);
+        Assert.Matches(new Regex(@"\bISourceRegistryStore\b"), allExecutable);
+    }
+
+    [Fact] // Spec 016 T04: the registry adapter holds no source content and no cloud access.
+    public void TheSourceRegistryAdapterHoldsNoContentKeyMaterialOrStorageAccess()
+    {
+        var registry = string.Join(
+            "\n",
+            ProductionSourceFiles()
+                .Where(path => Path.GetFileName(path) is "SourceRegistryConfiguration.cs" or "SourceRegistryEntities.cs" or "SqlSourceRegistryStore.cs")
+                .SelectMany(ExecutableLines));
+
+        Assert.Matches(new Regex(@"\bExecuteUpdateAsync\b"), registry);
+        foreach (var forbidden in new[] { "Stream", "byte[]", "BlobClient", "Azure.", "WrappedContentKey", "FileName", "Uri" })
+        {
+            Assert.DoesNotContain(forbidden, registry, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

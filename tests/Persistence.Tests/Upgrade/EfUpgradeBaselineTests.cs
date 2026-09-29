@@ -132,6 +132,8 @@ public sealed class EfUpgradeBaselineTests
                      "<default>.ExtractionDuplicateResolutions",
                      "<default>.ExtractionAcceptances",
                      "<default>.ExtractionAuditEvents",
+                     // Spec 016 T04: the source registry.
+                     "<default>.SourceRegistrations",
                  })
         {
             Assert.Contains(table, currentTables);

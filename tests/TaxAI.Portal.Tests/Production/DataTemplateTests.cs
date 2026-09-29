@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using TaxAI.AzureInfrastructure.Content;
 using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.AzureInfrastructure.Protection;
 
@@ -22,12 +23,20 @@ namespace TaxAI.Portal.Tests.Production;
 /// Passing these checks is not deployment evidence: the live posture is
 /// observed by the rotation drill against the exact resources (DEP-14).
 /// </para>
+/// <para>
+/// Spec 016 T04 adds the source store (storage.bicep; AC-025, AC-027, AC-028,
+/// AC-029, AC-040) and the envelope contract: GPv2 GZRS, the source-Blob CMK
+/// through a dedicated identity, Entra-only, private, one non-public container,
+/// and every shadow-retention mechanism off. Each rule is again proved by its own
+/// mutation, and the envelope constants are the code's own.
+/// </para>
 /// </summary>
 public sealed class DataTemplateTests
 {
     private const string KeyVault = "modules/key-vault.bicep";
     private const string KeyRing = "modules/key-ring-storage.bicep";
     private const string Sql = "modules/sql.bicep";
+    private const string Storage = "modules/storage.bicep";
     private const string Main = "main.bicep";
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
@@ -44,7 +53,7 @@ public sealed class DataTemplateTests
         var root = schema.RootElement;
 
         Assert.False(root.GetProperty("additionalProperties").GetBoolean());
-        foreach (var section in new[] { "keyVault", "keyRingStorage", "sql" })
+        foreach (var section in new[] { "keyVault", "keyRingStorage", "sql", "sourceStorage", "sourceEnvelope" })
         {
             var node = root.GetProperty("properties").GetProperty(section);
             Assert.False(node.GetProperty("additionalProperties").GetBoolean());
@@ -121,6 +130,16 @@ public sealed class DataTemplateTests
         { Sql, "serverKeyType: 'AzureKeyVault'" },
         { Sql, "autoRotationEnabled: true" },
         { Sql, "zoneRedundant: true" },
+        // T04, AC-025: GPv2 GZRS; AC-028: Entra-only, private; AC-029: no shadow
+        // retention; AC-040: the source-Blob CMK.
+        { Storage, "kind: 'StorageV2'" },
+        { Storage, "name: 'Standard_GZRS'" },
+        { Storage, "allowSharedKeyAccess: false" },
+        { Storage, "allowBlobPublicAccess: false" },
+        { Storage, "publicNetworkAccess: 'Disabled'" },
+        { Storage, "keySource: 'Microsoft.Keyvault'" },
+        { Storage, "isVersioningEnabled: false" },
+        { Storage, "publicAccess: 'None'" },
     };
 
     [Theory]
@@ -138,6 +157,21 @@ public sealed class DataTemplateTests
             ("keyVault", KeyVault, new() { ["sku"] = "name", ["networkDefaultAction"] = "defaultAction", ["location"] = "location" }),
             ("keyRingStorage", KeyRing, new() { ["sku"] = "name", ["deleteRetentionDays"] = "days", ["keyRingBlobName"] = "-", ["location"] = "location" }),
             ("sql", Sql, new() { ["encryptionProtectorType"] = "serverKeyType", ["tdeKeyName"] = "-", ["location"] = "location" }),
+            ("sourceStorage", Storage, new()
+            {
+                ["sku"] = "name",
+                ["location"] = "location",
+                ["networkDefaultAction"] = "defaultAction",
+                ["networkBypass"] = "bypass",
+                ["containerPublicAccess"] = "publicAccess",
+                // Asserted by the posture rules below, not by one literal each.
+                ["cmkKeyName"] = "-",
+                ["deleteRetentionEnabled"] = "-",
+                ["containerDeleteRetentionEnabled"] = "-",
+                ["changeFeedEnabled"] = "-",
+                ["restorePolicyEnabled"] = "-",
+                ["containerName"] = "-",
+            }),
         };
 
         foreach (var (section, module, spelling) in sections)
@@ -169,6 +203,42 @@ public sealed class DataTemplateTests
             $"var sqlTdeKeyName = '{Const("properties", "sql", "properties", "tdeKeyName").GetString()}'",
             Template(KeyVault),
             StringComparison.Ordinal);
+        Assert.Contains(
+            $"var sourceBlobKeyName = '{Const("properties", "sourceStorage", "properties", "cmkKeyName").GetString()}'",
+            Template(KeyVault),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"var sourceContainerName = '{Const("properties", "sourceStorage", "properties", "containerName").GetString()}'",
+            Template(Storage),
+            StringComparison.Ordinal);
+    }
+
+    [Fact] // T04: the envelope contract is exactly what the code implements.
+    public void TheEnvelopeContractIsTheCodesOwnConstants()
+    {
+        string Envelope(string name) => Const("properties", "sourceEnvelope", "properties", name).ToString();
+
+        Assert.Equal("AES-256-GCM", Envelope("cipher"));
+        Assert.Equal(SourceEnvelopeCodec.DataKeySize.ToString(System.Globalization.CultureInfo.InvariantCulture), Envelope("dataKeyBytes"));
+        Assert.Equal(SourceEnvelopeCodec.ChunkSize.ToString(System.Globalization.CultureInfo.InvariantCulture), Envelope("chunkSizeBytes"));
+        Assert.Equal(SourceEnvelopeCodec.TagSize.ToString(System.Globalization.CultureInfo.InvariantCulture), Envelope("tagSizeBytes"));
+        Assert.Equal(KeyVaultContentKeyWrapper.Algorithm.ToString(), Envelope("keyWrapAlgorithm"));
+        Assert.Equal(AzureIntakeContentStore.BlockSize.ToString(System.Globalization.CultureInfo.InvariantCulture), Envelope("stagedBlockBytes"));
+        Assert.StartsWith(Envelope("contentObjectPrefix"), SourceEnvelopeCodec.ContentObjectName(Guid.NewGuid()), StringComparison.Ordinal);
+        Assert.StartsWith(Envelope("keyObjectPrefix"), SourceEnvelopeCodec.KeyObjectName(Guid.NewGuid()), StringComparison.Ordinal);
+        Assert.Equal(AzureIntakeContentStore.SourceContainerName, Const("properties", "sourceStorage", "properties", "containerName").GetString());
+        Assert.Equal("If-None-Match: *", Envelope("uploadCondition"));
+    }
+
+    [Fact] // T04: the private endpoint binds exactly the account the module creates.
+    public void TheSourcePrivateEndpointBindsTheDeployedSourceAccount()
+    {
+        var main = Template(Main);
+
+        Assert.Contains("accountName: primaryInputs!.runtime.sourceStorageAccountName", main, StringComparison.Ordinal);
+        Assert.Contains("sourceStorageResourceId: resourceId('Microsoft.Storage/storageAccounts', primaryInputs!.runtime.sourceStorageAccountName)", main, StringComparison.Ordinal);
+        Assert.Contains("sourceBlobKeyName: keyVault!.outputs.sourceBlobKeyName", main, StringComparison.Ordinal);
+        Assert.DoesNotContain("Microsoft.Network/privateEndpoints", Template(Storage), StringComparison.Ordinal);
     }
 
     // ------------------------------------------- posture checker (mutations)
@@ -212,6 +282,31 @@ public sealed class DataTemplateTests
         { Main, "module keyVault 'modules/key-vault.bicep' = if (isPrimary)", "module keyVault 'modules/key-vault.bicep' = if (false)", "KeyProtectionNotDeployed" },
         { Main, "module sql 'modules/sql.bicep' = if (isPrimary)", "module sql 'modules/sql.bicep' = if (false)", "KeyProtectionNotDeployed" },
         { Main, "module keyRingStorage 'modules/key-ring-storage.bicep' = if (isPrimary)", "module keyRingStorage 'modules/key-ring-storage.bicep' = if (false)", "KeyProtectionNotDeployed" },
+        // T04: the source store, one rule at a time.
+        { Storage, "name: 'Standard_GZRS'", "name: 'Standard_LRS'", "SourceNotGeoZoneRedundant" },
+        { Storage, "name: 'Standard_GZRS'", "name: 'Standard_RAGZRS'", "SourceNotGeoZoneRedundant" },
+        { Storage, "kind: 'StorageV2'", "kind: 'BlobStorage'", "SourceAccountNotApproved" },
+        { Storage, "isHnsEnabled: false", "isHnsEnabled: true", "SourceAccountNotApproved" },
+        { Storage, "allowSharedKeyAccess: false", "allowSharedKeyAccess: true", "SharedKeyAccessEnabled" },
+        { Storage, "allowBlobPublicAccess: false", "allowBlobPublicAccess: true", "PublicEndpointConfigured" },
+        { Storage, "    publicNetworkAccess: 'Disabled'", "    publicNetworkAccess: 'Enabled'", "PublicEndpointConfigured" },
+        { Storage, "bypass: 'None'", "bypass: 'AzureServices'", "FirewallNotDenyDefault" },
+        { Storage, "defaultAction: 'Deny'", "defaultAction: 'Allow'", "FirewallNotDenyDefault" },
+        { Storage, "minimumTlsVersion: 'TLS1_2'", "minimumTlsVersion: 'TLS1_0'", "TransportBelowMinimum" },
+        { Storage, "supportsHttpsTrafficOnly: true", "supportsHttpsTrafficOnly: false", "TransportBelowMinimum" },
+        { Storage, "keySource: 'Microsoft.Keyvault'", "keySource: 'Microsoft.Storage'", "SourceNotCustomerManaged" },
+        { Storage, "userAssignedIdentity: cmkIdentity.id", "userAssignedIdentity: ''", "SourceNotCustomerManaged" },
+        { Storage, "requireInfrastructureEncryption: true", "requireInfrastructureEncryption: false", "SourceNotCustomerManaged" },
+        { Storage, "isVersioningEnabled: false", "isVersioningEnabled: true", "SourceShadowRetentionEnabled" },
+        { Storage, "    deleteRetentionPolicy: {\n      enabled: false", "    deleteRetentionPolicy: {\n      enabled: true", "SourceShadowRetentionEnabled" },
+        { Storage, "    containerDeleteRetentionPolicy: {\n      enabled: false", "    containerDeleteRetentionPolicy: {\n      enabled: true", "SourceShadowRetentionEnabled" },
+        { Storage, "    changeFeed: {\n      enabled: false", "    changeFeed: {\n      enabled: true", "SourceShadowRetentionEnabled" },
+        { Storage, "    restorePolicy: {\n      enabled: false", "    restorePolicy: {\n      enabled: true", "SourceShadowRetentionEnabled" },
+        { Storage, "    publicAccess: 'None'\n  }", "    publicAccess: 'None'\n    immutableStorageWithVersioning: {\n      enabled: true\n    }\n  }", "SourceShadowRetentionEnabled" },
+        { Storage, "publicAccess: 'None'", "publicAccess: 'Blob'", "SourceContainerPublic" },
+        { Storage, "scope: container", "scope: account", "RoleNotLeastPrivilege" },
+        { Storage, "scope: sourceBlobKey", "scope: vault", "RoleNotLeastPrivilege" },
+        { Main, "module sourceStorage 'modules/storage.bicep' = if (isPrimary)", "module sourceStorage 'modules/storage.bicep' = if (false)", "SourceStoreNotDeployed" },
     };
 
     [Theory]
@@ -233,6 +328,7 @@ public sealed class DataTemplateTests
     [InlineData(KeyVault)]
     [InlineData(KeyRing)]
     [InlineData(Sql)]
+    [InlineData(Storage)]
     public void NoModuleEnablesADiagnosticSinkPreviewOrStoredCredential(string module)
     {
         var template = Template(module);
@@ -254,7 +350,7 @@ public sealed class DataTemplateTests
         var block = main[main.IndexOf("module privateEndpoints", StringComparison.Ordinal)..];
         block = block[..(block.IndexOf("\nmodule ", 1, StringComparison.Ordinal) is var next and > 0 ? next : block.Length)];
 
-        Assert.Matches(new Regex(@"dependsOn: \[\s+keyVault\s+sql\s+\]"), block);
+        Assert.Matches(new Regex(@"dependsOn: \[\s+keyVault\s+sql\s+sourceStorage\s+\]"), block);
         Assert.Matches(new Regex(@"tdeKeyUriWithVersion: keyVault!\.outputs\.sqlTdeKeyUriWithVersion"), main);
         Assert.Matches(new Regex(@"blobZoneId: privateDns\.outputs\.zoneIds\.SourceStorage"), main);
     }
@@ -351,11 +447,39 @@ public sealed class DataTemplateTests
             Require(main.Contains($"module {module} = if (isPrimary)", StringComparison.Ordinal), "KeyProtectionNotDeployed");
         }
 
+        // T04: the source store.
+        var storage = sources[Storage];
+        Require(storage.Contains("name: 'Standard_GZRS'", StringComparison.Ordinal), "SourceNotGeoZoneRedundant");
+        Require(storage.Contains("kind: 'StorageV2'", StringComparison.Ordinal) &&
+                storage.Contains("isHnsEnabled: false", StringComparison.Ordinal), "SourceAccountNotApproved");
+        Require(storage.Contains("allowSharedKeyAccess: false", StringComparison.Ordinal) &&
+                storage.Contains("isLocalUserEnabled: false", StringComparison.Ordinal), "SharedKeyAccessEnabled");
+        Require(storage.Contains("allowBlobPublicAccess: false", StringComparison.Ordinal) &&
+                storage.Contains("    publicNetworkAccess: 'Disabled'", StringComparison.Ordinal) &&
+                !storage.Contains("publicNetworkAccess: 'Enabled'", StringComparison.Ordinal), "PublicEndpointConfigured");
+        Require(storage.Contains("defaultAction: 'Deny'", StringComparison.Ordinal) &&
+                storage.Contains("bypass: 'None'", StringComparison.Ordinal), "FirewallNotDenyDefault");
+        Require(storage.Contains("minimumTlsVersion: 'TLS1_2'", StringComparison.Ordinal) &&
+                storage.Contains("supportsHttpsTrafficOnly: true", StringComparison.Ordinal), "TransportBelowMinimum");
+        Require(storage.Contains("keySource: 'Microsoft.Keyvault'", StringComparison.Ordinal) &&
+                storage.Contains("userAssignedIdentity: cmkIdentity.id", StringComparison.Ordinal) &&
+                storage.Contains("keyname: sourceBlobKeyName", StringComparison.Ordinal) &&
+                storage.Contains("requireInfrastructureEncryption: true", StringComparison.Ordinal), "SourceNotCustomerManaged");
+        Require(storage.Contains("isVersioningEnabled: false", StringComparison.Ordinal) &&
+                Regex.Matches(storage, @"(deleteRetentionPolicy|containerDeleteRetentionPolicy|changeFeed|restorePolicy): \{\n      enabled: false").Count == 4 &&
+                !Regex.IsMatch(storage, @"immutab|legalHold|snapshot|lastAccessTimeTracking|managementPolicies", RegexOptions.IgnoreCase), "SourceShadowRetentionEnabled");
+        Require(Regex.Matches(storage, @"publicAccess: '(?<v>[^']+)'").Cast<Match>().All(match => match.Groups["v"].Value == "None") &&
+                storage.Contains("publicAccess: 'None'", StringComparison.Ordinal), "SourceContainerPublic");
+        Require(storage.Contains("scope: container", StringComparison.Ordinal) &&
+                storage.Contains("scope: sourceBlobKey", StringComparison.Ordinal) &&
+                Regex.Matches(storage, @"\bscope: ").Count == 2, "RoleNotLeastPrivilege");
+        Require(main.Contains("module sourceStorage 'modules/storage.bicep' = if (isPrimary)", StringComparison.Ordinal), "SourceStoreNotDeployed");
+
         return violations.Distinct(StringComparer.Ordinal).ToArray();
     }
 
     private static Dictionary<string, string> TrackedSources() =>
-        new[] { KeyVault, KeyRing, Sql, Main }.ToDictionary(module => module, Template, StringComparer.Ordinal);
+        new[] { KeyVault, KeyRing, Sql, Storage, Main }.ToDictionary(module => module, Template, StringComparer.Ordinal);
 
     /// <summary>The template with whole-line comments removed and LF endings.</summary>
     private static string Template(string relativePath)

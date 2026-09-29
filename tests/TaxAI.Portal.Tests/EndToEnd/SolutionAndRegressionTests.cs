@@ -552,6 +552,22 @@ public sealed class SolutionAndRegressionTests
         {
             var executable = string.Join("\n", ExecutableLines(path));
 
+            // Spec 016 T04: exactly the two compensating-cleanup declarations in
+            // the source registry contract are allowed, each exactly once; the
+            // file is still scanned for every other forbidden token.
+            if (string.Equals(Path.GetFileName(path), "SourceRegistryContracts.cs", StringComparison.Ordinal))
+            {
+                foreach (var approved in new[]
+                         {
+                             "Task<SourceRegistryWriteCode> RecordPurgeAsync(",
+                             "Task<SourceObjectPurgeOutcome> PurgeAsync(",
+                         })
+                {
+                    Assert.Equal(2, executable.Split(approved).Length);
+                    executable = executable.Replace(approved, "Task<approved>(", StringComparison.Ordinal);
+                }
+            }
+
             foreach (var forbidden in new[]
                      {
                          "RetentionUntilUtc",
@@ -581,8 +597,8 @@ public sealed class SolutionAndRegressionTests
     /// deployment configuration ships. The Development-only content adapter is
     /// the only <c>IIntakeContentStore</c> implementation in the repository.
     /// </summary>
-    [Fact] // spec 014 AC-80
-    public void TheOnlyContentStoreImplementationIsTheDevelopmentOnlyAdapter()
+    [Fact] // spec 014 AC-80, narrowed by spec 016 T04
+    public void TheContentStoreImplementationsAreExactlyTheDevelopmentAndApprovedProductionAdapters()
     {
         var implementations = Directory
             .EnumerateFiles(
@@ -600,8 +616,15 @@ public sealed class SolutionAndRegressionTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "DevelopmentEncryptedIntakeContentStore.cs" },
+            new[] { "AzureIntakeContentStore.cs", "DevelopmentEncryptedIntakeContentStore.cs" },
             implementations);
+
+        // The production adapter lives only in the Azure infrastructure library,
+        // and the Development adapter only in the host.
+        Assert.True(File.Exists(Path.Combine(
+            RepositoryRoot, "src", "TaxAI.AzureInfrastructure", "Content", "AzureIntakeContentStore.cs")));
+        Assert.True(File.Exists(Path.Combine(
+            RepositoryRoot, "src", "TaxAI.Portal", "DevelopmentEncryptedIntakeContentStore.cs")));
     }
 
     // ---------------------------------------------------------------- guard

@@ -24,7 +24,7 @@ public sealed class MigrationTests
         RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(1));
 
-    [Fact] // T11 repository-owned migration
+    [Fact] // T11 repository-owned migration; spec 016 T04 adds exactly the source registry.
     public void ExactlyOneInitialAndOneAdditiveMigrationAndOneSnapshotExist()
     {
         using var context = RelationalTestContext.CreateSqlServerContext();
@@ -36,6 +36,7 @@ public sealed class MigrationTests
                 "20260729021907_InitialPersistence",
                 "20260730000000_AddClientIntake",
                 "20260803000000_AddDocumentExtraction",
+                "20260927000000_AddSourceRegistry",
             },
             migrations.Migrations.Keys);
         Assert.NotNull(migrations.ModelSnapshot);
@@ -46,7 +47,26 @@ public sealed class MigrationTests
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddClientIntake.Designer.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddDocumentExtraction.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddDocumentExtraction.Designer.cs"));
+        Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddSourceRegistry.cs"));
+        Assert.Single(Directory.GetFiles(MigrationRoot, "*_AddSourceRegistry.Designer.cs"));
         Assert.Single(Directory.GetFiles(MigrationRoot, "*ModelSnapshot.cs"));
+    }
+
+    [Fact] // spec 016 T04
+    public void TheSourceRegistryMigrationCreatesAndDropsOnlyItsOneTable()
+    {
+        using var context = RelationalTestContext.CreateSqlServerContext();
+        var migration = MigrationById(context, "20260927000000_AddSourceRegistry");
+
+        Assert.Equal(
+            new[] { "SourceRegistrations" },
+            migration.UpOperations.OfType<CreateTableOperation>().Select(operation => operation.Name));
+        Assert.Equal(
+            new[] { "SourceRegistrations" },
+            migration.DownOperations.OfType<DropTableOperation>().Select(operation => operation.Name));
+        Assert.Empty(migration.UpOperations.Where(operation =>
+            operation is SqlOperation or InsertDataOperation or UpdateDataOperation or DeleteDataOperation or
+                AlterTableOperation or AlterColumnOperation or AddColumnOperation or DropColumnOperation));
     }
 
     [Fact] // rollback requirement

@@ -1,0 +1,35 @@
+# Spec 016 — T04 complete
+
+Task: T04 — Source storage and envelope encryption.
+Branch: `feat/016-w4-t04`
+PR: #150 — https://github.com/kapitaneo/TaxAI.sln/pull/150
+Implementation commit: `b9e8e7f`
+
+## Gate — committed branch state (Windows)
+
+```powershell
+dotnet build TaxAI.sln
+pwsh ./scripts/Invoke-SolutionTests.ps1
+pwsh ./scripts/azure/Test-ProductionPlan.ps1
+pwsh ./scripts/azure/Test-SourceProtection.ps1
+```
+
+- Build: 0 warnings, 0 errors.
+- Solution gate on the clean committed tree at `b9e8e7f`: PASS. All 12
+  registered projects ran with no failure or skip and every floor met; 5,140
+  tests. Floors raised: TaxAI.Portal.Tests 1051 (was 998), Persistence.Tests 291
+  (was 260), ClientIntake.Tests 188 (was 157), TaxAI.AzureInfrastructure.Tests
+  439 (was 324); every other floor unchanged, none lowered.
+- Offline plan check: exit 0; the pinned Bicep compile, lint and build-params
+  passed with `storage.bicep` included.
+- Source-protection probe: Offline exit 0, all 16 checks held (simulated, not
+  deployment evidence); Live without explicit authority exit 3, unexecuted.
+
+Details, [ASSUMED] decisions and AC/DEP traceability are in `evidence/T04.md`.
+
+DEP-10 is pending: the executable probe ships, but it was not run against
+deployed resources. This marker is not deployment or real-taxpayer
+authorization; production admission stays REFUSED (no production Document
+Intelligence adapter; evidence unobserved; both provider assurance gaps
+unresolved). `tasks.md` was not edited; T05 was not started. Not merged or
+self-approved; human review remains required.

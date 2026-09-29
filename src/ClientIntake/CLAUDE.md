@@ -46,8 +46,9 @@ The production project references are exactly:
 
 Forbidden dependencies: `Persistence`, `TaxAI.Portal`, `CaseReview`,
 `CaseProcessing`, `DocumentExtraction`, and any package. No module may reference
-`ClientIntake` except `Persistence` (the relational metadata adapter) and
-`TaxAI.Portal` (the host); T02 adds exactly those inward consumers.
+`ClientIntake` except `Persistence` (the relational metadata adapter),
+`TaxAI.Portal` (the host) and, from spec 016 T04, `TaxAI.AzureInfrastructure`
+(the production content store, source reader and purger adapters).
 
 ## Scope always moves from a trusted boundary inward
 
@@ -134,6 +135,31 @@ This module declares no supported-year list, current-year concept, or tax-year
 fallback. Year isolation belongs to the modules that own it; a year literal here
 would be a second policy, and the two would drift.
 
+## Spec 016 T04: the source registry contract
+
+`Contracts/SourceRegistryContracts.cs` and `Models/SourceRegistryModels.cs`
+declare — and this module still implements none of — two consumed ports:
+
+- `ISourceRegistryStore` records every stored source object's trusted scope,
+  opaque resource identifier (distinct from the reader content key), state and
+  instants. A production content store registers the object **before** it
+  allocates storage; the intake metadata commit binds it to the committed
+  document in the same transaction; compensating cleanup records intent and
+  its verified outcome. States only move forward (`Staged` → `Bound`, or
+  `Staged`/`PurgePending` → `PurgePending`/`Purged`), and a `Bound`
+  object is never cleaned up through this contract.
+- `ISourceObjectPurger` deletes one registered object and reports only what
+  it observed (`Complete` requires every replica); it is never a due-lifecycle
+  or retention authority.
+
+Every member takes a `TrustedFirmId` first and an explicit case; there is no
+firm-omitting overload, no content read, no deadline and no due purge.
+`SourceRegistration` is a sealed immutable class whose identifiers and
+content key are `[JsonIgnore]` and whose `ToString()` names only its state.
+Retention deadlines, due purge and lifecycle fencing belong to later spec 016
+slices; the "no retention or purge path" rule below is narrowed only by these
+two compensating-cleanup declarations.
+
 ## The gate
 
 T02 implements the contract and allows `Persistence` to supply the relational
@@ -141,4 +167,7 @@ metadata adapter and the portal composition root to supply credentials plus the
 Development/test encrypted content adapter. It authorizes **no intake route or
 UI component**. Those belong to T03. Nothing here authorizes a content-read API,
 production content provider, retention or purge path, extraction, tax
-processing, review construction, or deployment.
+processing, review construction, or deployment. Spec 016 T04 authorizes exactly
+the source registry and purger ports above for the production Azure source
+adapters and their compensating cleanup; still no content-read member on the
+intake port, no retention deadline, no due purge and no deployment.

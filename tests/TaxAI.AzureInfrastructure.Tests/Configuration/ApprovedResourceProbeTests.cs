@@ -1,6 +1,8 @@
 using Azure.Security.KeyVault.Keys;
 using Microsoft.AspNetCore.DataProtection;
+using Azure.Core;
 using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Tests.Content;
 using TaxAI.AzureInfrastructure.Tests.Keys;
 using TaxAI.AzureInfrastructure.Tests.Protection;
 using Tenancy.Models;
@@ -16,6 +18,12 @@ namespace TaxAI.AzureInfrastructure.Tests.Configuration;
 /// shared key ring: the approved topology passes, and each finding is produced
 /// independently by changing exactly one thing. Every finding maps onto the
 /// closed admission-refusal vocabulary.
+/// </para>
+/// <para>
+/// Spec 016 T04 adds the source account over a controlled Blob endpoint: the
+/// approved GPv2/GZRS account with a private, non-immutable container passes,
+/// and each posture violation, an unreachable account and a wrong identity are
+/// refused as a storage-binding refusal. The probe writes and reads no object.
 /// </para>
 /// </summary>
 public sealed class ApprovedResourceProbeTests
@@ -96,12 +104,17 @@ public sealed class ApprovedResourceProbeTests
 
         public ControlledKeyVault Vault => Environment.Vault;
 
+        public ControlledSourceStorage Source { get; } = new();
+
         public AzureInfrastructureOptions Options { get; set; } = new()
         {
             KeyVault = new PrivateDependencySettings { Endpoint = $"https://{ControlledKeyVault.Host}/" },
             SourceEnvelope = new SourceEnvelopeSettings { KeyUri = $"https://{ControlledKeyVault.Host}/keys/{SourceKey}" },
             DataProtection = DataProtectionTests.Profile().DataProtection,
+            SourceStorage = SourceStorageSettings(),
         };
+
+        public string StorageToken { get; set; } = ControlledSourceStorage.ApprovedToken;
 
         public string Token { get; set; } = ControlledKeyVault.ApprovedToken;
 
@@ -112,10 +125,11 @@ public sealed class ApprovedResourceProbeTests
             using var worker = Environment.Worker();
             var probe = new ApprovedResourceProbe(
                 Options,
-                new StaticCredential(Token),
+                new ScopedCredential(StorageToken, Token),
                 KeyRing ?? worker.GetService(typeof(IDataProtectionProvider)) as IDataProtectionProvider ?? throw new InvalidOperationException(),
                 Vault.KeyOptions(),
-                Vault.CryptographyOptions());
+                Vault.CryptographyOptions(),
+                Source.Options());
             return await probe.ProbeAsync(CancellationToken.None);
         }
     }
@@ -134,6 +148,7 @@ public sealed class ApprovedResourceProbeTests
         Assert.Contains(topology.Vault.Requests, request => request.EndsWith($"/keys/{ProtectionKey}", StringComparison.Ordinal));
         Assert.Contains(topology.Vault.Requests, request => request.Contains($"/keys/{SourceKey}/", StringComparison.Ordinal) && request.EndsWith("/unwrapkey", StringComparison.OrdinalIgnoreCase));
         Assert.Single(topology.Environment.Blobs.Blobs);
+        Assert.Equal(new[] { "account", "container" }, topology.Source.Log.Select(entry => entry.Operation).ToArray());
     }
 
     [Fact]
@@ -160,6 +175,7 @@ public sealed class ApprovedResourceProbeTests
                 KeyVault = new PrivateDependencySettings { Endpoint = $"https://{ControlledKeyVault.Host}/" },
                 SourceEnvelope = new SourceEnvelopeSettings { KeyUri = $"https://{ControlledKeyVault.Host}/keys/absent-key" },
                 DataProtection = DataProtectionTests.Profile().DataProtection,
+                SourceStorage = SourceStorageSettings(),
             },
         };
 
@@ -179,6 +195,7 @@ public sealed class ApprovedResourceProbeTests
             KeyVault = topology.Options.KeyVault,
             SourceEnvelope = new SourceEnvelopeSettings { KeyUri = $"https://{ControlledKeyVault.Host}/keys/purgeable-source" },
             DataProtection = topology.Options.DataProtection,
+            SourceStorage = topology.Options.SourceStorage,
         };
 
         var result = await topology.ProbeAsync();
@@ -201,12 +218,13 @@ public sealed class ApprovedResourceProbeTests
     [Fact]
     public async Task AWrongIdentityCannotReadEitherKey()
     {
-        var topology = new Topology { Token = "synthetic-foreign-identity-token" };
+        var topology = new Topology { Token = "synthetic-foreign-identity-token", StorageToken = "synthetic-foreign-identity-token" };
 
         var result = await topology.ProbeAsync();
 
         Assert.Contains(ApprovedResourceFinding.SourceEnvelopeKeyNotApproved, result.Findings);
         Assert.Contains(ApprovedResourceFinding.DataProtectionKeyNotApproved, result.Findings);
+        Assert.Contains(ApprovedResourceFinding.SourceStorageNotApproved, result.Findings);
         Assert.DoesNotContain(ApprovedResourceFinding.KeyRingRoundTripFailed, result.Findings);
     }
 
@@ -257,6 +275,7 @@ public sealed class ApprovedResourceProbeTests
             DataProtection = scenario == "protection key missing"
                 ? new DataProtectionSettings()
                 : options.DataProtection,
+            SourceStorage = options.SourceStorage,
         };
 
         var result = await topology.ProbeAsync();
@@ -276,6 +295,7 @@ public sealed class ApprovedResourceProbeTests
         Assert.Equal(
             new[]
             {
+                ProductionAdmissionRefusal.StorageBindingInvalid,
                 ProductionAdmissionRefusal.KeyVaultBindingInvalid,
                 ProductionAdmissionRefusal.SourceEnvelopeEncryptionMissing,
                 ProductionAdmissionRefusal.DataProtectionConfigurationMissing,
@@ -305,6 +325,121 @@ public sealed class ApprovedResourceProbeTests
         Assert.Equal(
             nameof(ApprovedResourceProbe),
             new ApprovedResourceProbe(new AzureInfrastructureOptions(), new StaticCredential("t"), new FailingKeyRing()).ToString());
+    }
+
+    // ------------------------------------------------------ source storage (T04)
+
+    private static PrivateDependencySettings SourceStorageSettings() =>
+        new() { Endpoint = $"https://{ControlledSourceStorage.Host}/" };
+
+    public static TheoryData<string> SourcePostureViolations() => new()
+    {
+        "locally redundant",
+        "zone redundant only",
+        "read-access geo-redundant",
+        "legacy general purpose",
+        "blob-only account",
+        "hierarchical namespace",
+        "public container",
+        "public blobs",
+        "immutability policy",
+        "legal hold",
+        "version-level immutability",
+        "container absent",
+    };
+
+    [Theory] // AC-025, AC-028, AC-029
+    [MemberData(nameof(SourcePostureViolations))]
+    public async Task EachSourceStoragePostureRuleRefusesIndependently(string scenario)
+    {
+        var topology = new Topology();
+        var source = topology.Source;
+        switch (scenario)
+        {
+            case "locally redundant": source.SkuName = "Standard_LRS"; break;
+            case "zone redundant only": source.SkuName = "Standard_ZRS"; break;
+            case "read-access geo-redundant": source.SkuName = "Standard_RAGRS"; break;
+            case "legacy general purpose": source.AccountKind = "Storage"; break;
+            case "blob-only account": source.AccountKind = "BlobStorage"; break;
+            case "hierarchical namespace": source.HierarchicalNamespace = "true"; break;
+            case "public container": source.PublicAccess = "container"; break;
+            case "public blobs": source.PublicAccess = "blob"; break;
+            case "immutability policy": source.ImmutabilityPolicy = true; break;
+            case "legal hold": source.LegalHold = true; break;
+            case "version-level immutability": source.VersionLevelImmutability = true; break;
+            case "container absent": source.ContainerExists = false; break;
+            default: throw new ArgumentOutOfRangeException(nameof(scenario));
+        }
+
+        var result = await topology.ProbeAsync();
+
+        Assert.Equal(new[] { ApprovedResourceFinding.SourceStorageNotApproved }, result.Findings);
+        Assert.Equal(new[] { ProductionAdmissionRefusal.StorageBindingInvalid }, result.Refusals);
+        Assert.DoesNotContain(source.Log, entry => entry.Operation is "blob" or "block" or "blocklist" or "delete" or "read");
+    }
+
+    [Fact]
+    public async Task AnUnreachableSourceAccountIsUnverifiableNotApproved()
+    {
+        var topology = new Topology();
+        topology.Source.FailOperation = "container";
+
+        var result = await topology.ProbeAsync();
+
+        Assert.Equal(new[] { ApprovedResourceFinding.SourceStorageUnavailable }, result.Findings);
+        Assert.Equal(new[] { ProductionAdmissionRefusal.StorageBindingInvalid }, result.Refusals);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://sttaxaisrccc.blob.core.windows.net/")]
+    [InlineData("https://sttaxaisrccc.blob.core.windows.net/taxai-source")]
+    [InlineData("https://sttaxaisrccc.blob.core.windows.net/?sv=2025-01-05&sig=synthetic")]
+    [InlineData("https://sttaxaisrccc.file.core.windows.net/")]
+    public async Task AnUnusableSourceEndpointIsRefusedWithoutAnyStorageCall(string? endpoint)
+    {
+        var topology = new Topology();
+        topology.Options = new AzureInfrastructureOptions
+        {
+            KeyVault = topology.Options.KeyVault,
+            SourceEnvelope = topology.Options.SourceEnvelope,
+            DataProtection = topology.Options.DataProtection,
+            SourceStorage = new PrivateDependencySettings { Endpoint = endpoint },
+        };
+
+        var result = await topology.ProbeAsync();
+
+        Assert.Equal(new[] { ApprovedResourceFinding.ConfigurationUnusable }, result.Findings);
+        Assert.Empty(topology.Source.Log);
+    }
+
+    [Fact]
+    public void TheSourcePostureRuleAcceptsOnlyTheApprovedAccount()
+    {
+        var container = Azure.Storage.Blobs.Models.BlobsModelFactory.BlobContainerProperties(
+            DateTimeOffset.UnixEpoch,
+            new Azure.ETag("\"0x1\""));
+
+        Assert.True(ApprovedResourceProbe.IsApprovedSourceStorage("Standard_GZRS", "StorageV2", "false", container));
+        Assert.True(ApprovedResourceProbe.IsApprovedSourceStorage("Standard_GZRS", "StorageV2", null, container));
+        Assert.False(ApprovedResourceProbe.IsApprovedSourceStorage("Standard_RAGZRS", "StorageV2", "false", container));
+        Assert.False(ApprovedResourceProbe.IsApprovedSourceStorage("standard_gzrs", "StorageV2", "false", container));
+        Assert.False(ApprovedResourceProbe.IsApprovedSourceStorage(null, "StorageV2", "false", container));
+        Assert.False(ApprovedResourceProbe.IsApprovedSourceStorage("Standard_GZRS", null, "false", container));
+    }
+
+    /// <summary>Issues the storage token for storage scopes and the vault token otherwise.</summary>
+    private sealed class ScopedCredential(string storageToken, string vaultToken) : TokenCredential
+    {
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            new(
+                requestContext.Scopes.Any(scope => scope.Contains("storage.azure.com", StringComparison.OrdinalIgnoreCase))
+                    ? storageToken
+                    : vaultToken,
+                DateTimeOffset.UtcNow.AddHours(1));
+
+        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            new(GetToken(requestContext, cancellationToken));
     }
 
     private sealed class FailingKeyRing : IDataProtectionProvider, IDataProtector

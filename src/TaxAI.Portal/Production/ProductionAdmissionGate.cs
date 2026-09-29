@@ -3,6 +3,7 @@ using ClientIntake.Contracts;
 using DocumentIntelligence;
 using ExtractionWorkflow.Contracts;
 using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Content;
 using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.AzureInfrastructure.Protection;
 using Tenancy.Contracts;
@@ -46,6 +47,14 @@ namespace TaxAI.Portal.Production;
 /// approved-resource probe must find both Key Vault keys enabled,
 /// non-exportable, purge-protected and actually wrapping, and the shared key
 /// ring round-tripping.
+/// </para>
+/// <para>
+/// Spec 016 T04 replaces two absences with real adapters: the intake port must
+/// resolve to exactly the Azure Blob source store, and exactly the Azure Blob
+/// extraction reader must be registered as its concrete type (never as a
+/// general reader service). The approved-resource probe additionally requires
+/// the source account and container posture. The production Document
+/// Intelligence adapter is still absent, so no deployable host is admitted.
 /// </para>
 /// </summary>
 internal static class ProductionAdmissionGate
@@ -181,35 +190,41 @@ internal static class ProductionAdmissionGate
             yield return ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing;
         }
 
-        // The Development encrypted filesystem store is the only source store
-        // this build contains. Its registration, or its use behind the intake
-        // port, is a local-store refusal; no approved production store exists.
+        // The Development encrypted filesystem store in a production container,
+        // or behind the intake port, is a local-store refusal. Spec 016 T04: the
+        // intake port must resolve to exactly the Azure Blob source store; any
+        // other store is not the approved one.
         if (registered?.IsService(typeof(DevelopmentEncryptedIntakeContentStore)) == true)
         {
             yield return ProductionAdmissionRefusal.LocalSourceStoreConfigured;
         }
 
-        if (registered?.IsService(typeof(IIntakeContentStore)) != true)
-        {
-            yield return ProductionAdmissionRefusal.ProductionSourceStoreMissing;
-        }
-        else if (provider.GetService<IIntakeContentStore>() is DevelopmentEncryptedIntakeContentStore)
+        var store = registered?.IsService(typeof(IIntakeContentStore)) == true
+            ? TryResolve<IIntakeContentStore>(provider)
+            : null;
+        if (store is DevelopmentEncryptedIntakeContentStore)
         {
             yield return ProductionAdmissionRefusal.LocalSourceStoreConfigured;
         }
-        else
+        else if (store is not AzureIntakeContentStore)
         {
             yield return ProductionAdmissionRefusal.ProductionSourceStoreMissing;
         }
 
-        // The reader is deliberately never a general service; no approved
-        // production reader is integrated in T01.
+        // The reader is deliberately never a general service: its only consumer
+        // is the extraction workflow, which the composition root hands the
+        // concrete reader. Spec 016 T04: exactly the Azure Blob reader, as its
+        // concrete type, is the approved production reader.
         if (registered?.IsService(typeof(IExtractionContentReader)) == true)
         {
             yield return ProductionAdmissionRefusal.LocalSourceStoreConfigured;
         }
 
-        yield return ProductionAdmissionRefusal.ProductionSourceReaderMissing;
+        if (registered?.IsService(typeof(AzureExtractionContentReader)) != true ||
+            TryResolve<AzureExtractionContentReader>(provider) is null)
+        {
+            yield return ProductionAdmissionRefusal.ProductionSourceReaderMissing;
+        }
 
         // Durable is necessary; the exact protected Azure key ring with the
         // approved discriminator is required (T03). A durable ring from anywhere
@@ -225,6 +240,26 @@ internal static class ProductionAdmissionGate
         if (!PortalStartupGuards.HasDurableSessionStore(services))
         {
             yield return ProductionAdmissionRefusal.DurableSessionStoreMissing;
+        }
+    }
+
+    /// <summary>
+    /// Resolves a registration for inspection. A factory that cannot construct
+    /// its adapter is an absent adapter, never a crash of the gate.
+    /// </summary>
+    private static T? TryResolve<T>(IServiceProvider provider)
+        where T : class
+    {
+        try
+        {
+            return provider.GetService<T>();
+        }
+        catch (Exception failure) when (failure is
+            InvalidOperationException or
+            ArgumentException or
+            UriFormatException)
+        {
+            return null;
         }
     }
 

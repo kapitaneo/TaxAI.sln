@@ -3,7 +3,7 @@
 Read the root [CLAUDE.md](../../CLAUDE.md) first. It owns repository policy,
 the modular-monolith dependency rules, global PII policy, and the
 spec→plan→implement workflow. This file defines the boundary of the spec 016
-Azure infrastructure library as delivered by T01 and extended by T03.
+Azure infrastructure library as delivered by T01 and extended by T03 and T04.
 
 ## What this project is
 
@@ -70,10 +70,53 @@ Spec 016 T03 adds the working key-protection boundary:
   vault property or secret and calls no Azure Resource Manager endpoint; those
   are verified by the templates and the operator drill.
 
-## Dependencies are exactly one project and nine packages
+Spec 016 T04 adds the working source-storage boundary (`Content/`):
 
-- Project reference: `Tenancy` (production-control vocabulary, evidence shapes
-  and the identity-probe port).
+- `Content/SourceEnvelopeCodec.cs` — the authenticated source envelope: a
+  fresh 256-bit data key per content, 64 KiB chunks sealed with platform
+  AES-256-GCM, a random 8-byte nonce prefix plus the chunk index, and
+  associated data binding the format, firm, case, resource, chunk index,
+  length and final flag. Decryption verifies the complete bounded ciphertext
+  before releasing any plaintext; every failure is one fixed
+  `CryptographicException`. The data key is wrapped by the T03
+  `KeyVaultContentKeyWrapper` and kept in a separate key envelope, so a
+  rotation rewraps it without rewriting the upload-once source object. No
+  novel primitive.
+- `Content/AzureIntakeContentStore.cs` — the production write-only
+  `IIntakeContentStore`. It registers the object in the source registry
+  **before** allocating storage, streams one chunk at a time into bounded
+  staged blocks (never a file), writes both objects upload-once
+  (`If-None-Match: *`), fingerprints with the scoped keyed HMAC, and
+  compensates any failure or cancellation. Compensating cleanup never deletes
+  a bound object, and `CleanUpUncommittedAsync` replays pending and stale
+  staged cleanup for one trusted firm.
+- `Content/AzureExtractionContentReader.cs` — the extraction-only reader. A
+  read needs a registry row **bound** to exactly the trusted firm, case,
+  committed document and content key; only then is the key envelope checked
+  against that scope, unwrapped by its recorded key version, and the complete
+  ciphertext authenticated. Every mismatch, purge, tamper, oversize, key or
+  storage failure returns null. The plaintext lives in one in-memory buffer
+  cleared on lease disposal. It is registered as its concrete type only.
+- `Content/AzureSourceObjectPurger.cs` — scoped physical deletion of one
+  resource's two objects, refused when the stored envelope names another
+  scope. It reports only what it observed: primary absence is `Pending`
+  because the GZRS secondary cannot be observed, never `Complete`.
+- `AzureInfrastructureRegistration` registers these (with
+  `SourceContentSettings`: the vault-loaded fingerprint key and the source
+  bound) only when the profile yields a usable identity, Blob endpoint and
+  wrapping key; `ApprovedResourceProbe` additionally requires a GPv2
+  `Standard_GZRS` account and a non-public, non-immutable source container.
+
+## Dependencies
+
+Through T03 the library had exactly one project and nine packages. Spec 016 T04
+adds two project references and no package, so it now has exactly three
+projects and nine packages:
+
+- Project references: `Tenancy` (production-control vocabulary, evidence
+  shapes and the identity-probe port), and (T04) `ClientIntake` (the
+  write-only content port, the source registry and the purger) and
+  `ExtractionWorkflow` (the extraction-only reader), each implemented here.
 - Packages, each pinned exactly: `Azure.Core` 1.54.0, `Azure.Identity` 1.21.0,
   `Azure.Security.KeyVault.Keys` 4.10.1, `Azure.Security.KeyVault.Secrets`
   4.11.1, `Azure.Storage.Blobs` 12.26.0,
@@ -88,22 +131,24 @@ Spec 016 T03 adds the working key-protection boundary:
 
 The only ASP.NET Core assemblies it may name are the two Data Protection ones;
 hosting, HTTP and routing stay in the portal. It references no EF Core,
-Document Intelligence SDK, tax module, `ClientIntake` or `ExtractionWorkflow`.
-[ASSUMED] T03 adds no `ClientIntake` reference after all: the credential-port
-implementation stays in the portal and consumes the loaded material unchanged,
-so the reference would have no consumer. `ExtractionWorkflow` (T04) and later
-packages arrive only with their first working consumer. Only the Portal may
-reference this library.
+Document Intelligence SDK or tax module. [ASSUMED] T03 added no `ClientIntake`
+reference (the credential port stays in the portal); T04 adds `ClientIntake`
+and `ExtractionWorkflow` with the source adapters that implement their ports.
+No package changes in T04: the Blob client was already pinned. Later packages
+arrive only with their first working consumer. Only the Portal may reference
+this library.
 
 ## Invariants
 
 - **No tax authority.** No CRA line, box mapping, amount, rounding or tax-year
   policy. Configuration metadata never becomes tax truth.
 - **No SIN or taxpayer content** in any option, refusal, log or exception. The
-  library writes no log and reads no file. Its only calls are the managed-
-  identity token request, the Key Vault key, crypto and secret data-plane
-  operations, and the key-ring Blob reads and writes, each by the configured
-  managed identity.
+  library writes no log and reads or writes no file. Its only calls are the
+  managed-identity token request, the Key Vault key, crypto and secret
+  data-plane operations, the key-ring Blob reads and writes, and (T04) the
+  source container's upload-once writes, bounded reads, deletes and account /
+  container property reads, each by the configured managed identity. It
+  creates no SAS, uses no shared key, and returns no blob address.
 - **No key leaves Key Vault.** Private-key operations run in Key Vault; no key is
   exported, and no key-ring key is written unwrapped.
 - **Fail closed, never fall back.** A missing, malformed or unverifiable value
@@ -112,6 +157,6 @@ reference this library.
 - **Passing validation is not authorization.** The Portal's
   `ProductionAdmissionGate` also requires the real production registrations,
   the verified identity, the exact artifact version and approved release
-  evidence, including both provider assurances. As of T01 no deployable host
-  can be admitted, because no production Document Intelligence adapter, source
-  store or source reader exists yet.
+  evidence, including both provider assurances. As of T04 no deployable host
+  can be admitted, because no production Document Intelligence adapter exists
+  yet (T05) and both provider assurance gaps remain unresolved.

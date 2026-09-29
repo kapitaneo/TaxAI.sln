@@ -19,6 +19,8 @@ public sealed class ExtractionMigrationTests
 
     private const string IntakeMigrationId = "20260730000000_AddClientIntake";
 
+    private const string SourceRegistryMigrationId = "20260927000000_AddSourceRegistry";
+
     private static readonly string[] ExtractionTables =
     [
         "ExtractionAcceptances",
@@ -105,14 +107,14 @@ public sealed class ExtractionMigrationTests
             migration.DownOperations.OfType<DropTableOperation>().Count());
     }
 
-    [Fact]
-    public void TheMigrationIsLastInAUniqueOrderedInventory()
+    [Fact] // spec 016 T04: exactly one additive migration may follow, the source registry.
+    public void TheMigrationIsFollowedOnlyByTheApprovedAdditiveMigrationInAUniqueOrderedInventory()
     {
         using var context = RelationalTestContext.CreateSqlServerContext();
         var migrations = context.GetService<IMigrationsAssembly>().Migrations.Keys.ToArray();
 
         Assert.Equal(
-            new[] { InitialMigrationId, IntakeMigrationId, MigrationId },
+            new[] { InitialMigrationId, IntakeMigrationId, MigrationId, SourceRegistryMigrationId },
             migrations);
 
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());

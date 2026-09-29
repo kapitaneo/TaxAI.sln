@@ -40,6 +40,11 @@ public sealed class AzureInfrastructureOptions
 
     public DocumentIntelligenceSettings DocumentIntelligence { get; init; } = new();
 
+    /// <summary>
+    /// The private Canadian source account. Spec 016 T04 builds the source store,
+    /// reader and purger from its endpoint (the HTTPS Blob service root) and the
+    /// fixed <c>taxai-source</c> container; the container name is not configurable.
+    /// </summary>
     public PrivateDependencySettings SourceStorage { get; init; } = new();
 
     public PrivateDependencySettings KeyVault { get; init; } = new();
@@ -128,7 +133,9 @@ public sealed class MonitoringSettings
 /// <summary>
 /// The Key Vault key that wraps per-content source encryption keys. It must be a
 /// versionless key identifier in the configured vault. Spec 016 T03 probes its
-/// posture and wrap capability at admission; T04 wraps source envelopes with it.
+/// posture and wrap capability at admission; T04 wraps every source envelope's
+/// fresh data key with it and records the exact version that wrapped it. The
+/// envelope format itself is fixed in code, not configured.
 /// </summary>
 public sealed class SourceEnvelopeSettings
 {

@@ -43,6 +43,22 @@ public sealed class AmendmentAuditTests
         "tests/DocumentIntelligence.Tests/NoEgressTests.cs";
     private const string DataTemplate =
         "tests/TaxAI.Portal.Tests/Production/DataTemplateTests.cs";
+    private const string ClientIntakeSecurity =
+        "tests/TaxAI.Portal.Tests/EndToEnd/ClientIntakeSecurityAcceptanceTests.cs";
+    private const string PersistenceMigration =
+        "tests/Persistence.Tests/Schema/MigrationTests.cs";
+    private const string ExtractionMigration =
+        "tests/Persistence.Tests/Schema/ExtractionMigrationTests.cs";
+    private const string ModelShape =
+        "tests/Persistence.Tests/Schema/ModelShapeTests.cs";
+    private const string SourceRegistryMigration =
+        "tests/Persistence.Tests/Lifecycle/SourceRegistryMigrationTests.cs";
+    private const string ClientIntakeContract =
+        "tests/ClientIntake.Tests/ContractTests.cs";
+    private const string ClientIntakeBoundary =
+        "tests/ClientIntake.Tests/Boundaries/ClientIntakeBoundaryTests.cs";
+    private const string SourceRegistryContract =
+        "tests/ClientIntake.Tests/Lifecycle/SourceRegistryContractTests.cs";
 
     private static readonly string RepositoryRoot = FindRepositoryRoot();
     private static readonly string PrdPath = Path.Combine(
@@ -298,6 +314,89 @@ public sealed class AmendmentAuditTests
             P(ProductionStartup, "OnlyTheLaterSliceProductionAdaptersRemainWhenEveryT01RuleIsSatisfied"),
             P(DataTemplate, "EachUnsafeTemplateChangeIsRefusedByItsOwnRule")),
     ];
+
+    /// <summary>
+    /// Spec 016 T04 — every historical assertion the source-storage slice
+    /// narrowed, each with the live test that still proves the narrower rule.
+    /// </summary>
+    private static readonly Amendment[] Spec016T04Amendments =
+    [
+        A("SolutionAndRegressionTests.TheOnlyContentStoreImplementationIsTheDevelopmentOnlyAdapter", "exact two-adapter set",
+            "The set is still exact: it gains only the Azure Blob source store in the infrastructure library, and the Development adapter remains only in the host.",
+            P(SolutionRegression, "TheContentStoreImplementationsAreExactlyTheDevelopmentAndApprovedProductionAdapters"),
+            P(ProductionStartup, "TheCompleteProfileRegistersTheRealAzureSourceAdaptersOnly")),
+        A("SolutionAndRegressionTests.NoIntakeRetentionOrPurgeRuleWasIntroduced", "two exact cleanup declarations in one file",
+            "Only the source registry's compensating-cleanup record and scoped purger declarations are removed, each exactly once in one file; every retention, deadline and other purge token remains forbidden.",
+            P(SolutionRegression, "NoIntakeRetentionOrPurgeRuleWasIntroduced")),
+        A("ClientIntakeSecurityAcceptanceTests.NoRetentionOrPurgeRuleWasIntroducedForIntakeOrSourceContent", "two exact cleanup declarations in one file",
+            "The independent second prohibition is narrowed by the same two exact declarations, and a planted due-purge or retention member in the same file is still caught.",
+            P(ClientIntakeSecurity, "NoRetentionOrPurgeRuleWasIntroducedForIntakeOrSourceContent"),
+            P(ClientIntakeSecurity, "TheNarrowedIntakePurgeScanStillCatchesAnyOtherPurgeMember"),
+            P(SourceRegistryContract, "NoMemberReadsContentOrDecidesADeadline")),
+        A("ProductionStartupTests.OnlyTheLaterSliceProductionAdaptersRemainWhenEveryT01RuleIsSatisfied", "only the Document Intelligence adapter remains",
+            "The real Azure store and concrete-only reader replace two absences; a substituted, removed, general or unbounded source adapter is still refused on its own.",
+            P(ProductionStartup, "OnlyTheLaterSliceProductionAdaptersRemainWhenEveryT01RuleIsSatisfied"),
+            P(ProductionStartup, "EachIndividualAdmissionRuleRefusesIndependently"),
+            P(ProductionStartup, "AnUnusableSourceSettingRegistersNoSourceAdapter")),
+        A("AzureInfrastructureBoundaryTests.TheLibraryReferencesExactlyTenancyThroughT03", "exact three inward references",
+            "The reference set stays exact and gains only the two ports the working source adapters implement; every other module and assembly remains forbidden.",
+            P(InfrastructureBoundary, "TheLibraryReferencesExactlyTheConsumedInwardProjects"),
+            P(InfrastructureBoundary, "TheCompiledLibraryNamesTheConsumedPortAssemblies"),
+            P(InfrastructureBoundary, "TheCompiledLibraryNamesNoForbiddenAssembly"),
+            P(InfrastructureBoundary, "TheSourceAdaptersContainNoForbiddenToken")),
+        A("ExtractionMigrationTests.TheMigrationIsLastInAUniqueOrderedInventory", "exactly one following additive migration",
+            "The inventory stays exact, unique and ordered; only the source registry may follow, and it alters no existing table.",
+            P(ExtractionMigration, "TheMigrationIsFollowedOnlyByTheApprovedAdditiveMigrationInAUniqueOrderedInventory"),
+            P(SourceRegistryMigration, "TheMigrationAltersNoExistingTableAndCarriesNoDataOrRawSql")),
+        A("MigrationTests.ExactlyOneInitialAndOneAdditiveMigrationAndOneSnapshotExist", "exact four-migration inventory",
+            "The inventory stays exact and gains only the one-table source registry migration.",
+            P(PersistenceMigration, "ExactlyOneInitialAndOneAdditiveMigrationAndOneSnapshotExist"),
+            P(PersistenceMigration, "TheSourceRegistryMigrationCreatesAndDropsOnlyItsOneTable")),
+        A("ModelShapeTests.TheModelMapsExactlyTheExplicitPersistenceEntities", "exact entity set plus the source registry",
+            "The entity and configuration sets stay exact and gain only the registry entity and its one configuration.",
+            P(ModelShape, "TheModelMapsExactlyTheExplicitPersistenceEntities"),
+            P(ModelShape, "EveryEntityHasExactlyOneDedicatedConfiguration")),
+        A("UpgradeBaselineContractTests.UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline(Persistence)", "four named registry types",
+            "Every baseline signature is still compared; the only new Persistence approvals are the four named source registry types.",
+            P(UpgradeBaseline, "UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline")),
+        A("ClientIntake ContractTests.TheModuleExportsExactlyTheApprovedTypes", "exact export set plus the consumed registry ports",
+            "The export set stays exact; it gains only the two consumed ports and their closed models, and the module still implements none of its ports.",
+            P(ClientIntakeContract, "TheModuleExportsExactlyTheApprovedTypes"),
+            P(ClientIntakeBoundary, "TheModuleImplementsNoneOfItsOwnPorts"),
+            P(SourceRegistryContract, "EveryMemberTakesTheTrustedFirmFirstAndHasNoOptionalParameter")),
+        A("DataTemplateTests.TheDependencyPrivateEndpointsDependOnTheKeyVaultAndSqlResources", "Key Vault, SQL and the source account",
+            "The private endpoints still wait for every resource they bind, now including the source account the storage module creates; the binding set is unchanged.",
+            P(DataTemplate, "TheDependencyPrivateEndpointsDependOnTheKeyVaultAndSqlResources"),
+            P(DataTemplate, "TheSourcePrivateEndpointBindsTheDeployedSourceAccount")),
+        A("PersistenceBoundaryTests.TheSupportedIntakeYearAppearsOnlyInItsSchemaConstraint", "one generated target-model restatement",
+            "Only the new migration's generated target model is added, and every occurrence must still be exactly the existing constraint.",
+            P(PersistenceBoundary, "TheSupportedIntakeYearAppearsOnlyInItsSchemaConstraint")),
+    ];
+
+    [Fact] // spec 016 T04
+    public void EverySpec016T04AmendmentNamesALiveNarrowerProof()
+    {
+        Assert.Equal(12, Spec016T04Amendments.Length);
+        Assert.Equal(
+            Spec016T04Amendments.Length,
+            Spec016T04Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var amendment in Spec016T04Amendments)
+        {
+            Assert.Matches(
+                new Regex(
+                    @"\b(exact|only|every|no|unchanged|preserv|forbid|narrow|fixed|allow|constrain|reduce|remain)\w*\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)),
+                amendment.WhyNarrower);
+            Assert.NotEmpty(amendment.Proofs);
+
+            foreach (var proof in amendment.Proofs)
+            {
+                AssertLiveTestProof(proof);
+            }
+        }
+    }
 
     [Fact] // spec 016 T03
     public void EverySpec016T03AmendmentNamesALiveNarrowerProof()
