@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization.Policy;
 using Persistence;
 using TaxAI.AzureInfrastructure;
 using TaxAI.AzureInfrastructure.Configuration;
+using TaxAI.AzureInfrastructure.Content;
 using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.Portal.Production;
 using TaxLogicEngine.Services;
@@ -137,6 +138,10 @@ internal static class ModuleRegistration
             Environments.Development,
             StringComparison.Ordinal);
 
+        services.AddSingleton<IExtractionAvailabilityGate>(provider =>
+            new ExtractionAvailabilityGate(provider, configuration, environment,
+                provider.GetRequiredService<TimeProvider>()));
+
         if (runsInDevelopment)
         {
             var extraction = ExtractionConfiguration.Require(
@@ -144,7 +149,7 @@ internal static class ModuleRegistration
                 environment);
             services.AddSingleton(extraction);
             services.AddSingleton(extraction.Workflow);
-            services.AddDeterministicDocumentIntelligence(
+            services.AddDocumentIntelligence(
                 extraction.Intelligence,
                 isDevelopmentOrTestHost: true);
 
@@ -183,6 +188,15 @@ internal static class ModuleRegistration
                 new SourceContentSettings(
                     intake.FingerprintKey,
                     ExtractionConfiguration.ProductionMaximumSourceBytes(configuration)));
+            var intelligence = ExtractionConfiguration.ProductionOptions(configuration);
+            if (intelligence is not null)
+            {
+                services.AddDocumentIntelligence(intelligence);
+                services.AddSingleton(new ExtractionWorkflow.Models.ExtractionWorkflowOptions
+                {
+                    ProviderCallLimit = intelligence.OperationDeadline,
+                });
+            }
         }
         services.AddScoped<IAccountantIntakeWorkflow, AccountantIntakeWorkflow>();
         services.AddScoped<IClientIntakeWorkflow>(provider =>
@@ -206,6 +220,15 @@ internal static class ModuleRegistration
                     provider.GetRequiredService<
                         DevelopmentEncryptedIntakeContentStore>(),
                     CreateDocumentExtractionIngress()));
+        }
+        else if (runsInProduction && ExtractionConfiguration.ProductionOptions(configuration) is not null)
+        {
+            services.AddScoped<IExtractionIngestWorkflow>(provider =>
+                ActivatorUtilities.CreateInstance<ExtractionIngestWorkflow>(provider,
+                    provider.GetRequiredService<AzureExtractionContentReader>(), CreateDocumentExtractionIngress()));
+            services.AddScoped<IExtractionReviewWorkflow>(provider =>
+                ActivatorUtilities.CreateInstance<ExtractionReviewWorkflow>(provider,
+                    provider.GetRequiredService<AzureExtractionContentReader>(), CreateDocumentExtractionIngress()));
         }
         else
         {

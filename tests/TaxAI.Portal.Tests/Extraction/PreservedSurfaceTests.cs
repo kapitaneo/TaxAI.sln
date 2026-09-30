@@ -181,7 +181,7 @@ public sealed class PreservedSurfaceTests
         var constants = typeof(Program).Assembly
             .GetType("TaxAI.Portal.ExtractionEndpoints", throwOnError: true)!
             .GetFields(BindingFlags.Static | BindingFlags.NonPublic)
-            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("Path", StringComparison.Ordinal))
             .Select(field => Assert.IsType<string>(field.GetRawConstantValue()))
             .ToArray();
 

@@ -262,7 +262,6 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
         Assert.Contains("ExtractionConfiguration.ProductionMaximumSourceBytes(configuration)", infrastructure, StringComparison.Ordinal);
         Assert.DoesNotContain(registration, line =>
             line.Contains("AzureIntakeContentStore", StringComparison.Ordinal) ||
-            line.Contains("AzureExtractionContentReader", StringComparison.Ordinal) ||
             line.Contains("AzureSourceObjectPurger", StringComparison.Ordinal));
     }
 

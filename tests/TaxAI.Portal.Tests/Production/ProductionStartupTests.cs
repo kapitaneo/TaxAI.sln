@@ -84,7 +84,6 @@ public sealed class ProductionStartupTests
     /// </summary>
     private static readonly ProductionAdmissionRefusal[] LaterSliceAdapters =
     {
-        ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing,
     };
 
     // ------------------------------------------------------------ settings
@@ -267,7 +266,7 @@ public sealed class ProductionStartupTests
         Assert.NotNull(provider.GetService<ProductionConfigurationValidator>());
         Assert.NotNull(provider.GetService<IManagedIdentityBindingProbe>());
         Assert.NotNull(provider.GetService<IApprovedResourceProbe>());
-        Assert.Null(provider.GetService<IDocumentIntelligenceProvider>());
+        Assert.IsType<DocumentIntelligence.Production.AzureDocumentIntelligenceProvider>(provider.GetService<IDocumentIntelligenceProvider>());
         Assert.Null(provider.GetService<IExtractionContentReader>());
 
         // T03: the real protected Azure key ring and the vault-loaded material.
@@ -658,19 +657,15 @@ public sealed class ProductionStartupTests
     }
 
     [Fact]
-    public void RequireAdmissionRefusesTheCompleteT01ProfileBecauseNoProductionAdapterExists()
+    public void CompleteControlledProfileHasNoMissingAdapterRefusalAfterT05()
     {
         var (provider, configuration) = Scenario.Complete().BuildHost();
-        using var _ = provider;
-
-        var failure = Assert.Throws<TargetInvocationException>(() => RequireAdmission(
-            provider,
-            configuration,
-            "Production"));
-
-        Assert.Equal(RefusalMessage, failure.InnerException?.Message);
+        using var owner = provider;
+        Assert.Null(Record.Exception(() => RequireAdmission(provider, configuration, "Production")));
+        // Synthetic approvals and controlled probes are a test, never deployed evidence.
+        Assert.IsType<DocumentIntelligence.Production.AzureDocumentIntelligenceProvider>(
+            provider.GetRequiredService<IDocumentIntelligenceProvider>());
     }
-
     [Fact]
     public void DevelopmentHostsAreNeverEvaluatedAndNeverAdmitted()
     {

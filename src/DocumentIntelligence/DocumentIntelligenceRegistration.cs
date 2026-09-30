@@ -22,6 +22,22 @@ namespace DocumentIntelligence;
 /// </summary>
 public static class DocumentIntelligenceRegistration
 {
+    /// <summary>Registers only the approved managed-identity REST adapter; the host supplies live admission.</summary>
+    public static IServiceCollection AddDocumentIntelligence(
+        this IServiceCollection services, Production.AzureDocumentIntelligenceOptions options)
+    {
+        Production.AzureDocumentIntelligenceOptions.RequireValid(options);
+        services.AddSingleton<IDocumentIntelligenceProvider>(provider =>
+            new Production.AzureDocumentIntelligenceProvider(options,
+                provider.GetRequiredService<IExtractionAvailabilityGate>()));
+        return services;
+    }
+
+    /// <summary>The same composition entry point for the preserved Development adapter.</summary>
+    public static IServiceCollection AddDocumentIntelligence(this IServiceCollection services,
+        DocumentIntelligenceOptions options, bool isDevelopmentOrTestHost) =>
+        AddDeterministicDocumentIntelligence(services, options, isDevelopmentOrTestHost);
+
     /// <summary>
     /// Registers the deterministic in-process adapter as the single
     /// <see cref="IDocumentIntelligenceProvider"/>. The adapter holds no

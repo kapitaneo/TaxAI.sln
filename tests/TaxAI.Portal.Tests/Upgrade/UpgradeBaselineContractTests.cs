@@ -450,6 +450,7 @@ public sealed class UpgradeBaselineContractTests
                 "TaxAI.Portal.IntakeRuntimeConfiguration",
 
                 // Spec 016 T01 — the production profile reader and admission gate.
+                "TaxAI.Portal.Production.ExtractionAvailabilityGate",
                 "TaxAI.Portal.Production.ProductionAdmissionGate",
                 "TaxAI.Portal.Production.ProductionConfiguration",
 

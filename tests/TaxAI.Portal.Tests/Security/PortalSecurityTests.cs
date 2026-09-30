@@ -44,6 +44,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
+        "ExtractionAvailabilityGate.cs",
         "ExtractionConfiguration.cs",
         "ExtractionEndpoints.cs",
         "ExtractionReviewPageModel.cs",
@@ -748,6 +749,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "ExtractionAvailabilityGate.cs",
                 "ExtractionEndpoints.cs",
                 "IntakeEndpoints.cs",
                 "ModuleRegistration.cs",

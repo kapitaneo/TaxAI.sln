@@ -15,6 +15,34 @@ internal sealed record ExtractionRuntimeConfiguration(
 
 internal static class ExtractionConfiguration
 {
+    internal static DocumentIntelligence.Production.AzureDocumentIntelligenceOptions? ProductionOptions(
+        IConfiguration configuration)
+    {
+        var profile = Production.ProductionConfiguration.Read(configuration).Options;
+        if (!TryPositiveDuration(configuration[ProviderCallLimitSetting], out var callLimit) ||
+            !TimeSpan.TryParse(profile.Resilience.OperationDeadline, CultureInfo.InvariantCulture, out var deadline) ||
+            !TimeSpan.TryParse(profile.Resilience.ProbeDeadline, CultureInfo.InvariantCulture, out var cleanup) ||
+            !int.TryParse(profile.Resilience.MaximumAttempts, NumberStyles.None, CultureInfo.InvariantCulture, out var attempts)) return null;
+        try
+        {
+            return DocumentIntelligence.Production.AzureDocumentIntelligenceOptions.RequireValid(new()
+            {
+                Endpoint = profile.DocumentIntelligence.Resource.Endpoint,
+                ResourceId = profile.DocumentIntelligence.Resource.ResourceId,
+                Region = profile.DocumentIntelligence.Resource.Region,
+                ManagedIdentityClientId = profile.ManagedIdentity.ClientId,
+                ApiVersion = profile.DocumentIntelligence.ApiVersion,
+                Model = profile.DocumentIntelligence.Model,
+                Features = profile.DocumentIntelligence.Features,
+                MaximumSourceBytes = ProductionMaximumSourceBytes(configuration),
+                MaximumAttempts = attempts,
+                OperationDeadline = deadline < callLimit ? deadline : callLimit,
+                CleanupDeadline = cleanup,
+            });
+        }
+        catch (ArgumentException) { return null; }
+    }
+
     internal const string Prefix = "TaxAi:Extraction:";
     internal const string ProviderSetting = Prefix + "Provider";
     internal const string ContentReaderSetting = Prefix + "ContentReader";
