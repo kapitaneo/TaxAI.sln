@@ -146,7 +146,7 @@ internal static class ProductionAdmissionGate
             .Concat(structural?.Refusals ?? Array.Empty<ProductionAdmissionRefusal>())
             .Concat(IntakeConfiguration.ProductionShapeRefusals(configuration))
             .Concat(ExtractionConfiguration.ProductionShapeRefusals(configuration))
-            .Concat(RegistrationRefusals(services, snapshot.Options))
+            .Concat(RegistrationRefusals(services, snapshot.Options, configuration))
             .Concat(RuntimeMaterialRefusals(services, configuration))
             .Concat(EvidenceRefusals(snapshot, evaluatedAtUtc))
             .Concat(IdentityRefusals(services, snapshot.Options, structural)));
@@ -166,7 +166,8 @@ internal static class ProductionAdmissionGate
     /// </summary>
     private static IEnumerable<ProductionAdmissionRefusal> RegistrationRefusals(
         IServiceProvider services,
-        AzureInfrastructureOptions options)
+        AzureInfrastructureOptions options,
+        IConfiguration configuration)
     {
         var registered = services.GetService<IServiceProviderIsService>();
 
@@ -176,7 +177,7 @@ internal static class ProductionAdmissionGate
         // No production Document Intelligence adapter is approved in T01. The
         // deterministic provider is a Development substitute; any other
         // registration is not an approved adapter yet. Both refuse.
-        var intelligence = provider.GetService<IDocumentIntelligenceProvider>();
+        var intelligence = TryResolve<IDocumentIntelligenceProvider>(provider);
         if (intelligence is null)
         {
             yield return ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing;
@@ -185,7 +186,10 @@ internal static class ProductionAdmissionGate
         {
             yield return ProductionAdmissionRefusal.DevelopmentProviderConfigured;
         }
-        else
+        else if (intelligence is not DocumentIntelligence.Production.AzureDocumentIntelligenceProvider production ||
+            ExtractionConfiguration.ProductionOptions(configuration) is not { } expected ||
+            !ExtractionAvailabilityGate.Matches(production.Options, expected) ||
+            TryResolve<IExtractionAvailabilityGate>(provider) is not ExtractionAvailabilityGate)
         {
             yield return ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing;
         }

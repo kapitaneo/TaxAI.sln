@@ -265,6 +265,49 @@ public sealed class RepositoryContractTests
         }
     }
 
+    // ------------------------------- spec 016 T05 production Document Intelligence
+
+    [Fact] // T05 adds its IaC and probe without a secret, key listing or API key.
+    public void EveryT05TemplateAndProbeIsSecretFree()
+    {
+        var files = new[]
+        {
+            Path.Combine(RepositoryRoot, "infra", "azure", "main.bicep"),
+            Path.Combine(RepositoryRoot, "infra", "azure", "modules", "document-intelligence.bicep"),
+            Path.Combine(RepositoryRoot, "scripts", "azure", "Test-DocumentIntelligence.ps1"),
+        };
+        var secret = new Regex(
+            @"Ocp-Apim-Subscription-Key|\bapi-key\b|listKeys\(|Password\s*=|BEGIN (RSA |EC )?PRIVATE KEY|client_secret|AccountKey=",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(1));
+
+        Assert.All(files, file => Assert.True(File.Exists(file), file));
+        Assert.All(files, file => Assert.DoesNotMatch(secret, File.ReadAllText(file)));
+
+        // Positive controls: a key header and a listed account key are caught.
+        Assert.Matches(secret, "request.Headers.Add('Ocp-Apim-Subscription-Key', $key)");
+        Assert.Matches(secret, "var key = listKeys(account.id, '2024-10-01').key1");
+    }
+
+    [Fact] // T05 consumes the existing closed profile and adds no production setting.
+    public void DocumentIntelligenceAddsNoProductionRuntimeSetting()
+    {
+        var names = PortalSettingNames();
+        var intelligence = names
+            .Where(name => name.StartsWith("TaxAi:Production:DocumentIntelligence:", StringComparison.Ordinal))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        // Exactly the T01 resource binding and GA API/model/feature triple: no
+        // key, secondary, fallback, failover or alternate-processor setting.
+        Assert.Equal(
+            new[] { "ApiVersion", "Endpoint", "Features", "Model", "PrivateEndpoint", "PublicNetworkAccess", "Region", "ResourceId" }
+                .Select(suffix => "TaxAi:Production:DocumentIntelligence:" + suffix),
+            intelligence);
+        Assert.DoesNotContain(names, name =>
+            Regex.IsMatch(name, "ApiKey|SubscriptionKey|Fallback|Failover|Secondary|Alternate", RegexOptions.IgnoreCase));
+    }
+
     // ------------------------------------------- the executable offline check
 
     [Fact]

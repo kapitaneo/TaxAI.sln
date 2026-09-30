@@ -84,7 +84,6 @@ public sealed class ProductionStartupTests
     /// </summary>
     private static readonly ProductionAdmissionRefusal[] LaterSliceAdapters =
     {
-        ProductionAdmissionRefusal.ProductionDocumentIntelligenceAdapterMissing,
     };
 
     // ------------------------------------------------------------ settings
@@ -267,7 +266,7 @@ public sealed class ProductionStartupTests
         Assert.NotNull(provider.GetService<ProductionConfigurationValidator>());
         Assert.NotNull(provider.GetService<IManagedIdentityBindingProbe>());
         Assert.NotNull(provider.GetService<IApprovedResourceProbe>());
-        Assert.Null(provider.GetService<IDocumentIntelligenceProvider>());
+        Assert.IsType<DocumentIntelligence.Production.AzureDocumentIntelligenceProvider>(provider.GetService<IDocumentIntelligenceProvider>());
         Assert.Null(provider.GetService<IExtractionContentReader>());
 
         // T03: the real protected Azure key ring and the vault-loaded material.
@@ -636,6 +635,51 @@ public sealed class ProductionStartupTests
         Assert.DoesNotContain(ProductionAdmissionRefusal.MandatoryEvidenceIncomplete, both);
     }
 
+    public static TheoryData<string> WithdrawnApprovals() => new()
+    {
+        "processor input-key assurance withdrawn",   // AC-082
+        "retention/deletion-clock assumption invalid", // AC-083
+        "DEP-04 resource/API/model evidence pending",
+        "Security/Privacy approval withdrawn",
+    };
+
+    [Theory] // spec 016 T05 AC-082, AC-083: re-evaluated per operation by the real gate.
+    [MemberData(nameof(WithdrawnApprovals))]
+    public async Task AWithdrawnApprovalBlocksNewExtractionBeforeAnyDependencyIsContacted(string withdrawal)
+    {
+        var probe = new ControlledResourceProbe(new ApprovedResourceProbeResult(Array.Empty<ApprovedResourceFinding>()), hangs: false);
+        Func<string, string?> manifest = withdrawal switch
+        {
+            "processor input-key assurance withdrawn" => digest => Manifest(digest, inputKeyStatus: "Pending"),
+            "retention/deletion-clock assumption invalid" => digest => Manifest(digest, retentionClockStatus: "Unavailable"),
+            "DEP-04 resource/API/model evidence pending" => digest => Manifest(digest, number => number == 4 ? "Pending" : "Approved"),
+            _ => digest => Manifest(digest, securityPrivacy: false),
+        };
+        var (provider, _) = (Scenario.Complete() with { ManifestFactory = manifest, ResourceProbe = probe }).BuildHost();
+        using var owner = provider;
+
+        var gate = provider.GetRequiredService<ExtractionWorkflow.Contracts.IExtractionAvailabilityGate>();
+
+        Assert.False(await gate.IsAvailableAsync(CancellationToken.None));
+        Assert.Equal(0, probe.Calls);
+    }
+
+    [Fact] // spec 016 T05: the positive control for the theory above.
+    public async Task CompleteEvidenceReachesTheDependencyProbesAndAFindingStillBlocks()
+    {
+        var probe = new ControlledResourceProbe(
+            new ApprovedResourceProbeResult(new[] { ApprovedResourceFinding.KeyVaultUnavailable }), hangs: false);
+        var (provider, _) = (Scenario.Complete() with { ResourceProbe = probe }).BuildHost();
+        using var owner = provider;
+
+        var gate = provider.GetRequiredService<ExtractionWorkflow.Contracts.IExtractionAvailabilityGate>();
+
+        // The evidence passed, so the dependency probe ran; its finding blocks
+        // without the adapter's reachability probe ever being attempted.
+        Assert.False(await gate.IsAvailableAsync(CancellationToken.None));
+        Assert.Equal(1, probe.Calls);
+    }
+
     [Fact]
     public void RequireAdmissionRefusesADeployableHostWithOneFixedMessageThatEchoesNothing()
     {
@@ -658,19 +702,15 @@ public sealed class ProductionStartupTests
     }
 
     [Fact]
-    public void RequireAdmissionRefusesTheCompleteT01ProfileBecauseNoProductionAdapterExists()
+    public void CompleteControlledProfileHasNoMissingAdapterRefusalAfterT05()
     {
         var (provider, configuration) = Scenario.Complete().BuildHost();
-        using var _ = provider;
-
-        var failure = Assert.Throws<TargetInvocationException>(() => RequireAdmission(
-            provider,
-            configuration,
-            "Production"));
-
-        Assert.Equal(RefusalMessage, failure.InnerException?.Message);
+        using var owner = provider;
+        Assert.Null(Record.Exception(() => RequireAdmission(provider, configuration, "Production")));
+        // Synthetic approvals and controlled probes are a test, never deployed evidence.
+        Assert.IsType<DocumentIntelligence.Production.AzureDocumentIntelligenceProvider>(
+            provider.GetRequiredService<IDocumentIntelligenceProvider>());
     }
-
     [Fact]
     public void DevelopmentHostsAreNeverEvaluatedAndNeverAdmitted()
     {

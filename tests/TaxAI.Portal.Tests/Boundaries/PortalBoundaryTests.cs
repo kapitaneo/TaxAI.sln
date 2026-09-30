@@ -38,6 +38,7 @@ public sealed class PortalBoundaryTests
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
+        "ExtractionAvailabilityGate.cs",
         "ExtractionConfiguration.cs",
         "ExtractionEndpoints.cs",
         "ExtractionReviewPageModel.cs",
@@ -261,8 +262,9 @@ public sealed class PortalBoundaryTests
         { "ClientIntakeEndpoints.cs", Array.Empty<string>() },
         { "CryptographicIntakeCredentialSource.cs", Array.Empty<string>() },
         { "DevelopmentEncryptedIntakeContentStore.cs", new[] { "AddRange" } },
+        { "ExtractionAvailabilityGate.cs", Array.Empty<string>() },
         { "ExtractionConfiguration.cs", Array.Empty<string>() },
-        { "ExtractionEndpoints.cs", Array.Empty<string>() },
+        { "ExtractionEndpoints.cs", new[] { "AddEndpointFilter" } },
         { "ExtractionReviewPageModel.cs", Array.Empty<string>() },
         { "FirmEndpoints.cs", new[] { "AddClaim" } },
         { "IntakeConfiguration.cs", Array.Empty<string>() },
@@ -283,7 +285,7 @@ public sealed class PortalBoundaryTests
             new[]
             {
                 "AddAntiforgery",
-                "AddDeterministicDocumentIntelligence",
+                "AddDocumentIntelligence",
                 "AddIntakeRateLimiting",
                 "AddInteractiveServerComponents",
                 "AddPolicy",
@@ -412,7 +414,7 @@ public sealed class PortalBoundaryTests
         Assert.Equal(
             new[]
             {
-                "AddDeterministicDocumentIntelligence",
+                "AddDocumentIntelligence",
                 "AddPortalIdentity",
                 "AddTaxAiAzureInfrastructure",
                 "AddTaxAiPersistence",
@@ -461,7 +463,7 @@ public sealed class PortalBoundaryTests
         // registrations remain explicit and exact. Spec 016 T03 adds exactly one:
         // the Key Vault-loaded intake material the admission gate verifies.
         Assert.Equal(
-            11,
+            13,
             new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
                 .Matches(compositionRoot)
                 .Count);

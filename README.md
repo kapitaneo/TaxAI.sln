@@ -82,7 +82,13 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
 - No client-side workflow, authorization, status, readiness, upload-validation,
   fingerprint, tax, or review authority ships. Interactive Server is confined
   to presentation-only closed-code reveal.
-- No OCR or LLM adapter ships.
+- No LLM adapter ships. Spec 016 T05 adds exactly one production OCR
+  adapter: the approved Canada Central Azure AI Document Intelligence
+  resource (REST `2024-11-30`, `prebuilt-layout`, `keyValuePairs`), reached
+  by managed identity over a private endpoint. It reads only the printed CRA
+  T4 (25) slip face in English and French; production medical-receipt
+  interpretation is refused pending an approved recognition rule. Its output
+  stays untrusted input to the existing parser and engine.
 - No production deployment configuration ships. Spec 016 T01 adds only the
   refused production path: a closed runtime-configuration contract, a
   settings-only Bicep module, an offline configuration check, and a startup
@@ -215,10 +221,12 @@ explicitly Production, its closed `TaxAi:Production:*` profile describes the
 approved Canada Central topology, its real registrations are the approved
 production adapters, its managed identity verifies, its artifact version is the
 released one, and the evidence manifest approves DEP-01 to DEP-24, both provider
-assurances and both roles for that exact configuration. No production Document
-Intelligence adapter, source store or source reader exists yet, so every
-deployable host is still refused. The offline check validates a settings file
-without Azure access and is not deployment evidence:
+assurances and both roles for that exact configuration. Spec 016 T03–T05 add
+the real key protection, source store and reader, and the production Document
+Intelligence adapter, but no deployment evidence has been observed and both
+provider assurance gaps are unresolved, so every deployable host is still
+refused. The offline check validates a settings file without Azure access and
+is not deployment evidence:
 
 ```powershell
 pwsh ./scripts/azure/Test-ProductionConfiguration.ps1 -SettingsPath <app-settings.json>

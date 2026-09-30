@@ -46,12 +46,14 @@ internal static class ExtractionEndpoints
         endpoints.MapGet(ReviewPath, ReviewAsync)
             .RequireAuthorization(PortalAuthorization.FirmScopedPolicy);
         endpoints.MapPost(ExtractPath, ExtractAsync)
+            .AddEndpointFilter(RequireAvailabilityAsync)
             .RequireAuthorization(PortalAuthorization.FirmScopedPolicy)
             .WithMetadata(FirmEndpoints.RequiredAntiforgeryMetadata);
         endpoints.MapPost(ClassificationPath, OverrideClassificationAsync)
             .RequireAuthorization(PortalAuthorization.FirmScopedPolicy)
             .WithMetadata(FirmEndpoints.RequiredAntiforgeryMetadata);
         endpoints.MapPost(CorrectionPath, CorrectAsync)
+            .AddEndpointFilter(RequireAvailabilityAsync)
             .RequireAuthorization(PortalAuthorization.FirmScopedPolicy)
             .WithMetadata(FirmEndpoints.RequiredAntiforgeryMetadata);
         endpoints.MapPost(AcceptPath, AcceptAsync)
@@ -61,8 +63,37 @@ internal static class ExtractionEndpoints
             .RequireAuthorization(PortalAuthorization.FirmScopedPolicy)
             .WithMetadata(FirmEndpoints.RequiredAntiforgeryMetadata);
         endpoints.MapPost(FinalizePath, FinalizeAsync)
+            .AddEndpointFilter(RequireAvailabilityAsync)
             .RequireAuthorization(PortalAuthorization.FirmScopedPolicy)
             .WithMetadata(FirmEndpoints.RequiredAntiforgeryMetadata);
+    }
+
+    internal const string UnavailableMessage = "Document extraction is temporarily unavailable.";
+
+    private static async ValueTask<object?> RequireAvailabilityAsync(
+        EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
+    {
+        var context = invocation.HttpContext;
+        if (!TryScope(context, out var firm, out _) ||
+            !Guid.TryParse(context.Request.RouteValues["caseId"]?.ToString(), out var caseId))
+            return IntakeHttpSecurity.NotFound(context);
+        var loaded = await LoadCaseAsync(firm!, caseId,
+            context.RequestServices.GetRequiredService<IIntakeStore>(),
+            context.RequestServices.GetRequiredService<IExtractionStore>(), context.RequestAborted);
+        if (loaded is null) return IntakeHttpSecurity.NotFound(context);
+        if (context.Request.RouteValues.TryGetValue("documentId", out var selector) &&
+            (!Guid.TryParse(selector?.ToString(), out var documentId) ||
+             !TryIntakeDocument(loaded.Intake, documentId, out var document) ||
+             !TryExpectedItem(loaded.Intake, document!.ExpectedItemId, out _)))
+            return IntakeHttpSecurity.NotFound(context);
+        if (!await context.RequestServices.GetRequiredService<IExtractionAvailabilityGate>()
+            .IsAvailableAsync(context.RequestAborted))
+        {
+            IntakeHttpSecurity.ApplyResponseHeaders(context.Response);
+            return Results.Text(UnavailableMessage, PortalContent.PlainTextContentType,
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        return await next(invocation);
     }
 
     private static async Task<IResult> ListAsync(

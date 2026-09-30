@@ -132,6 +132,22 @@ overrides, per-field outcomes, duplicate determinations, and corrections are
 supersedes an earlier one by existing. Acceptance is always an explicit human
 act — no machine output arrives accepted.
 
+## Spec 016 T05: the availability port and one Canadian processor
+
+T05 adds exactly one port, `Contracts/IExtractionAvailabilityGate` — one
+`IsAvailableAsync(CancellationToken)` returning a boolean, carrying no
+taxpayer selector and no infrastructure type. It reports current approval and
+dependency availability; it is never an authorization substitute. This module
+implements neither it nor any other of its ports; the portal implements it.
+
+The three `IDocumentIntelligenceProvider` methods and their signatures are
+unchanged. Their contract now permits exactly one approved Canadian processor to
+receive source bytes transiently, and only if it explicitly deletes its result
+before release: no cross-call cache, disk buffer, prompt, request or raw response
+is logged or persisted anywhere. The module itself still names no cloud SDK,
+HTTP, network or OCR type, and provider output is still untrusted input to the
+existing validation and engine chain.
+
 ## The gate
 
 T02 ships the foundation. It authorizes **no** ingest workflow, review workflow,

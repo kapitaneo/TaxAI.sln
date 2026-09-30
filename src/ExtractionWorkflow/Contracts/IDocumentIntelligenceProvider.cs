@@ -23,8 +23,9 @@ namespace ExtractionWorkflow.Contracts;
 /// <para>
 /// Each call consumes the supplied stream from its current position and reads it
 /// once. The stream's lifetime belongs to the caller's content lease, not to the
-/// provider: nothing here retains, copies, buffers to disk, or transmits the
-/// bytes, and no prompt, request, or response is logged or persisted anywhere.
+/// provider. Spec 016 permits one approved Canadian processor to receive bytes
+/// transiently; it must delete its result before release. No cross-call cache,
+/// disk buffer, prompt, request or raw response is logged or persisted anywhere.
 /// </para>
 /// </summary>
 public interface IDocumentIntelligenceProvider

@@ -3,6 +3,8 @@ using System.Runtime.Loader;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
 namespace DocumentIntelligence.Tests;
 
 /// <summary>
@@ -102,7 +104,6 @@ public sealed class NoEgressTests
         // System.Net.Primitives through the shared framework, so the question
         // worth asking is whether any code we wrote names one.
         var reachable = ReachableRepositoryAssemblies(
-            typeof(DeterministicDocumentIntelligenceProvider).Assembly,
             typeof(ExtractionWorkflow.Models.ExtractionVersion).Assembly);
 
         var names = reachable.Select(assembly => assembly.GetName().Name!).ToArray();
@@ -116,6 +117,7 @@ public sealed class NoEgressTests
         Assert.Contains("Tenancy", names);
 
         var offenders = reachable
+            .Where(assembly => assembly.GetName().Name != "DocumentIntelligence")
             .SelectMany(assembly => assembly.GetReferencedAssemblies()
                 .Select(reference => $"{assembly.GetName().Name} -> {reference.Name}"))
             .Where(edge => edge.Contains("-> System.Net", StringComparison.Ordinal))
@@ -125,9 +127,9 @@ public sealed class NoEgressTests
     }
 
     [Fact]
-    public void TheCompiledAdapterNamesNoNetworkingAssembly()
+    public void TheCompiledPortAssemblyNamesNoNetworkingAssembly()
     {
-        var referenced = typeof(DeterministicDocumentIntelligenceProvider).Assembly
+        var referenced = typeof(ExtractionWorkflow.Contracts.IDocumentIntelligenceProvider).Assembly
             .GetReferencedAssemblies()
             .Select(reference => reference.Name!)
             .ToArray();
@@ -136,7 +138,7 @@ public sealed class NoEgressTests
             referenced,
             name => name.StartsWith("System.Net", StringComparison.Ordinal));
 
-        Assert.Contains("ExtractionWorkflow", referenced);
+        Assert.Contains("TaxLogicEngine", referenced);
     }
 
     [Fact]
@@ -191,13 +193,16 @@ public sealed class NoEgressTests
     /// secret client (intake credential material) and the Azure Blob and Key
     /// Vault Data Protection integrations (the shared protected key ring), with
     /// Azure.Core and the key-ring Blob client pinned explicitly because the
-    /// library names their types directly. The
-    /// deterministic modules and this adapter stay cloud-free; no Document
-    /// Intelligence, source-storage, OCR, LLM or HTTP-client package is approved
-    /// anywhere.
+    /// library names their types directly. T05: this adapter's Azure.Core only,
+    /// which carries the forwarded managed-identity credential its REST calls
+    /// present, so the Azure.Identity package stays in the infrastructure
+    /// library. The deterministic modules stay cloud-free; no Document
+    /// Intelligence SDK, source-storage, OCR, LLM or HTTP-client package is
+    /// approved anywhere.
     /// </summary>
     private static readonly string[] ApprovedCloudPackageEdges =
     {
+        "DocumentIntelligence.csproj -> Azure.Core",
         "TaxAI.AzureInfrastructure.csproj -> Azure.Core",
         "TaxAI.AzureInfrastructure.csproj -> Azure.Extensions.AspNetCore.DataProtection.Blobs",
         "TaxAI.AzureInfrastructure.csproj -> Azure.Extensions.AspNetCore.DataProtection.Keys",
@@ -218,7 +223,7 @@ public sealed class NoEgressTests
     }
 
     [Fact]
-    public void TheAdapterProjectDeclaresOnlyTheDependencyInjectionAbstraction()
+    public void TheAdapterProjectDeclaresOnlyAzureCoreAndTheDependencyInjectionAbstraction()
     {
         var packages = XDocument
             .Load(Path.Combine(RepositoryRoot, "src", "DocumentIntelligence", "DocumentIntelligence.csproj"))
@@ -230,8 +235,33 @@ public sealed class NoEgressTests
             .ToArray();
 
         Assert.Equal(
-            new[] { ("Microsoft.Extensions.DependencyInjection.Abstractions", "10.0.10") },
+            new[] { ("Azure.Core", "1.54.0"), ("Microsoft.Extensions.DependencyInjection.Abstractions", "10.0.10") },
             packages);
+    }
+
+    /// <summary>
+    /// Spec 016 T05: the only files permitted a network API are the production
+    /// adapter's two transport files. The deterministic provider, its options,
+    /// the layout interpreter and recognition stay network-free.
+    /// </summary>
+    private static readonly string[] ProductionTransportFiles =
+        ["AnalyzeOperationLifecycle.cs", "AzureDocumentIntelligenceProvider.cs"];
+
+    [Fact] // spec 016 T05
+    public void TheNetworkApiExceptionIsExactlyTheTwoProductionTransportFiles()
+    {
+        var network = new Regex(@"\bHttpClient\b|\bHttpRequestMessage\b|\bSocketsHttpHandler\b",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var users = ProductionSourceFiles("DocumentIntelligence")
+            .Where(file => ExecutableLines(file).Any(line => network.IsMatch(line)))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        // Both exempt files really use the exception, and nothing else does.
+        Assert.Equal(ProductionTransportFiles, users);
+        Assert.Contains(ProductionSourceFiles("DocumentIntelligence"),
+            file => Path.GetFileName(file) == "DeterministicDocumentIntelligenceProvider.cs");
     }
 
     [Fact]
@@ -248,6 +278,7 @@ public sealed class NoEgressTests
         {
             foreach (var file in ProductionSourceFiles(module))
             {
+                if (module == "DocumentIntelligence" && ProductionTransportFiles.Contains(Path.GetFileName(file))) continue;
                 if (ExecutableLines(file).Any(line => network.IsMatch(line)))
                 {
                     offenders.Add(Path.GetFileName(file));

@@ -246,6 +246,15 @@ module sql 'modules/sql.bicep' = if (isPrimary) {
   }
 }
 
+module documentIntelligence 'modules/document-intelligence.bicep' = if (isPrimary) {
+  name: 'document-intelligence'
+  params: {
+    location: primaryRegion
+    accountName: primaryInputs!.runtime.documentIntelligenceName
+    applicationPrincipalId: primaryInputs!.runtime.managedIdentityPrincipalId
+  }
+}
+
 module runtimeConfiguration 'modules/runtime-configuration.bicep' = if (isPrimary) {
   name: 'runtime-configuration'
   params: {
@@ -304,7 +313,7 @@ module privateEndpoints 'modules/private-endpoints.bicep' = if (isPrimary) {
     sourceStorageResourceId: resourceId('Microsoft.Storage/storageAccounts', primaryInputs!.runtime.sourceStorageAccountName)
     sqlServerResourceId: resourceId('Microsoft.Sql/servers', primaryInputs!.runtime.sqlServerName)
     keyVaultResourceId: resourceId('Microsoft.KeyVault/vaults', primaryInputs!.runtime.keyVaultName)
-    documentIntelligenceResourceId: resourceId('Microsoft.CognitiveServices/accounts', primaryInputs!.runtime.documentIntelligenceName)
+    documentIntelligenceResourceId: documentIntelligence!.outputs.resourceId
   }
   dependsOn: [
     keyVault
