@@ -485,6 +485,16 @@ individual reasons are listed below. Do not manufacture parallelism.
 - `tests/Tenancy.Tests/Contracts/TenancyContractTests.cs`
 - `tests/Tenancy.Tests/Production/RecoveryControlContractTests.cs`
 
+**Approved ownership amendment (human-authorized 2026-09-29):** T06 additionally owns exactly these seven paths, only for the approved recovery/configuration integration (the closed, digest-covered `TaxAi:Production:Recovery:*` settings, the `Primary`/`CanadaEastRecovery` profile and its validation). This adds no scope to T06 and no other file.
+
+- `infra/azure/contracts/runtime-configuration.schema.json`
+- `infra/azure/modules/runtime-configuration.bicep`
+- `scripts/azure/Test-ProductionConfiguration.ps1`
+- `specs/016-canadian-azure-production-infrastructure/contracts/runtime-profile.schema.json`
+- `src/TaxAI.AzureInfrastructure/Configuration/AzureInfrastructureOptions.cs`
+- `src/TaxAI.AzureInfrastructure/Configuration/ProductionConfigurationValidator.cs`
+- `tests/TaxAI.AzureInfrastructure.Tests/Configuration/ProductionConfigurationTests.cs`
+
 ## Wave 7
 
 - [ ] **T07** — Retention policy and lifecycle state — files: exact list below — depends on: T06
