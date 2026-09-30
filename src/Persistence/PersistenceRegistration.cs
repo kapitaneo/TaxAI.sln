@@ -50,6 +50,10 @@ public static class PersistenceRegistration
         services.AddScoped<IAuthenticationSessionStore, SqlAuthenticationSessionStore>();
         services.AddScoped<IIdentityDirectory, SqlIdentityDirectory>();
         services.AddScoped<IReviewRecordPurgeService, SqlReviewRecordPurgeService>();
+
+        // Spec 016 T06: the recovered database's side of recovery
+        // reconciliation, resolved only by the host's recovery orchestrator.
+        services.AddScoped<IRecoveryReconciler, SqlRecoveryReconciler>();
         services.AddSingleton<IOpaqueIdentifierSource, GuidOpaqueIdentifierSource>();
         services.AddScoped<IDevelopmentFixtureSeeder, DevelopmentFixtureSeeder>();
 

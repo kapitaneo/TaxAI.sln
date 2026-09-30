@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using TaxAI.AzureInfrastructure.Configuration;
 using TaxAI.AzureInfrastructure.Content;
+using TaxAI.AzureInfrastructure.Control;
 using TaxAI.AzureInfrastructure.Keys;
 using Tenancy.Contracts;
 using Tenancy.Models;
@@ -36,6 +37,14 @@ namespace TaxAI.AzureInfrastructure;
 /// admission refuses the missing store and reader. It registers no provider or
 /// telemetry adapter.
 /// </para>
+/// <para>
+/// Spec 016 T06 adds the independent recovery control ledger
+/// (<see cref="IRecoveryControlStore"/>) and the Canadian release-evidence
+/// reader (<see cref="IProductionEvidenceReader"/>) over the two distinct
+/// private control accounts the recovery profile names, by the same managed
+/// identity. An unusable identity or either unusable endpoint registers
+/// neither, and admission refuses the missing recovery control.
+/// </para>
 /// </summary>
 public static class AzureInfrastructureRegistration
 {
@@ -64,6 +73,17 @@ public static class AzureInfrastructureRegistration
                 : throw new InvalidOperationException(
                     "The approved-resource probe requires a valid managed identity binding."));
 
+        // Spec 016 T06: the recovery inventory is verified by the same probe
+        // type, under its own contract and registration.
+        services.AddSingleton<IRecoveryInventoryProbe>(provider =>
+            TryCreateWorkloadCredential(options, out var credential)
+                ? new ApprovedResourceProbe(
+                    options,
+                    credential!,
+                    provider.GetRequiredService<IDataProtectionProvider>())
+                : throw new InvalidOperationException(
+                    "The recovery inventory probe requires a valid managed identity binding."));
+
         if (content.IsUsable &&
             TryCreateWorkloadCredential(options, out var workload) &&
             TryCreateSourceContainer(options, workload!, out var container) &&
@@ -90,6 +110,21 @@ public static class AzureInfrastructureRegistration
                 wrapper,
                 provider.GetRequiredService<ISourceRegistryStore>(),
                 maximumSourceBytes));
+        }
+
+        if (TryCreateWorkloadCredential(options, out var controlCredential) &&
+            TryReadBlobServiceRoot(options.Recovery.ControlLedger.Endpoint, out var centralRoot) &&
+            TryReadBlobServiceRoot(options.Recovery.ControlLedgerReplica.Endpoint, out var eastRoot) &&
+            !string.Equals(centralRoot!.IdnHost, eastRoot!.IdnHost, StringComparison.OrdinalIgnoreCase))
+        {
+            var central = new BlobServiceClient(centralRoot, controlCredential);
+            var east = new BlobServiceClient(eastRoot, controlCredential);
+
+            services.AddSingleton<IRecoveryControlStore>(provider => new AzureRecoveryControlStore(
+                central,
+                east,
+                provider.GetRequiredService<TimeProvider>()));
+            services.AddSingleton<IProductionEvidenceReader>(new AzureProductionEvidenceReader(central, east));
         }
 
         return services;

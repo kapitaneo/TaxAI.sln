@@ -34,6 +34,16 @@
 // CMK, the one private source container and no versioning, soft delete,
 // snapshot or immutability retention. Its private endpoint is T02's existing
 // source-storage binding, created only after the account exists.
+//
+// Spec 016 T06 adds recovery, primary-only and named from the same inputs: the
+// two immutable Canadian control-ledger accounts (control-storage.bicep; Canada
+// Central and the authoritative Canada East copy, names derived from the prefix
+// and resource group), the SQL backup policy (sql.bicep: 35-day point-in-time,
+// geo-zone backups, no long-term retention) and the passive Canada East SQL
+// geo-secondary behind a Manual failover group (recovery.bicep). The runtime
+// configuration names both ledger copies. The recovery profile below still
+// deploys only the passive network: Canada East application hosting is a
+// pending plan-amendment item, and Document Intelligence never fails over.
 
 targetScope = 'resourceGroup'
 
@@ -155,6 +165,11 @@ type primaryTopology = {
 var isPrimary = profile == 'primary'
 var location = isPrimary ? primaryRegion : recoveryRegion
 
+// Spec 016 T06: deterministic, globally unique control-ledger account names.
+var ledgerStem = toLower(replace(namePrefix, '-', ''))
+var controlLedgerCentralName = take('${ledgerStem}ledcc${uniqueString(resourceGroup().id, 'ledger-cc')}', 24)
+var controlLedgerEastName = take('${ledgerStem}ledce${uniqueString(resourceGroup().id, 'ledger-ce')}', 24)
+
 // Fail closed: the primary profile without its inputs, or the recovery profile
 // with them, cannot compile into a deployment that silently omits a control.
 var primaryInputs = isPrimary ? primary! : null
@@ -246,6 +261,38 @@ module sql 'modules/sql.bicep' = if (isPrimary) {
   }
 }
 
+module controlStorage 'modules/control-storage.bicep' = if (isPrimary) {
+  name: 'control-storage'
+  params: {
+    location: primaryRegion
+    recoveryLocation: recoveryRegion
+    namePrefix: namePrefix
+    centralAccountName: controlLedgerCentralName
+    eastAccountName: controlLedgerEastName
+    applicationPrincipalId: primaryInputs!.runtime.managedIdentityPrincipalId
+    privateEndpointSubnetId: regionalNetwork.outputs.privateEndpointSubnetId
+    blobZoneId: privateDns.outputs.zoneIds.SourceStorage
+  }
+}
+
+module sqlRecovery 'modules/recovery.bicep' = if (isPrimary) {
+  name: 'sql-recovery'
+  params: {
+    location: recoveryRegion
+    primaryServerName: primaryInputs!.runtime.sqlServerName
+    secondaryServerName: take('${primaryInputs!.runtime.sqlServerName}-ce', 63)
+    failoverGroupName: '${namePrefix}-fog'
+    sqlDatabaseName: primaryInputs!.runtime.sqlDatabaseName
+    tenantId: primaryInputs!.runtime.tenantId
+    keyVaultName: primaryInputs!.runtime.keyVaultName
+    tdeKeyName: keyVault!.outputs.sqlTdeKeyName
+    tdeKeyUriWithVersion: keyVault!.outputs.sqlTdeKeyUriWithVersion
+    tdeIdentityId: sql!.outputs.tdeIdentityId
+    migrationIdentityName: sql!.outputs.migrationIdentityName
+    migrationIdentityClientId: sql!.outputs.migrationIdentityClientId
+  }
+}
+
 module documentIntelligence 'modules/document-intelligence.bicep' = if (isPrimary) {
   name: 'document-intelligence'
   params: {
@@ -280,6 +327,8 @@ module runtimeConfiguration 'modules/runtime-configuration.bicep' = if (isPrimar
     operationDeadline: primaryInputs!.runtime.operationDeadline
     probeDeadline: primaryInputs!.runtime.probeDeadline
     evidenceManifest: primaryInputs!.runtime.evidenceManifest
+    controlLedgerAccountName: controlLedgerCentralName
+    controlLedgerReplicaAccountName: controlLedgerEastName
   }
 }
 

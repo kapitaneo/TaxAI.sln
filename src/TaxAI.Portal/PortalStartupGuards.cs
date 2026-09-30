@@ -275,6 +275,22 @@ internal static class PortalStartupGuards
     private static bool IsDurableStore(IAuthenticationSessionStore sessionStore) =>
         sessionStore.GetType().Assembly == typeof(PersistenceRegistration).Assembly;
 
+    /// <summary>
+    /// Spec 016 T06: true only when the registered recovery reconciler is the
+    /// durable one, decided by implementing assembly exactly as the session
+    /// store is: the reconciler is internal to the module that owns the schema.
+    /// </summary>
+    internal static bool HasDurableRecoveryReconciler(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        using var scope = services.CreateScope();
+        var reconciler = scope.ServiceProvider.GetService<IRecoveryReconciler>();
+
+        return reconciler is not null &&
+               reconciler.GetType().Assembly == typeof(PersistenceRegistration).Assembly;
+    }
+
     internal static bool RunsInDevelopment(string environmentName) =>
         string.Equals(environmentName, Environments.Development, StringComparison.Ordinal);
 

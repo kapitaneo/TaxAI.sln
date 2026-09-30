@@ -85,6 +85,10 @@ public sealed class UpgradeBaselineContractTests
         "Persistence.Entities.SourceRegistrationEntity",
         "Persistence.Migrations.AddSourceRegistry",
         "Persistence.Repositories.SqlSourceRegistryStore",
+
+        // Spec 016 T06 — the recovered database's reconciler, named exactly. It
+        // adds no entity, configuration or migration.
+        "Persistence.Services.SqlRecoveryReconciler",
     ];
 
     /// <summary>
@@ -110,6 +114,30 @@ public sealed class UpgradeBaselineContractTests
         "Tenancy.Models.ProviderAssurance",
         "Tenancy.Models.ProviderAssuranceSubject",
         "Tenancy.Services.ProductionEvidencePolicy",
+
+        // Spec 016 T06 — the consumed recovery control ledger, evidence reader
+        // and reconciler ports, their structural models and the pure policy.
+        "Tenancy.Contracts.IProductionEvidenceReader",
+        "Tenancy.Contracts.IRecoveryControlStore",
+        "Tenancy.Contracts.IRecoveryReconciler",
+        "Tenancy.Contracts.ProductionEvidenceDocument",
+        "Tenancy.Contracts.RecoveryAuthorizationAttestation",
+        "Tenancy.Contracts.RecoveryAuthorizedMembership",
+        "Tenancy.Contracts.RecoveryControlRecord",
+        "Tenancy.Contracts.RecoveryControlSnapshot",
+        "Tenancy.Models.DatabaseIncarnation",
+        "Tenancy.Models.ProductionEvidenceDocumentStatus",
+        "Tenancy.Models.RecoveredDataExtent",
+        "Tenancy.Models.RecoveryAccessInvalidation",
+        "Tenancy.Models.RecoveryControlAppendOutcome",
+        "Tenancy.Models.RecoveryControlReadStatus",
+        "Tenancy.Models.RecoveryControlRecordKind",
+        "Tenancy.Models.RecoveryMembershipReconciliation",
+        "Tenancy.Models.RecoveryQuarantineReason",
+        "Tenancy.Models.RecoveryReleaseFacts",
+        "Tenancy.Models.RecoveryReleasePolicy",
+        "Tenancy.Models.RecoveryReplayOutcome",
+        "Tenancy.Models.RecoveryRetentionWindow",
     ];
 
     /// <summary>
@@ -127,6 +155,10 @@ public sealed class UpgradeBaselineContractTests
         // Spec 016 T03: the configured-key-ring predicate that admits the
         // production profile's protected Azure key ring in Production.
         "HasConfiguredKeyRing",
+
+        // Spec 016 T06: the durable recovery-reconciler predicate the admission
+        // gate applies, decided by implementing assembly like the session store.
+        "HasDurableRecoveryReconciler",
     ];
 
     /// <summary>
@@ -456,6 +488,10 @@ public sealed class UpgradeBaselineContractTests
 
                 // Spec 016 T02 — the fixed single-hop trusted ingress policy.
                 "TaxAI.Portal.Production.TrustedIngressConfiguration",
+
+                // Spec 016 T06 — startup recovery orchestration and its closed result.
+                "TaxAI.Portal.Production.RecoveryOrchestrator",
+                "TaxAI.Portal.Production.RecoveryOrchestration",
 
                 // SDK-generated, not user-declared. Referencing the Razor component
                 // model makes the toolchain embed these marker attributes into the

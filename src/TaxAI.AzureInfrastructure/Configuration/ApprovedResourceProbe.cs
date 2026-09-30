@@ -9,6 +9,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.DataProtection;
 using TaxAI.AzureInfrastructure.Content;
+using TaxAI.AzureInfrastructure.Control;
 using TaxAI.AzureInfrastructure.Keys;
 using Tenancy.Models;
 
@@ -21,6 +22,18 @@ namespace TaxAI.AzureInfrastructure.Configuration;
 public interface IApprovedResourceProbe
 {
     Task<ApprovedResourceProbeResult> ProbeAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Verifies the recovery inventory a production host depends on (spec 016 T06,
+/// AC-103, AC-115): the immutable control-ledger, attestation and evidence
+/// containers in both control accounts. Kept separate from
+/// <see cref="IApprovedResourceProbe"/> so the key and source checks keep their
+/// exact contract; the admission gate requires both.
+/// </summary>
+public interface IRecoveryInventoryProbe
+{
+    Task<ApprovedResourceProbeResult> ProbeRecoveryInventoryAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -55,8 +68,21 @@ public interface IApprovedResourceProbe
 /// account-management facts the application identity cannot read; the
 /// reviewed template and <c>scripts/azure/Test-SourceProtection.ps1</c> verify them.
 /// </para>
+/// <para>
+/// Spec 016 T06 adds the recovery inventory (AC-103, AC-115): in each control
+/// account the ledger, attestation and evidence containers must allow no
+/// public access, carry a time-based immutability policy and no legal hold.
+/// Both copies are required in the primary profile. In the Canada East
+/// recovery profile only the authoritative Canada East copy is required; an
+/// unreachable Canada Central copy is tolerated because that region is what
+/// is being recovered from, but a reachable one must still be approved. The
+/// recovery profile also accepts the failed-over source account's
+/// single-region redundancy. The retention length is an account-management
+/// fact the application cannot read; the template and the recovery drill
+/// verify it.
+/// </para>
 /// </summary>
-public sealed class ApprovedResourceProbe : IApprovedResourceProbe
+public sealed class ApprovedResourceProbe : IApprovedResourceProbe, IRecoveryInventoryProbe
 {
     /// <summary>[ASSUMED] The minimum approved RSA modulus for a wrapping key.</summary>
     public const int MinimumKeySizeBits = 3072;
@@ -69,6 +95,17 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
 
     /// <summary>The approved source account kind: general-purpose v2.</summary>
     public const string ApprovedSourceAccountKind = "StorageV2";
+
+    /// <summary>Spec 016 T06: the source redundancy after a Canada East storage failover.</summary>
+    public static IReadOnlyList<string> FailedOverSourceSkus { get; } = ["Standard_LRS", "Standard_ZRS"];
+
+    /// <summary>Spec 016 T06: the immutable containers every control account must hold.</summary>
+    public static IReadOnlyList<string> ControlContainerNames { get; } =
+    [
+        AzureRecoveryControlStore.LedgerContainerName,
+        AzureRecoveryControlStore.AttestationContainerName,
+        AzureProductionEvidenceReader.EvidenceContainerName,
+    ];
 
     private static readonly string[] PurgeProtectedRecoveryLevels =
     {
@@ -169,6 +206,24 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
         return new ApprovedResourceProbeResult(findings);
     }
 
+    public async Task<ApprovedResourceProbeResult> ProbeRecoveryInventoryAsync(CancellationToken cancellationToken)
+    {
+        var findings = new List<ApprovedResourceFinding>();
+        var recovering = ProductionConfigurationValidator.IsCanadaEastRecovery(_options);
+        await ProbeControlAccountAsync(
+            _options.Recovery.ControlLedger.Endpoint,
+            required: !recovering,
+            findings,
+            cancellationToken).ConfigureAwait(false);
+        await ProbeControlAccountAsync(
+            _options.Recovery.ControlLedgerReplica.Endpoint,
+            required: true,
+            findings,
+            cancellationToken).ConfigureAwait(false);
+
+        return new ApprovedResourceProbeResult(findings);
+    }
+
     /// <summary>
     /// The source account and container posture rules (T04). Public so they are
     /// tested directly and applied identically everywhere.
@@ -181,12 +236,27 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
         string? skuName,
         string? accountKind,
         string? hierarchicalNamespace,
-        BlobContainerProperties container)
+        BlobContainerProperties container) =>
+        IsApprovedSourceStorage(skuName, accountKind, hierarchicalNamespace, container, recovering: false);
+
+    /// <summary>
+    /// The source posture for a profile. [ASSUMED] A customer-managed storage
+    /// failover leaves the account single-region in Canada East until geo
+    /// redundancy is re-enabled, so the Canada East recovery profile also
+    /// accepts <see cref="FailedOverSourceSkus"/>; every other rule is unchanged.
+    /// </summary>
+    public static bool IsApprovedSourceStorage(
+        string? skuName,
+        string? accountKind,
+        string? hierarchicalNamespace,
+        BlobContainerProperties container,
+        bool recovering)
     {
         ArgumentNullException.ThrowIfNull(container);
 
         return string.Equals(accountKind, ApprovedSourceAccountKind, StringComparison.Ordinal) &&
-               string.Equals(skuName, ApprovedSourceSku, StringComparison.Ordinal) &&
+               (string.Equals(skuName, ApprovedSourceSku, StringComparison.Ordinal) ||
+                (recovering && FailedOverSourceSkus.Contains(skuName, StringComparer.Ordinal))) &&
                !string.Equals(hierarchicalNamespace, "true", StringComparison.OrdinalIgnoreCase) &&
                container.PublicAccess is null or PublicAccessType.None &&
                container.HasImmutabilityPolicy != true &&
@@ -308,7 +378,12 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
 
             var properties = await container.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             return capture.Captured &&
-                   IsApprovedSourceStorage(capture.SkuName, capture.AccountKind, capture.HierarchicalNamespace, properties.Value)
+                   IsApprovedSourceStorage(
+                       capture.SkuName,
+                       capture.AccountKind,
+                       capture.HierarchicalNamespace,
+                       properties.Value,
+                       ProductionConfigurationValidator.IsCanadaEastRecovery(_options))
                 ? null
                 : ApprovedResourceFinding.SourceStorageNotApproved;
         }
@@ -319,6 +394,67 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe
         catch (Exception failure) when (IsUnavailable(failure, cancellationToken))
         {
             return ApprovedResourceFinding.SourceStorageUnavailable;
+        }
+    }
+
+    /// <summary>
+    /// The control container posture (T06): no public access, a time-based
+    /// immutability policy and no legal hold. Public so it is tested directly.
+    /// </summary>
+    public static bool IsApprovedControlContainer(BlobContainerProperties container)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+
+        return container.PublicAccess is null or PublicAccessType.None &&
+               container.HasImmutabilityPolicy == true &&
+               container.HasLegalHold != true;
+    }
+
+    private async Task ProbeControlAccountAsync(
+        string? endpoint,
+        bool required,
+        List<ApprovedResourceFinding> findings,
+        CancellationToken cancellationToken)
+    {
+        if (!AzureInfrastructureRegistration.TryReadBlobServiceRoot(endpoint, out var root))
+        {
+            findings.Add(ApprovedResourceFinding.ConfigurationUnusable);
+            return;
+        }
+
+        var options = new BlobClientOptions { Transport = _blobOptions.Transport };
+        options.Retry.MaxRetries = _blobOptions.Retry.MaxRetries;
+        options.Retry.NetworkTimeout = _blobOptions.Retry.NetworkTimeout;
+        var service = new BlobServiceClient(root, _credential, options);
+
+        foreach (var name in ControlContainerNames)
+        {
+            try
+            {
+                var properties = await service
+                    .GetBlobContainerClient(name)
+                    .GetPropertiesAsync(cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+                if (!IsApprovedControlContainer(properties.Value))
+                {
+                    findings.Add(ApprovedResourceFinding.ControlLedgerNotApproved);
+                    return;
+                }
+            }
+            catch (RequestFailedException failure) when (failure.Status is 403 or 404)
+            {
+                findings.Add(ApprovedResourceFinding.ControlLedgerNotApproved);
+                return;
+            }
+            catch (Exception failure) when (IsUnavailable(failure, cancellationToken))
+            {
+                if (required)
+                {
+                    findings.Add(ApprovedResourceFinding.ControlLedgerUnavailable);
+                }
+
+                return;
+            }
         }
     }
 
@@ -443,6 +579,12 @@ public enum ApprovedResourceFinding
     KeyRingRoundTripFailed = 7,
     SourceStorageNotApproved = 8,
     SourceStorageUnavailable = 9,
+
+    /// <summary>Spec 016 T06: a control container is public, mutable, held or missing.</summary>
+    ControlLedgerNotApproved = 10,
+
+    /// <summary>Spec 016 T06: a required control account could not be reached.</summary>
+    ControlLedgerUnavailable = 11,
 }
 
 /// <summary>The closed ways a Key Vault key misses the approved posture.</summary>
@@ -505,7 +647,9 @@ public sealed class ApprovedResourceProbeResult
                 ApprovedResourceFinding.KeyRingRoundTripFailed =>
                     ProductionAdmissionRefusal.DurableDataProtectionMissing,
                 ApprovedResourceFinding.SourceStorageNotApproved or
-                ApprovedResourceFinding.SourceStorageUnavailable =>
+                ApprovedResourceFinding.SourceStorageUnavailable or
+                ApprovedResourceFinding.ControlLedgerNotApproved or
+                ApprovedResourceFinding.ControlLedgerUnavailable =>
                     ProductionAdmissionRefusal.StorageBindingInvalid,
                 _ => ProductionAdmissionRefusal.KeyVaultBindingInvalid,
             })

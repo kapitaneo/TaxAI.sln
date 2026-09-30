@@ -4,6 +4,7 @@ using DocumentIntelligence;
 using ExtractionWorkflow.Contracts;
 using TaxAI.AzureInfrastructure.Configuration;
 using TaxAI.AzureInfrastructure.Content;
+using TaxAI.AzureInfrastructure.Control;
 using TaxAI.AzureInfrastructure.Keys;
 using TaxAI.AzureInfrastructure.Protection;
 using Tenancy.Contracts;
@@ -56,6 +57,19 @@ namespace TaxAI.Portal.Production;
 /// the source account and container posture. The production Document
 /// Intelligence adapter is still absent, so no deployable host is admitted.
 /// </para>
+/// <para>
+/// Spec 016 T06 adds recovery. The container must hold exactly the Azure
+/// recovery control ledger and evidence reader, the durable recovery
+/// reconciler and the recovery orchestrator; the release evidence stored in the
+/// Canadian evidence store for this exact binding must be present, not
+/// withdrawn, and admitted by the same policy as the configured manifest; and
+/// the approved-resource probe also requires the immutable control containers.
+/// Only once every one of those checks has passed does
+/// <see cref="RecoveryOrchestrator"/> run: a database incarnation the
+/// independent ledger does not release is reconciled first, and the host does
+/// not start while it stays quarantined. Invalid security configuration is
+/// therefore refused before any reconciliation (AC-116, AC-165).
+/// </para>
 /// </summary>
 internal static class ProductionAdmissionGate
 {
@@ -93,6 +107,12 @@ internal static class ProductionAdmissionGate
         {
             throw new InvalidOperationException(RefusalMessage);
         }
+
+        // Spec 016 T06: only a fully admitted host reconciles, and it serves
+        // nothing until its database incarnation is released.
+        RecoveryOrchestrator.RequireRelease(
+            services,
+            ProductionConfiguration.Read(configuration).Options);
     }
 
     /// <summary>
@@ -149,6 +169,8 @@ internal static class ProductionAdmissionGate
             .Concat(RegistrationRefusals(services, snapshot.Options, configuration))
             .Concat(RuntimeMaterialRefusals(services, configuration))
             .Concat(EvidenceRefusals(snapshot, evaluatedAtUtc))
+            .Concat(RecoveryRegistrationRefusals(services))
+            .Concat(StoredEvidenceRefusals(services, snapshot, evaluatedAtUtc))
             .Concat(IdentityRefusals(services, snapshot.Options, structural)));
     }
 
@@ -245,6 +267,81 @@ internal static class ProductionAdmissionGate
         {
             yield return ProductionAdmissionRefusal.DurableSessionStoreMissing;
         }
+    }
+
+    /// <summary>
+    /// Spec 016 T06: exactly the Azure control ledger and evidence reader, the
+    /// durable reconciler and the orchestrator. Anything else, or nothing, is an
+    /// unregistered validation: recovery cannot be proven without them.
+    /// </summary>
+    private static IEnumerable<ProductionAdmissionRefusal> RecoveryRegistrationRefusals(IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        var provider = scope.ServiceProvider;
+
+        if (TryResolve<IRecoveryControlStore>(provider) is not AzureRecoveryControlStore ||
+            TryResolve<IProductionEvidenceReader>(provider) is not AzureProductionEvidenceReader ||
+            TryResolve<RecoveryOrchestrator>(provider) is null ||
+            !PortalStartupGuards.HasDurableRecoveryReconciler(services))
+        {
+            yield return ProductionAdmissionRefusal.InfrastructureValidationUnregistered;
+        }
+    }
+
+    /// <summary>
+    /// Spec 016 T06: the evidence the release process stored for this exact
+    /// binding in the Canadian evidence store is read and held to the same
+    /// schema and policy as the configured manifest. Absent is missing;
+    /// withdrawn, malformed or unreadable is invalid, never a pass.
+    /// </summary>
+    private static IEnumerable<ProductionAdmissionRefusal> StoredEvidenceRefusals(
+        IServiceProvider services,
+        ProductionConfigurationSnapshot snapshot,
+        DateTimeOffset evaluatedAtUtc)
+    {
+        if (!ProductionConfigurationValidator.TryCreateReleaseBinding(
+                snapshot.Options,
+                snapshot.ConfigurationDigest,
+                out var release) ||
+            !ProductionConfigurationValidator.TryReadProbeDeadline(snapshot.Options, out var deadline))
+        {
+            return Array.Empty<ProductionAdmissionRefusal>();
+        }
+
+        if (services.GetService<IProductionEvidenceReader>() is not { } reader)
+        {
+            return new[] { ProductionAdmissionRefusal.EvidenceManifestMissing };
+        }
+
+        ProductionEvidenceDocument document;
+        using (var cancellation = new CancellationTokenSource(deadline))
+        {
+            try
+            {
+                document = reader.ReadAsync(release!, cancellation.Token).GetAwaiter().GetResult();
+            }
+            catch (Exception failure) when (failure is OperationCanceledException or InvalidOperationException)
+            {
+                return new[] { ProductionAdmissionRefusal.EvidenceManifestInvalid };
+            }
+        }
+
+        if (document.Status == ProductionEvidenceDocumentStatus.Absent)
+        {
+            return new[] { ProductionAdmissionRefusal.EvidenceManifestMissing };
+        }
+
+        var stored = document.Status == ProductionEvidenceDocumentStatus.Present
+            ? ProductionConfiguration.ReadManifest(document.ManifestText, out var invalid)
+            : null;
+        if (stored is null)
+        {
+            return new[] { ProductionAdmissionRefusal.EvidenceManifestInvalid };
+        }
+
+        return ProductionEvidencePolicy
+            .Evaluate(stored, release!, evaluatedAtUtc.ToUniversalTime())
+            .Refusals;
     }
 
     /// <summary>
@@ -378,20 +475,52 @@ internal static class ProductionAdmissionGate
             return new[] { ProductionAdmissionRefusal.InfrastructureValidationUnregistered };
         }
 
-        using var cancellation = new CancellationTokenSource(deadline);
-        try
+        IReadOnlyList<ProductionAdmissionRefusal> resources;
+        using (var cancellation = new CancellationTokenSource(deadline))
         {
-            return probe
-                .ProbeAsync(cancellation.Token)
-                .GetAwaiter()
-                .GetResult()
-                .Refusals;
+            try
+            {
+                resources = probe
+                    .ProbeAsync(cancellation.Token)
+                    .GetAwaiter()
+                    .GetResult()
+                    .Refusals;
+            }
+            catch (Exception failure) when (failure is
+                OperationCanceledException or
+                InvalidOperationException)
+            {
+                return ApprovedResourceProbeResult.Unverifiable.Refusals;
+            }
         }
-        catch (Exception failure) when (failure is
-            OperationCanceledException or
-            InvalidOperationException)
+
+        // Spec 016 T06: the immutable control containers, under their own
+        // deadline of the same bound. An unregistered inventory probe is a
+        // missing validation; a stalled one is an unverifiable storage binding.
+        var inventory = services.GetService<IRecoveryInventoryProbe>();
+        if (inventory is null)
         {
-            return ApprovedResourceProbeResult.Unverifiable.Refusals;
+            return resources.Append(ProductionAdmissionRefusal.InfrastructureValidationUnregistered).ToArray();
+        }
+
+        using (var cancellation = new CancellationTokenSource(deadline))
+        {
+            try
+            {
+                return resources
+                    .Concat(inventory
+                        .ProbeRecoveryInventoryAsync(cancellation.Token)
+                        .GetAwaiter()
+                        .GetResult()
+                        .Refusals)
+                    .ToArray();
+            }
+            catch (Exception failure) when (failure is
+                OperationCanceledException or
+                InvalidOperationException)
+            {
+                return resources.Append(ProductionAdmissionRefusal.StorageBindingInvalid).ToArray();
+            }
         }
     }
 }

@@ -55,7 +55,21 @@
     "Retention:StagedUploadHours",
     "Resilience:MaximumAttempts",
     "Resilience:OperationDeadline",
-    "Resilience:ProbeDeadline"
+    "Resilience:ProbeDeadline",
+    "Recovery:Profile",
+    "Recovery:ControlLedger:Endpoint",
+    "Recovery:ControlLedger:ResourceId",
+    "Recovery:ControlLedger:Region",
+    "Recovery:ControlLedger:PublicNetworkAccess",
+    "Recovery:ControlLedger:PrivateEndpoint",
+    "Recovery:ControlLedgerReplica:Endpoint",
+    "Recovery:ControlLedgerReplica:ResourceId",
+    "Recovery:ControlLedgerReplica:Region",
+    "Recovery:ControlLedgerReplica:PublicNetworkAccess",
+    "Recovery:ControlLedgerReplica:PrivateEndpoint",
+    "Recovery:SqlPointInTimeRestoreDays",
+    "Recovery:BackupChainDays",
+    "Recovery:ControlLedgerRetentionDays"
   ],
   "properties": {
     "Environment": {
@@ -282,6 +296,66 @@
       "type": "string",
       "pattern": "^(?!00:00:00$)00:(00:[0-5][0-9]|01:00)$",
       "description": "[ASSUMED] finite identity-probe deadline, greater than zero and at most 00:01:00."
+    },
+    "Recovery:Profile": {
+      "const": "Primary",
+      "description": "Spec 016 T06: the deployment profile. The IaC emits the primary Canada Central profile only; the manual CanadaEastRecovery profile is a separately signed configuration validated by ProductionConfigurationValidator (docs/operations/canadian-recovery.md)."
+    },
+    "Recovery:ControlLedger:Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Spec 016 T06: the recovery control ledger's Canada Central copy; the account's own Blob endpoint, distinct from every other storage account."
+    },
+    "Recovery:ControlLedger:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Spec 016 T06: the resource id of the control ledger's Canada Central copy in the configured subscription and resource group."
+    },
+    "Recovery:ControlLedger:Region": {
+      "const": "canadacentral",
+      "description": "Spec 016 T06: the control ledger's Canada Central copy region."
+    },
+    "Recovery:ControlLedger:PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "Recovery:ControlLedger:PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "Recovery:ControlLedgerReplica:Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Spec 016 T06: the recovery control ledger's authoritative, independently recoverable Canada East copy; the account's own Blob endpoint, distinct from every other storage account."
+    },
+    "Recovery:ControlLedgerReplica:ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Spec 016 T06: the resource id of the control ledger's authoritative, independently recoverable Canada East copy in the configured subscription and resource group."
+    },
+    "Recovery:ControlLedgerReplica:Region": {
+      "const": "canadaeast",
+      "description": "Spec 016 T06: the control ledger's authoritative, independently recoverable Canada East copy region."
+    },
+    "Recovery:ControlLedgerReplica:PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "Recovery:ControlLedgerReplica:PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "Recovery:SqlPointInTimeRestoreDays": {
+      "const": "35",
+      "description": "Spec 016 T06 (FR-11, AC-111): SQL short-term point-in-time retention, the 35-day maximum."
+    },
+    "Recovery:BackupChainDays": {
+      "const": "7",
+      "description": "Spec 016 T06 (AC-103): the documented weekly full-backup chain kept beyond the retention period."
+    },
+    "Recovery:ControlLedgerRetentionDays": {
+      "const": "90",
+      "description": "Spec 016 T06 (FR-10, AC-103): [ASSUMED] control ledger immutability; strictly longer than 35 + 7 days."
     }
   }
 }

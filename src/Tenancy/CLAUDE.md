@@ -62,8 +62,34 @@ whether a production host may be admitted. It adds no reference and no package:
   configuration digest. It reads no clock: the instant is a parameter.
 
 These types carry infrastructure evidence only — never a secret, taxpayer fact
-or SIN — and add no tax policy. The recovery/control ledger and telemetry
-contracts arrive with the slices that consume them (T06, T09).
+or SIN — and add no tax policy. The telemetry contracts arrive with T09.
+
+## Spec 016 T06: recovery control contracts
+
+Tenancy owns the provider-independent recovery vocabulary, consumed by the
+Azure control ledger, the Persistence reconciler and the Portal orchestrator.
+It adds no reference and no package:
+
+- `Contracts/RecoveryControlContracts.cs` — `RecoveryControlRecord` (genesis,
+  release, terminal source, terminal structured; opaque identifiers and one UTC
+  instant only), the membership attestation, the ledger snapshot,
+  `IRecoveryControlStore` (append with observed acknowledgement, full read,
+  release lookup), `ProductionEvidenceDocument` and `IProductionEvidenceReader`.
+- `Contracts/IRecoveryReconciler.cs` — the recovered database's side: its
+  incarnation, its data extent, firm-scoped terminal replay, pre-recovery
+  access revocation and attestation application. The two environment-wide
+  members only revoke or deactivate access and return counts; they are not
+  lookups and add no firm-scope exemption (`FirmScopeExemptions.All` stays
+  exactly four).
+- `Models/RecoveryControlModels.cs` — the closed kinds, append/read/replay
+  outcomes (each zero value is the unsafe one), `RecoveryQuarantineReason` (no
+  releasing member), `DatabaseIncarnation`, the structural extent and count
+  types, `RecoveryRetentionWindow` (35-day point-in-time maximum, the
+  documented 7-day backup chain, a ledger strictly longer than 42 days) and the
+  pure `RecoveryReleasePolicy`.
+
+Every identifier is serialization-omitted and every type renders structurally.
+The policy reads no clock: every instant is a parameter.
 
 ## PII posture: omission at the persistence boundary
 

@@ -96,6 +96,16 @@ param probeDeadline string
 @description('Release evidence manifest JSON (production-evidence.schema.json). Secret-free.')
 param evidenceManifest string
 
+@description('Spec 016 T06: name of the Canada Central recovery control-ledger account (control-storage.bicep).')
+@minLength(3)
+@maxLength(24)
+param controlLedgerAccountName string
+
+@description('Spec 016 T06: name of the authoritative Canada East recovery control-ledger account (control-storage.bicep).')
+@minLength(3)
+@maxLength(24)
+param controlLedgerReplicaAccountName string
+
 var resourcePrefix = '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers'
 
 var privateDependency = {
@@ -162,6 +172,20 @@ output appSettings object = {
   '${production}Resilience__MaximumAttempts': string(maximumAttempts)
   '${production}Resilience__OperationDeadline': operationDeadline
   '${production}Resilience__ProbeDeadline': probeDeadline
+  '${production}Recovery__Profile': 'Primary'
+  '${production}Recovery__ControlLedger__Endpoint': 'https://${controlLedgerAccountName}.blob.${environment().suffixes.storage}/'
+  '${production}Recovery__ControlLedger__ResourceId': '${resourcePrefix}/Microsoft.Storage/storageAccounts/${controlLedgerAccountName}'
+  '${production}Recovery__ControlLedger__Region': primaryRegion
+  '${production}Recovery__ControlLedger__PublicNetworkAccess': privateDependency.PublicNetworkAccess
+  '${production}Recovery__ControlLedger__PrivateEndpoint': privateDependency.PrivateEndpoint
+  '${production}Recovery__ControlLedgerReplica__Endpoint': 'https://${controlLedgerReplicaAccountName}.blob.${environment().suffixes.storage}/'
+  '${production}Recovery__ControlLedgerReplica__ResourceId': '${resourcePrefix}/Microsoft.Storage/storageAccounts/${controlLedgerReplicaAccountName}'
+  '${production}Recovery__ControlLedgerReplica__Region': recoveryRegion
+  '${production}Recovery__ControlLedgerReplica__PublicNetworkAccess': privateDependency.PublicNetworkAccess
+  '${production}Recovery__ControlLedgerReplica__PrivateEndpoint': privateDependency.PrivateEndpoint
+  '${production}Recovery__SqlPointInTimeRestoreDays': '35'
+  '${production}Recovery__BackupChainDays': '7'
+  '${production}Recovery__ControlLedgerRetentionDays': '90'
   '${production}EvidenceManifest': evidenceManifest
   TaxAi__Extraction__Provider: 'AzureDocumentIntelligence'
   TaxAi__Extraction__ContentReader: 'AzureBlobSourceReader'

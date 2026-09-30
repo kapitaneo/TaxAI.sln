@@ -315,6 +315,43 @@ reader is still never a general service. No setting is added.
   evidence (including DEP-04, DEP-12 and DEP-13, pending) is observed and both
   provider assurance gaps are resolved.
 
+## Spec 016 T06: recovery, backup and Canadian DR
+
+- **Recovery settings.** The closed profile gains fourteen digest-covered
+  `TaxAi:Production:Recovery:*` keys: the profile (`Primary` or the separately
+  signed `CanadaEastRecovery`), the Canada Central and Canada East control-ledger
+  bindings, and the 35-day point-in-time, 7-day backup-chain and 90-day ledger
+  windows. In `CanadaEastRecovery`, SQL and source storage are the Canada East
+  resources; Document Intelligence, Key Vault and monitoring stay Canada
+  Central. Document Intelligence never fails over: another region is refused.
+- **Admission adds three rules.** Exactly the Azure control ledger and evidence
+  reader, the durable reconciler and the orchestrator must be registered; the
+  release evidence stored in the Canadian evidence store for this exact binding
+  must be present, not withdrawn, and admitted; and the recovery inventory
+  probe must find the six immutable control containers.
+- **`Production/RecoveryOrchestrator.cs`.** Only after every admission rule has
+  passed, the gate runs the orchestrator within the operation deadline. The
+  recovery epoch is the **database incarnation**: a released incarnation starts
+  at once; a pristine environment writes the ledger's genesis; any other
+  incarnation stays in **quarantine** — the host does not start, so nothing is
+  served — until the ledger is complete, fresh and covers the recovered data, a
+  current attestation exists, every acknowledged terminal fact is replayed,
+  tombstones are cleaned, every pre-recovery session and link is revoked,
+  unlisted memberships are deactivated, and the release is acknowledged in
+  Canada East. Any failure refuses with one fixed message. There is no hosted
+  service, route, switch or partial release, and no step is skipped to meet an
+  objective.
+- **Degraded scope.** Recovered service authenticates, reads existing
+  authorized state and runs non-extraction operations; new extraction keeps the
+  fixed `503` until the Canada Central provider is valid again.
+- **Pending plan-amendment item.** Canada East application hosting (App
+  Service, WAF, egress) is not deployable from the T02 modules; the regional
+  application RTO therefore stays unexecuted as a pending plan-amendment item. See
+  `docs/operations/canadian-recovery.md`.
+
+Production admission remains refused: DEP evidence is unobserved and both
+provider assurance gaps are unresolved.
+
 ## The narrowed gate — read before adding a surface
 
 The identity, trusted-firm, session, logging, and residency decisions made by

@@ -75,6 +75,17 @@ internal static class ProductionConfiguration
 
     internal const string EvidenceManifestSetting = Prefix + "EvidenceManifest";
 
+    // Spec 016 T06: the recovery profile, the two control-ledger copies and the
+    // backup windows the ledger must outlive. Covered by the digest like every
+    // other key, so a recovery profile is its own signed configuration.
+    internal const string RecoveryPrefix = Prefix + "Recovery:";
+    internal const string RecoveryProfileSetting = RecoveryPrefix + "Profile";
+    internal const string ControlLedgerPrefix = RecoveryPrefix + "ControlLedger:";
+    internal const string ControlLedgerReplicaPrefix = RecoveryPrefix + "ControlLedgerReplica:";
+    internal const string RecoverySqlPointInTimeRestoreDaysSetting = RecoveryPrefix + "SqlPointInTimeRestoreDays";
+    internal const string RecoveryBackupChainDaysSetting = RecoveryPrefix + "BackupChainDays";
+    internal const string RecoveryControlLedgerRetentionDaysSetting = RecoveryPrefix + "ControlLedgerRetentionDays";
+
     private const string EndpointName = "Endpoint";
     private const string ResourceIdName = "ResourceId";
     private const string RegionName = "Region";
@@ -127,6 +138,15 @@ internal static class ProductionConfiguration
         ResilienceMaximumAttemptsSetting,
         ResilienceOperationDeadlineSetting,
         ResilienceProbeDeadlineSetting,
+        RecoveryProfileSetting,
+    })
+    .Concat(DependencyKeys(ControlLedgerPrefix))
+    .Concat(DependencyKeys(ControlLedgerReplicaPrefix))
+    .Concat(new[]
+    {
+        RecoverySqlPointInTimeRestoreDaysSetting,
+        RecoveryBackupChainDaysSetting,
+        RecoveryControlLedgerRetentionDaysSetting,
     })
     .ToArray();
 
@@ -223,6 +243,15 @@ internal static class ProductionConfiguration
                 OperationDeadline = configuration[ResilienceOperationDeadlineSetting],
                 ProbeDeadline = configuration[ResilienceProbeDeadlineSetting],
             },
+            Recovery = new RecoverySettings
+            {
+                Profile = configuration[RecoveryProfileSetting],
+                ControlLedger = ReadDependency(configuration, ControlLedgerPrefix),
+                ControlLedgerReplica = ReadDependency(configuration, ControlLedgerReplicaPrefix),
+                SqlPointInTimeRestoreDays = configuration[RecoverySqlPointInTimeRestoreDaysSetting],
+                BackupChainDays = configuration[RecoveryBackupChainDaysSetting],
+                ControlLedgerRetentionDays = configuration[RecoveryControlLedgerRetentionDaysSetting],
+            },
         };
 
     private static PrivateDependencySettings ReadDependency(
@@ -250,8 +279,10 @@ internal static class ProductionConfiguration
     /// <summary>
     /// Parses the manifest JSON into Tenancy's evidence shapes. Any structural
     /// problem makes the whole manifest invalid rather than partially trusted.
+    /// Spec 016 T06 applies the same parser to the evidence document read from
+    /// the Canadian evidence store, so both copies are held to one schema.
     /// </summary>
-    private static ProductionEvidenceManifest? ReadManifest(
+    internal static ProductionEvidenceManifest? ReadManifest(
         string? text,
         out bool invalid)
     {

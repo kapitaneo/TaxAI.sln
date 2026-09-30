@@ -61,6 +61,12 @@ public sealed class AzureInfrastructureOptions
 
     public ResilienceSettings Resilience { get; init; } = new();
 
+    /// <summary>
+    /// Spec 016 T06: the recovery profile, the two copies of the independent
+    /// control ledger and the backup windows its retention must outlive.
+    /// </summary>
+    public RecoverySettings Recovery { get; init; } = new();
+
     public override string ToString() => nameof(AzureInfrastructureOptions);
 }
 
@@ -197,4 +203,37 @@ public sealed class ResilienceSettings
     public string? ProbeDeadline { get; init; }
 
     public override string ToString() => nameof(ResilienceSettings);
+}
+
+/// <summary>
+/// The recovery profile and the independent control ledger (spec 016 T06,
+/// FR-10, FR-11). Every value is policy, not tuning:
+/// <list type="bullet">
+/// <item><see cref="Profile"/> is exactly <c>Primary</c> or
+/// <c>CanadaEastRecovery</c>. The recovery profile runs the application with a
+/// Canada East SQL database and failed-over Canada East source storage while
+/// Document Intelligence stays the Canada Central resource.</item>
+/// <item><see cref="ControlLedger"/> is the Canada Central copy and
+/// <see cref="ControlLedgerReplica"/> the authoritative, independently
+/// recoverable Canada East copy; two distinct private accounts.</item>
+/// <item>SQL point-in-time retention is exactly 35 days, the backup-chain
+/// allowance at least 7 days, and the ledger retention strictly longer than
+/// their sum.</item>
+/// </list>
+/// </summary>
+public sealed class RecoverySettings
+{
+    public string? Profile { get; init; }
+
+    public PrivateDependencySettings ControlLedger { get; init; } = new();
+
+    public PrivateDependencySettings ControlLedgerReplica { get; init; } = new();
+
+    public string? SqlPointInTimeRestoreDays { get; init; }
+
+    public string? BackupChainDays { get; init; }
+
+    public string? ControlLedgerRetentionDays { get; init; }
+
+    public override string ToString() => nameof(RecoverySettings);
 }

@@ -223,6 +223,26 @@ if (-not $dataProtectionKey -or
     Add-Refusal 'DataProtectionConfigurationMissing' 'DataProtection'
 }
 
+# Spec 016 T06: the two control-ledger copies are each bound to their own
+# account, and no storage account holds two roles (source, key ring, ledger).
+$ledgerHosts = foreach ($copy in @('ControlLedger', 'ControlLedgerReplica')) {
+    $ledgerName = Get-ResourceName (Get-Setting "${production}Recovery__${copy}__ResourceId") 'Microsoft.Storage/storageAccounts'
+    $ledgerHost = Get-Host (Get-Setting "${production}Recovery__${copy}__Endpoint")
+    if (-not $ledgerName -or -not $ledgerHost -or
+        -not [string]::Equals($ledgerHost, "$ledgerName.blob.core.windows.net", [StringComparison]::OrdinalIgnoreCase)) {
+        Add-Refusal 'StorageBindingInvalid' "Recovery__$copy"
+    }
+    else {
+        $ledgerHost
+    }
+}
+$storageHosts = @($ledgerHosts) + @($controlHost) + @($(if ($hosts.Contains('SourceStorage')) { $hosts['SourceStorage'] })) |
+    Where-Object { $_ } |
+    ForEach-Object { $_.ToLowerInvariant() }
+if (@($storageHosts | Select-Object -Unique).Count -ne @($storageHosts).Count) {
+    Add-Refusal 'StorageBindingInvalid' 'Recovery'
+}
+
 $connection = Get-Setting 'ConnectionStrings__TaxAiDatabase'
 $clientId = Get-Setting "${production}ManagedIdentity__ClientId"
 if ($connection -and $hosts.Contains('Sql')) {

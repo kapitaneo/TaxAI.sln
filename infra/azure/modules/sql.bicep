@@ -17,8 +17,14 @@
 //
 // The Entra administrator is a dedicated user-assigned migration identity: only
 // it applies reviewed migrations. The Portal identity is never an administrator.
-// Backup, geo-replication and manual Canadian recovery policy are extended by
-// T06; nothing here enables a diagnostic or auditing sink.
+// Spec 016 T06 (FR-11, AC-111, AC-112) adds the backup policy: point-in-time
+// restore at the 35-day maximum with 12-hour differentials, geo-zone-redundant
+// backup storage (Canada Central zones, asynchronously copied to the paired
+// Canada East region, so a Canadian geo-restore remains possible), and an
+// explicitly empty long-term-retention policy - no seven-year raw SQL archive
+// exists because application records live seven years. The Canada East
+// geo-secondary and the manual failover group are recovery.bicep. Nothing here
+// enables a diagnostic or auditing sink.
 
 @description('Primary region. Only Canada Central is approved.')
 @allowed([
@@ -150,11 +156,37 @@ resource database 'Microsoft.Sql/servers/databases@2023-08-01' = {
   }
   properties: {
     zoneRedundant: true
+    requestedBackupStorageRedundancy: 'GeoZone'
   }
   dependsOn: [
     encryptionProtector
   ]
 }
 
+// Spec 016 T06: the maximum practical short-term window, capped at 35 days.
+resource shortTermRetention 'Microsoft.Sql/servers/databases/backupShortTermRetentionPolicies@2023-08-01' = {
+  parent: database
+  name: 'default'
+  properties: {
+    retentionDays: 35
+    diffBackupIntervalInHours: 12
+  }
+}
+
+// Spec 016 T06: explicitly no long-term retention of any kind.
+resource longTermRetention 'Microsoft.Sql/servers/databases/backupLongTermRetentionPolicies@2023-08-01' = {
+  parent: database
+  name: 'default'
+  properties: {
+    weeklyRetention: 'PT0S'
+    monthlyRetention: 'PT0S'
+    yearlyRetention: 'PT0S'
+    weekOfYear: 1
+  }
+}
+
 output serverId string = server.id
 output databaseId string = database.id
+output tdeIdentityId string = tdeIdentity.id
+output migrationIdentityName string = migrationIdentity.name
+output migrationIdentityClientId string = migrationIdentity.properties.clientId

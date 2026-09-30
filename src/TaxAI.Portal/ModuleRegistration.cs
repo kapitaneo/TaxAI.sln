@@ -188,6 +188,15 @@ internal static class ModuleRegistration
                 new SourceContentSettings(
                     intake.FingerprintKey,
                     ExtractionConfiguration.ProductionMaximumSourceBytes(configuration)));
+            // Spec 016 T06: the recovery orchestrator over the library's
+            // control ledger. It runs once at startup, after admission, and the
+            // host serves nothing until its database incarnation is released.
+            services.AddSingleton(provider => new RecoveryOrchestrator(
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                provider.GetRequiredService<Tenancy.Contracts.IRecoveryControlStore>(),
+                provider.GetRequiredService<TimeProvider>(),
+                provider.GetRequiredService<AzureInfrastructureOptions>()));
+
             var intelligence = ExtractionConfiguration.ProductionOptions(configuration);
             if (intelligence is not null)
             {

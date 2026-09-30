@@ -88,6 +88,21 @@ public sealed class PersistenceContractTests
         Assert.Empty(generic);
     }
 
+    [Fact] // Spec 016 T06: the reconciler adds no public surface and no queryable.
+    public void TheRecoveryReconcilerIsAnInternalSealedPortImplementation()
+    {
+        var reconciler = PersistenceAssembly.GetType("Persistence.Services.SqlRecoveryReconciler")!;
+
+        Assert.NotNull(reconciler);
+        Assert.False(reconciler.IsPublic);
+        Assert.True(reconciler.IsSealed);
+        Assert.Contains(typeof(Tenancy.Contracts.IRecoveryReconciler), reconciler.GetInterfaces());
+        Assert.DoesNotContain(
+            reconciler.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+            method => method.ReturnType.Name.Contains("Queryable", StringComparison.Ordinal) ||
+                      method.ReturnType.Name.StartsWith("DbSet", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void TheRegistrationEntryPointRemainsTheSingleExtensionMethod()
     {

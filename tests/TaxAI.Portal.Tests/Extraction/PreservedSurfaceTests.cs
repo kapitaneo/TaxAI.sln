@@ -214,6 +214,27 @@ public sealed class PreservedSurfaceTests
         Assert.DoesNotContain("IExtractionContentReader", source, StringComparison.Ordinal);
     }
 
+    [Fact] // spec 016 T06: recovery is a startup step, not a route, scheduler or reader.
+    public void RecoveryIsAStartupStepThatNeverReadsOrServesSourceContent()
+    {
+        var orchestrator = PortalFile(Path.Combine("Production", "RecoveryOrchestrator.cs"));
+
+        foreach (var forbidden in new[]
+                 {
+                     "IHostedService", "BackgroundService", "PeriodicTimer", "System.Threading.Timer",
+                     "MapGet", "MapPost", "Results.", "IExtractionContentReader", "AzureExtractionContentReader",
+                     "IIntakeContentStore", "OpenReadAsync", "DownloadContent",
+                 })
+        {
+            Assert.DoesNotContain(forbidden, orchestrator, StringComparison.Ordinal);
+        }
+
+        // Its only source-object capability is the scoped purger, used for
+        // replayed destruction of resources an acknowledged ledger fact names.
+        Assert.Contains("ISourceObjectPurger", orchestrator, StringComparison.Ordinal);
+        Assert.Contains(".PurgeAsync(record.Firm!, record.CaseId, record.ResourceId", orchestrator, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ReaderIsNotResolvableAsAGeneralOrBackgroundService()
     {

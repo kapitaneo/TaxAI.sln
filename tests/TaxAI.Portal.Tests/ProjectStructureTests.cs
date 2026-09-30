@@ -614,6 +614,35 @@ public sealed class ProjectStructureTests
         Assert.Contains("no cloud SDK, credential or key dependency", persistence, StringComparison.Ordinal);
     }
 
+    [Fact] // spec 016 T06
+    public void RecoveryInstructions_StateTheSliceTheyDeliver()
+    {
+        var portal = NormalizeWhitespace(File.ReadAllText(Path.Combine(PortalRoot, "CLAUDE.md")));
+        var persistence = NormalizeWhitespace(File.ReadAllText(Path.Combine(PersistenceRoot, "CLAUDE.md")));
+        var tenancy = NormalizeWhitespace(File.ReadAllText(Path.Combine(TenancyRoot, "CLAUDE.md")));
+
+        foreach (var claim in new[]
+                 {
+                     "Spec 016 T06", "RecoveryOrchestrator", "database incarnation", "quarantine",
+                     "CanadaEastRecovery", "never fails over", "pending plan-amendment",
+                 })
+        {
+            Assert.Contains(claim, portal, StringComparison.Ordinal);
+        }
+
+        foreach (var claim in new[] { "Spec 016 T06", "SqlRecoveryReconciler", "no migration", "Expired credentials" })
+        {
+            Assert.Contains(claim, persistence, StringComparison.Ordinal);
+        }
+
+        foreach (var claim in new[] { "Spec 016 T06", "IRecoveryControlStore", "RecoveryReleasePolicy", "no firm-scope exemption" })
+        {
+            Assert.Contains(claim, tenancy, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("admits real taxpayer", portal, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact] // spec 016 T03: the host still carries no Azure SDK package.
     public void PortalProject_GainsNoPackageFromTheKeyProtectionSlice()
     {

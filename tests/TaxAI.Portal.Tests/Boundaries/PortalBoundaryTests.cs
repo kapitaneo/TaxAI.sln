@@ -54,6 +54,7 @@ public sealed class PortalBoundaryTests
         "ProductionAdmissionGate.cs",
         "ProductionConfiguration.cs",
         "Program.cs",
+        "RecoveryOrchestrator.cs",
         "ReviewEndpoints.cs",
         "ReviewPageModel.cs",
         "SessionTicketStore.cs",
@@ -306,6 +307,10 @@ public sealed class PortalBoundaryTests
         // register nothing.
         { "ProductionAdmissionGate.cs", Array.Empty<string>() },
         { "ProductionConfiguration.cs", Array.Empty<string>() },
+
+        // Spec 016 T06: the recovery orchestrator resolves and reconciles; it
+        // registers nothing. The composition root registers it.
+        { "RecoveryOrchestrator.cs", Array.Empty<string>() },
         { "ReviewEndpoints.cs", Array.Empty<string>() },
 
         // The review page model is data only: it registers nothing and reaches
@@ -462,8 +467,10 @@ public sealed class PortalBoundaryTests
         // The tax, intake, extraction-configuration, clock, and cookie singleton
         // registrations remain explicit and exact. Spec 016 T03 adds exactly one:
         // the Key Vault-loaded intake material the admission gate verifies.
+        // Spec 016 T06 adds exactly one more: the Production-only recovery
+        // orchestrator the admission gate runs before the host serves.
         Assert.Equal(
-            13,
+            14,
             new Regex(@"\bAddSingleton\b", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
                 .Matches(compositionRoot)
                 .Count);
