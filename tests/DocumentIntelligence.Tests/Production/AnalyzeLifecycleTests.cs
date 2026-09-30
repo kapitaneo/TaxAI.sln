@@ -13,10 +13,9 @@ public sealed class AnalyzeLifecycleTests
     [Theory]
     [InlineData("classify")]
     [InlineData("t4")]
-    [InlineData("medical")]
-    public async Task EveryMethodAnalyzesOnceAndDeletesBeforeReturning(string method)
+    public async Task EverySubmittingMethodAnalyzesOnceAndDeletesBeforeReturning(string method)
     {
-        using var wire = new ProviderWire { Title = method == "medical" ? "Medical expense receipt" : "T4" };
+        using var wire = new ProviderWire();
         using var provider = wire.Provider();
         var result = await wire.Invoke(provider, method);
         Assert.NotNull(result);
@@ -127,6 +126,15 @@ public sealed class AnalyzeLifecycleTests
     }
 
     [Fact]
+    public async Task MedicalInterpretationIsRefusedWithoutAnySubmission()
+    {
+        using var wire = new ProviderWire { Paragraphs = ["Medical expense receipt"] };
+        using var provider = wire.Provider();
+        Assert.Null(await wire.Invoke(provider, "medical"));
+        Assert.Empty(wire.Methods);
+    }
+
+    [Fact]
     public async Task SourceLimitRefusesWithoutSubmittingOrTruncating()
     {
         using var wire = new ProviderWire();
@@ -143,7 +151,8 @@ internal sealed class ProviderWire : HttpMessageHandler
     internal readonly List<Uri> Uris = [];
     internal readonly List<TimeSpan> Times = [];
     private readonly System.Diagnostics.Stopwatch _timer = System.Diagnostics.Stopwatch.StartNew();
-    internal string Title = "T4";
+    // The printed CRA T4 (25) designator and its English and French slip titles.
+    internal string[] Paragraphs = ["T4", "Statement of Remuneration Paid", "État de la rémunération payée"];
     internal string State = "succeeded";
     internal string? RawResponse;
     internal HttpStatusCode SubmitStatus = HttpStatusCode.Accepted;
@@ -152,7 +161,7 @@ internal sealed class ProviderWire : HttpMessageHandler
     internal bool OmitLocation, SubmitThrows, HangPoll, HangDelete, DeleteTokenWasCancelled;
     internal string? Location;
     internal Action? DuringPoll;
-    internal List<object> Pairs = [];
+    internal List<object> Pairs = [Pair("Employment income – Revenus d'emploi", "1.00")];
     internal Func<Dictionary<string, object?>, Dictionary<string, object?>>? TransformLayout;
     internal int DeleteFailures;
     internal int RunningPolls;
@@ -178,12 +187,15 @@ internal sealed class ProviderWire : HttpMessageHandler
         _ => await provider.ExtractT4Async(Source, CancellationToken.None),
     };
     internal static object[] Geometry(int page = 1) => [new { pageNumber = page, polygon = new[] { 0, 0, 1, 0, 1, 1, 0, 1 } }];
-    internal static object Pair(string key, string? value, decimal? confidence = null) => new
-    {
-        key = new { content = key, boundingRegions = Geometry() },
-        value = new { content = value, boundingRegions = Geometry() },
-        confidence,
-    };
+    // A null value is an empty printed field: the pair carries no value element.
+    internal static object Pair(string key, string? value, decimal? confidence = null) => value is null
+        ? new { key = new { content = key, boundingRegions = Geometry() }, confidence }
+        : new
+        {
+            key = new { content = key, boundingRegions = Geometry() },
+            value = new { content = value, boundingRegions = Geometry() },
+            confidence,
+        };
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
         Methods.Add(request.Method.Method); Uris.Add(request.RequestUri!); Times.Add(_timer.Elapsed);
@@ -209,7 +221,7 @@ internal sealed class ProviderWire : HttpMessageHandler
         {
             ["apiVersion"] = "2024-11-30", ["modelId"] = "prebuilt-layout",
             ["pages"] = new[] { new { pageNumber = 1 } },
-            ["paragraphs"] = new[] { new { role = "title", content = Title, boundingRegions = Geometry() } },
+            ["paragraphs"] = Paragraphs.Select(content => new { content, boundingRegions = Geometry() }).ToArray(),
             ["keyValuePairs"] = Pairs,
         };
         return new HttpResponseMessage(PollStatus)

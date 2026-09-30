@@ -1,18 +1,31 @@
 using System.Globalization;
 using System.Text.Json;
 using ExtractionWorkflow.Models;
+using Field = DocumentIntelligence.Production.DocumentLayoutRecognition.Field;
 
 namespace DocumentIntelligence.Production;
 
+/// <summary>
+/// Copies printed T4 slip-face fields into the existing untrusted shapes. Values
+/// are copied exactly as read; nothing is repaired, normalized, inferred or
+/// judged. Medical interpretation is not implemented: no CRA-printed medical
+/// title or layout exists to recognize, so it stays refused (spec 016 T05
+/// pending Class A item).
+/// </summary>
 internal static class LayoutResultInterpreter
 {
+    internal const string ProviderLabel = "Document Intelligence layout";
+
     internal static ProviderClassificationResult Classify(JsonElement layout)
     {
         RequireUniqueProperties(layout);
+        var classification = DocumentLayoutRecognition.Structural(layout, out _)
+            ? DocumentLayoutRecognition.Recognize(layout, Read(layout).Boxes.Count)
+            : DocumentClassification.Unsupported;
         return new ProviderClassificationResult
         {
-            Classification = DocumentLayoutRecognition.Recognize(layout),
-            ProviderLabel = "Azure Document Intelligence layout",
+            Classification = classification,
+            ProviderLabel = ProviderLabel,
             // Layout has no document-classification confidence. Word or field
             // confidence is not a matching signal and must not be substituted.
             Confidence = null,
@@ -22,79 +35,67 @@ internal static class LayoutResultInterpreter
     internal static ProviderT4Result? T4(JsonElement layout)
     {
         if (Classify(layout).Classification != DocumentClassification.T4Slip) return null;
-        var fields = Fields(layout);
-        var boxes = new List<ProviderBoxValue?>();
-        foreach (var field in fields)
-        {
-            var code = field.Key.StartsWith("Box ", StringComparison.Ordinal) ? field.Key[4..] : field.Key;
-            if (code.Length is 2 or 3 && code.All(character => character is >= '0' and <= '9'))
-                boxes.Add(new ProviderBoxValue { Code = code, Value = field.Value, Confidence = field.Confidence });
-        }
-        var printedYear = Single(fields, "Year");
+        var printed = Read(layout);
+
         int? year = null;
-        if (printedYear is not null)
+        if (printed.Single(Field.Year) is { } printedYear)
         {
             if (!int.TryParse(printedYear, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)) return null;
             year = parsed;
         }
+
         return new ProviderT4Result
         {
             Year = year,
-            EmployerName = Single(fields, "Employer's name"),
-            EmployerAddress = Single(fields, "Employer's address"),
-            EmployeeName = Single(fields, "Employee's name"),
-            EmployeeAddress = Single(fields, "Employee's address"),
-            ExemptCppQpp = Selection(Single(fields, "CPP/QPP exempt")),
-            ExemptEi = Selection(Single(fields, "EI exempt")),
-            ExemptPpip = Selection(Single(fields, "PPIP exempt")),
-            Boxes = boxes.AsReadOnly(),
+            EmployerName = printed.Single(Field.EmployerName),
+            // The slip face prints no separate employer address, and the
+            // employee's name-and-address block is not split into its parts.
+            EmployerAddress = null,
+            EmployeeName = printed.EmployeeName(),
+            EmployeeAddress = null,
+            ExemptCppQpp = Selection(printed.Single(Field.ExemptCppQpp)),
+            ExemptEi = Selection(printed.Single(Field.ExemptEi)),
+            ExemptPpip = Selection(printed.Single(Field.ExemptPpip)),
+            Boxes = printed.Boxes.AsReadOnly(),
             Confidence = null,
         };
     }
 
-    internal static ProviderMedicalResult? Medical(JsonElement layout)
+    private static PrintedSlip Read(JsonElement layout)
     {
-        if (Classify(layout).Classification != DocumentClassification.MedicalExpenseEvidence) return null;
-        var fields = Fields(layout);
-        return new ProviderMedicalResult
-        {
-            ServiceDateAsPrinted = Single(fields, "Service date"),
-            GrossAmountAsPrinted = Single(fields, "Gross amount"),
-            CurrencyCodeAsPrinted = Single(fields, "Currency"),
-            ProviderDisplayName = Single(fields, "Provider name"),
-            PatientDisplayName = Single(fields, "Patient name"),
-            ReceiptReference = Single(fields, "Receipt reference"),
-            Confidence = null,
-        };
-    }
-
-    private static List<PrintedField> Fields(JsonElement layout)
-    {
-        var result = new List<PrintedField>();
+        var slip = new PrintedSlip();
+        if (!layout.TryGetProperty("keyValuePairs", out var pairs)) return slip;
         var pages = layout.GetProperty("pages").GetArrayLength();
-        foreach (var pair in layout.GetProperty("keyValuePairs").EnumerateArray())
+        foreach (var pair in pairs.EnumerateArray())
         {
             var key = pair.GetProperty("key");
             var label = key.GetProperty("content").GetString() ?? throw new FormatException();
             var page = DocumentLayoutRecognition.RequireGeometry(key, pages);
             string? value = null;
-            if (pair.TryGetProperty("value", out var printed))
+            if (pair.TryGetProperty("value", out var printed) && printed.ValueKind != JsonValueKind.Null)
             {
                 if (DocumentLayoutRecognition.RequireGeometry(printed, pages) != page) throw new FormatException();
                 value = printed.GetProperty("content").GetString() ?? throw new FormatException();
             }
             decimal? confidence = pair.TryGetProperty("confidence", out var signal) && signal.ValueKind != JsonValueKind.Null
                 ? signal.GetDecimal() : null;
-            result.Add(new PrintedField(label, value, confidence));
-        }
-        return result;
-    }
 
-    private static string? Single(List<PrintedField> fields, string label)
-    {
-        var matches = fields.Where(field => field.Key == label).ToArray();
-        if (matches.Length > 1) throw new FormatException();
-        return matches.SingleOrDefault()?.Value;
+            if (DocumentLayoutRecognition.NamedField(label) is { } field)
+            {
+                // The other-information cells carry employer-entered codes and
+                // amounts whose pairing is positional; an occupied cell cannot
+                // be associated without guessing, so the layout refuses.
+                if (field is Field.OtherInformation or Field.OtherBox or Field.OtherAmount &&
+                    !string.IsNullOrWhiteSpace(value)) throw new FormatException();
+                slip.Add(field, value);
+            }
+            else if (DocumentLayoutRecognition.BoxCode(label) is { } code && !string.IsNullOrWhiteSpace(value))
+            {
+                // Duplicates stay a list, so the engine's own duplicate-box rule sees them.
+                slip.Boxes.Add(new ProviderBoxValue { Code = code, Value = value, Confidence = confidence });
+            }
+        }
+        return slip;
     }
 
     private static bool? Selection(string? printed) => printed switch
@@ -120,11 +121,34 @@ internal static class LayoutResultInterpreter
             foreach (var item in element.EnumerateArray()) RequireUniqueProperties(item);
     }
 
-    private sealed class PrintedField(string key, string? value, decimal? confidence)
+    private sealed class PrintedSlip
     {
-        internal string Key { get; } = key;
-        internal string? Value { get; } = value;
-        internal decimal? Confidence { get; } = confidence;
-        public override string ToString() => nameof(PrintedField);
+        private readonly List<(Field Field, string? Value)> _fields = [];
+        internal List<ProviderBoxValue?> Boxes { get; } = [];
+
+        internal void Add(Field field, string? value) => _fields.Add((field, value));
+
+        /// <summary>One printed value per field; a repeated field is ambiguous and refuses.</summary>
+        internal string? Single(Field field)
+        {
+            var matches = _fields.Where(entry => entry.Field == field && entry.Value is not null).ToArray();
+            if (matches.Length > 1) throw new FormatException();
+            return matches.SingleOrDefault().Value;
+        }
+
+        /// <summary>
+        /// The printed last name, first name and initial, in slip order, each
+        /// copied as read and separated by one space [ASSUMED]. Without a
+        /// printed last name there is no employee name; the existing chain
+        /// then refuses and the accountant correction path applies.
+        /// </summary>
+        internal string? EmployeeName()
+        {
+            string? last = Single(Field.LastName), first = Single(Field.FirstName), initial = Single(Field.Initial);
+            if (last is null) return null;
+            return string.Join(' ', new[] { last, first, initial }.Where(part => !string.IsNullOrWhiteSpace(part)));
+        }
+
+        public override string ToString() => nameof(PrintedSlip);
     }
 }

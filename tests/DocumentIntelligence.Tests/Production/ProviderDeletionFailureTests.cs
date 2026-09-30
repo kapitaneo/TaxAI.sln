@@ -7,11 +7,9 @@ public sealed class ProviderDeletionFailureTests
     [Theory]
     [InlineData("classify")]
     [InlineData("t4")]
-    [InlineData("medical")]
     public async Task ExhaustedDeletionNeverReleasesAResult(string method)
     {
-        using var wire = new ProviderWire
-        { Title = method == "medical" ? "Medical expense receipt" : "T4", DeleteStatus = HttpStatusCode.ServiceUnavailable };
+        using var wire = new ProviderWire { DeleteStatus = HttpStatusCode.ServiceUnavailable };
         using var provider = wire.Provider();
         Assert.Null(await wire.Invoke(provider, method));
         Assert.Equal(3, wire.Methods.Count(method => method == "DELETE"));

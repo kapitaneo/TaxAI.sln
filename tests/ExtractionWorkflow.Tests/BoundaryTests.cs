@@ -374,7 +374,7 @@ public sealed class BoundaryTests
             .Select(path => new
             {
                 Name = Path.GetFileName(path),
-                Text = string.Join("\n", ExecutableLines(path).Select(line => Path.GetFileName(path) == "LayoutResultInterpreter.cs" ? line.Replace("\"Azure Document Intelligence layout\"", "\"provider label\"", StringComparison.Ordinal) : line)),
+                Text = string.Join("\n", ExecutableLines(path)),
             })
             .Where(source => regex.IsMatch(source.Text))
             .Select(source => source.Name)

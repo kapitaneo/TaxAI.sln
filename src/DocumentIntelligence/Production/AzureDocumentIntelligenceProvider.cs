@@ -47,8 +47,14 @@ public sealed class AzureDocumentIntelligenceProvider : IDocumentIntelligencePro
         RunAsync(source, LayoutResultInterpreter.Classify, cancellationToken);
     public Task<ProviderT4Result?> ExtractT4Async(Stream source, CancellationToken cancellationToken) =>
         RunAsync(source, LayoutResultInterpreter.T4, cancellationToken);
+    /// <summary>
+    /// Refused without submission. No CRA-printed medical receipt title or
+    /// layout exists to recognize, so production medical interpretation is a
+    /// pending Class A item (spec 016 T05); sending the receipt would disclose
+    /// it for a result that could never be released.
+    /// </summary>
     public Task<ProviderMedicalResult?> ExtractMedicalAsync(Stream source, CancellationToken cancellationToken) =>
-        RunAsync(source, LayoutResultInterpreter.Medical, cancellationToken);
+        Task.FromResult<ProviderMedicalResult?>(null);
 
     private async Task<T?> RunAsync<T>(Stream source, Func<System.Text.Json.JsonElement, T?> interpret,
         CancellationToken cancellationToken) where T : class
