@@ -168,8 +168,11 @@
       "description": "Source content storage account resource id in the configured subscription and resource group."
     },
     "TaxAi__Production__SourceStorage__Region": {
-      "const": "canadacentral",
-      "description": "Source content storage account region."
+      "enum": [
+        "canadacentral",
+        "canadaeast"
+      ],
+      "description": "Source content storage account region: canadacentral for the Primary profile; canadaeast only with CanadaEastRecovery (the offline check and the validator bind the two)."
     },
     "TaxAi__Production__SourceStorage__PublicNetworkAccess": {
       "const": "Disabled",
@@ -212,8 +215,11 @@
       "description": "Azure SQL logical server resource id in the configured subscription and resource group."
     },
     "TaxAi__Production__Sql__Region": {
-      "const": "canadacentral",
-      "description": "Azure SQL logical server region."
+      "enum": [
+        "canadacentral",
+        "canadaeast"
+      ],
+      "description": "Azure SQL logical server region: canadacentral for the Primary profile; canadaeast only with CanadaEastRecovery (the offline check and the validator bind the two)."
     },
     "TaxAi__Production__Sql__PublicNetworkAccess": {
       "const": "Disabled",
@@ -320,8 +326,11 @@
       "description": "Managed-identity SQL connection with strict encryption. Carries no password."
     },
     "TaxAi__Production__Recovery__Profile": {
-      "const": "Primary",
-      "description": "Spec 016 T06: the deployment profile. The IaC emits the primary Canada Central profile only; the manual CanadaEastRecovery profile is a separately signed configuration validated by ProductionConfigurationValidator (docs/operations/canadian-recovery.md)."
+      "enum": [
+        "Primary",
+        "CanadaEastRecovery"
+      ],
+      "description": "Spec 016 T06: Primary for the Canada Central host; CanadaEastRecovery only for the manually activated Canada East recovery host (a separately signed configuration). Document Intelligence, Key Vault and monitoring never move."
     },
     "TaxAi__Production__Recovery__ControlLedger__Endpoint": {
       "type": "string",

@@ -163,7 +163,11 @@ public sealed class RecoveryTemplateTests
         Assert.Contains("eastAccountName: controlLedgerEastName", Main, StringComparison.Ordinal);
 
         var runtime = InfrastructurePlanHarness.Read("modules/runtime-configuration.bicep");
-        Assert.Contains("'${production}Recovery__Profile': 'Primary'", runtime, StringComparison.Ordinal);
+        Assert.Contains("'${production}Recovery__Profile': profile", runtime, StringComparison.Ordinal);
+        Assert.Contains("@allowed([\n  'Primary'\n  'CanadaEastRecovery'\n])\nparam profile string", runtime, StringComparison.Ordinal);
+        Assert.Contains("var dataRegion = profile == 'CanadaEastRecovery' ? recoveryRegion : primaryRegion", runtime, StringComparison.Ordinal);
+        Assert.Contains("'${production}DocumentIntelligence__Region': privateDependency.Region", runtime, StringComparison.Ordinal);
+        Assert.Contains("profile: 'Primary'", Main, StringComparison.Ordinal);
         Assert.Contains("'${production}Recovery__ControlLedgerReplica__Region': recoveryRegion", runtime, StringComparison.Ordinal);
         Assert.Contains("'${production}Recovery__SqlPointInTimeRestoreDays': '35'", runtime, StringComparison.Ordinal);
     }
@@ -178,6 +182,60 @@ public sealed class RecoveryTemplateTests
         Assert.DoesNotContain("immutabilityPolicies", Storage, StringComparison.Ordinal);
     }
 
+    [Fact] // AC-107, DEP-18: the Canada East host uses the same hardened modules, non-zonal.
+    public void TheHostingModulesServeCanadaEastWithoutWeakeningAnyControl()
+    {
+        foreach (var module in new[] { "app-service", "application-gateway", "egress", "private-endpoints" })
+        {
+            var template = InfrastructurePlanHarness.Read($"modules/{module}.bicep");
+            Assert.Contains("@allowed([\n  'canadacentral'\n  'canadaeast'\n])\nparam location string", template, StringComparison.Ordinal);
+            Assert.DoesNotContain("'eastus'", template, StringComparison.Ordinal);
+            Assert.DoesNotContain("publicNetworkAccess: 'Enabled'", template, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("var zoneRedundant = location == 'canadacentral'", InfrastructurePlanHarness.Read("modules/app-service.bicep"), StringComparison.Ordinal);
+        foreach (var module in new[] { "application-gateway", "egress" })
+        {
+            var template = InfrastructurePlanHarness.Read($"modules/{module}.bicep");
+            Assert.Contains("var zones = location == 'canadacentral' ? [\n  '1'\n  '2'\n  '3'\n] : []", template, StringComparison.Ordinal);
+            Assert.Equal(2, Regex.Matches(template, "zones: zones").Count);
+        }
+    }
+
+    [Fact] // The recovery host starts with its key ring and both ledger copies reachable privately.
+    public void TheRecoveryHostBindsItsControlAccountsPrivately()
+    {
+        Assert.Contains("controlAccountResourceIds: []", Main, StringComparison.Ordinal);
+        var recovery = Main[Main.IndexOf("module recoveryEndpoints", StringComparison.Ordinal)..];
+        Assert.Contains("recoveryInputs!.runtime.controlStorageAccountName", recovery, StringComparison.Ordinal);
+        Assert.Contains("controlLedgerCentralName", recovery, StringComparison.Ordinal);
+        Assert.Contains("controlLedgerEastName", recovery, StringComparison.Ordinal);
+        Assert.Contains("dataResourceGroupName", recovery, StringComparison.Ordinal);
+    }
+
+    [Fact] // The T10 boundary: T10 may run the drill, never supply its hosting IaC.
+    public void CanadaEastHostingIaCIsOwnedByT06AndNeverByT10()
+    {
+        var tasks = File.ReadAllText(Path.Combine(
+            InfrastructurePlanHarness.RepositoryRoot, "specs", "016-canadian-azure-production-infrastructure", "tasks.md")).ReplaceLineEndings("\n");
+        var t06 = tasks[tasks.IndexOf("- [ ] **T06**", StringComparison.Ordinal)..tasks.IndexOf("## Wave 7", StringComparison.Ordinal)];
+        var t10 = tasks[tasks.IndexOf("- [ ] **T10**", StringComparison.Ordinal)..tasks.IndexOf("## Single-owner acceptance traceability", StringComparison.Ordinal)];
+
+        foreach (var path in new[]
+                 {
+                     "infra/azure/modules/app-service.bicep", "infra/azure/modules/application-gateway.bicep",
+                     "infra/azure/modules/egress.bicep", "infra/azure/modules/private-endpoints.bicep",
+                     "infra/azure/main.bicep", "scripts/azure/Invoke-RecoveryDrill.ps1",
+                 })
+        {
+            Assert.Contains($"`{path}`", t06, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotMatch(new Regex(@"^- `infra/", RegexOptions.Multiline), t10);
+        Assert.DoesNotContain("Invoke-RecoveryDrill.ps1", t10, StringComparison.Ordinal);
+        Assert.Contains("only to make the T06 regional-recovery drill", t06, StringComparison.Ordinal);
+    }
+
     [Fact] // The recovery parameter file stays passive.
     public void TheRecoveryProfileStillTakesNoPrimaryInputs()
     {
@@ -185,6 +243,6 @@ public sealed class RecoveryTemplateTests
 
         Assert.Contains("param profile = 'recovery'", parameters, StringComparison.Ordinal);
         Assert.DoesNotMatch(new Regex(@"(?m)^param primary\b"), parameters);
-        Assert.Contains("pending plan-amendment item", parameters, StringComparison.Ordinal);
+        Assert.DoesNotMatch(new Regex(@"(?m)^param activation\b"), parameters);
     }
 }

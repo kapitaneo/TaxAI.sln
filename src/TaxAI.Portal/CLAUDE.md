@@ -344,9 +344,11 @@ reader is still never a general service. No setting is added.
 - **Degraded scope.** Recovered service authenticates, reads existing
   authorized state and runs non-extraction operations; new extraction keeps the
   fixed `503` until the Canada Central provider is valid again.
-- **Pending plan-amendment item.** Canada East application hosting (App
-  Service, WAF, egress) is not deployable from the T02 modules; the regional
-  application RTO therefore stays unexecuted as a pending plan-amendment item. See
+- **The manually activated Canada East recovery host** (T06 amendment 2) runs
+  this same composition with the `CanadaEastRecovery` profile, deployed from the
+  committed IaC only by an explicit activation input, in its own recovery
+  resource group. It starts quarantined like any other host and is admitted only
+  after reconciliation releases its database incarnation. See
   `docs/operations/canadian-recovery.md`.
 
 Production admission remains refused: DEP evidence is unobserved and both

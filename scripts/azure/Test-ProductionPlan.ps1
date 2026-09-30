@@ -94,7 +94,11 @@ function Read-Source {
 $rules = @(
     # ---- hosting (FR-02, AC-018 to AC-020)
     @{ Code = 'PlanSkuNotP1v3'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = "name: 'P1v3'\s+tier: 'PremiumV3'" }
-    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'zoneRedundant: true' }
+    # Spec 016 T06: zone redundant exactly where the region offers zones (Canada
+    # Central); the manually activated Canada East recovery host is non-zonal.
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = "var zoneRedundant = location == 'canadacentral'" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'zoneRedundant: zoneRedundant' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Forbid'; Pattern = 'zoneRedundant: false' }
     @{ Code = 'PerSiteScalingEnabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'perSiteScaling: false' }
     @{ Code = 'MinimumWorkersBelowTwo'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = '@minValue\(2\)\s+@maxValue\(10\)\s+param minimumInstanceCount int' }
     @{ Code = 'MinimumWorkersBelowTwo'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'capacity: minimumInstanceCount' }
@@ -149,7 +153,16 @@ $rules = @(
     @{ Code = 'BackendNotCertificateValidated'; File = 'modules/application-gateway.bicep'; Kind = 'Forbid'; Pattern = '(?:validateCertChainAndExpiry|validateSNI): false' }
     @{ Code = 'BackendNotCertificateValidated'; File = 'modules/application-gateway.bicep'; Kind = 'Forbid'; Pattern = 'trustedRootCertificates:' }
     @{ Code = 'TransportBelowMinimum'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = "policyType: 'Predefined'\s+policyName: 'AppGwSslPolicy20220101S'" }
-    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Count'; Expected = 2; Pattern = "zones: \[\s+'1'\s+'2'\s+'3'\s+\]" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = "var zones = location == 'canadacentral' \? \[\s+'1'\s+'2'\s+'3'\s+\] : \[\]" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Count'; Expected = 2; Pattern = 'zones: zones' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Require'; Pattern = "var zones = location == 'canadacentral' \? \[\s+'1'\s+'2'\s+'3'\s+\] : \[\]" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Count'; Expected = 2; Pattern = 'zones: zones' }
+
+    # ---- Spec 016 T06: hosting modules serve exactly the two Canadian regions
+    @{ Code = 'RegionNotApproved'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+'canadaeast'\s+\]\)\s+param location string" }
+    @{ Code = 'RegionNotApproved'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+'canadaeast'\s+\]\)\s+param location string" }
+    @{ Code = 'RegionNotApproved'; File = 'modules/egress.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+'canadaeast'\s+\]\)\s+param location string" }
+    @{ Code = 'RegionNotApproved'; File = 'modules/private-endpoints.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+'canadaeast'\s+\]\)\s+param location string" }
 
     # ---- deny-default network and egress (AC-057, AC-058)
     @{ Code = 'DefaultRouteBypass'; File = 'modules/network.bicep'; Kind = 'Require'; Pattern = "addressPrefix: '0\.0\.0\.0/0'\s+nextHopType: 'VirtualAppliance'\s+nextHopIpAddress: firewallPrivateAddress" }
@@ -174,17 +187,27 @@ $rules = @(
     @{ Code = 'TrafficInspectionConfigured'; File = 'modules/egress.bicep'; Kind = 'Require'; Pattern = "tier: 'Standard'\s+\}\s+threatIntelMode" }
 
     # ---- private endpoints and DNS (AC-049 to AC-052)
-    @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Count'; Expected = 5; Pattern = "groupId: '(?:sites|blob|sqlServer|vault|account)'" }
+    @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Count'; Expected = 6; Pattern = "groupId: '(?:sites|blob|sqlServer|vault|account)'" }
+    @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Require'; Pattern = "groupId: 'blob'\s+zone: 'SourceStorage'\s+resourceId: accountId" }
+    @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Require'; Pattern = '@maxLength\(3\)\s+param controlAccountResourceIds string\[\]' }
     @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Count'; Expected = 5; Pattern = '@minLength\(1\)\s+param \w+ResourceId string' }
-    @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Require'; Pattern = 'privateDnsZoneId: zoneIds\[binding\.name\]' }
+    @{ Code = 'PrivateBindingMissing'; File = 'modules/private-endpoints.bicep'; Kind = 'Require'; Pattern = 'privateDnsZoneId: zoneIds\[binding\.zone\]' }
     @{ Code = 'PrivateDnsNotBound'; File = 'modules/private-dns.bicep'; Kind = 'Require'; Pattern = 'registrationEnabled: false' }
     @{ Code = 'PrivateDnsNotBound'; File = 'modules/private-dns.bicep'; Kind = 'Count'; Expected = 5; Pattern = "(?m)^\s+(?:SourceStorage|Sql|KeyVault|DocumentIntelligence|Portal): '" }
     @{ Code = 'PrivateBindingMissing'; File = 'main.bicep'; Kind = 'Require'; Pattern = "module privateEndpoints 'modules/private-endpoints\.bicep' = if \(isPrimary\)" }
     @{ Code = 'OutboundNotDenyDefault'; File = 'main.bicep'; Kind = 'Require'; Pattern = "module egress 'modules/egress\.bicep' = if \(isPrimary\)" }
-    @{ Code = 'OutboundNotDenyDefault'; File = 'main.bicep'; Kind = 'Require'; Pattern = "egressMode: isPrimary && profileInputsConsistent \? 'Firewall' : 'Blackhole'" }
+    @{ Code = 'OutboundNotDenyDefault'; File = 'main.bicep'; Kind = 'Require'; Pattern = "egressMode: \(isPrimary \|\| activating\) && profileInputsConsistent \? 'Firewall' : 'Blackhole'" }
+
+    # ---- Spec 016 T06: the recovery host exists only by explicit activation
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = 'var activating = !isPrimary && activation != null' }
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "fail\('The primary profile activates no recovery host\.'\)" }
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "fail\('The recovery host deploys into its own Canada East resource group\.'\)" }
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Count'; Expected = 5; Pattern = "module recovery(?:Egress|Runtime|Portal|Endpoints|Ingress) '[^']+' = if \(activating\)" }
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "profile: 'CanadaEastRecovery'" }
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Forbid'; Pattern = "module \w+ 'modules/document-intelligence\.bicep' = if \((?!isPrimary\))" }
     @{ Code = 'RegionNotApproved'; File = 'main.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+\]\)\s+param primaryRegion string" }
     @{ Code = 'RegionNotApproved'; File = 'main.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadaeast'\s+\]\)\s+param recoveryRegion string" }
-    @{ Code = 'PrimaryInputsNotClosed'; File = 'main.bicep'; Kind = 'Count'; Expected = 5; Pattern = '@sealed\(\)\s+type ' }
+    @{ Code = 'PrimaryInputsNotClosed'; File = 'main.bicep'; Kind = 'Count'; Expected = 6; Pattern = '@sealed\(\)\s+type ' }
 )
 
 $moduleFiles = @(
@@ -274,7 +297,7 @@ function Invoke-Policy {
         }
     }
     if ($sources.Contains('parameters/recovery.example.bicepparam') -and
-        $sources['parameters/recovery.example.bicepparam'] -match 'param primary\b') {
+        $sources['parameters/recovery.example.bicepparam'] -match 'param (?:primary|activation)\b') {
         Add-Refusal 'RecoveryProfileActive' 'parameters/recovery.example.bicepparam'
     }
 

@@ -134,6 +134,21 @@ foreach ($key in $schema['required']) {
     if ($rule.Contains('pattern') -and $value -cnotmatch $rule['pattern']) {
         Add-Refusal 'ApprovedPatternNotMet' $key
     }
+    if ($rule.Contains('enum') -and -not (@($rule['enum'] | ForEach-Object { [string] $_ }) -ccontains $value)) {
+        Add-Refusal 'ApprovedConstantNotMet' $key
+    }
+}
+
+# Spec 016 T06: the recovery profile and the Canada East data move together.
+# Primary keeps SQL and source storage in Canada Central; only the manually
+# activated CanadaEastRecovery host names their Canada East counterparts.
+$profile = Get-Setting "${production}Recovery__Profile"
+$expectedDataRegion = if ($profile -ceq 'CanadaEastRecovery') { 'canadaeast' } else { 'canadacentral' }
+foreach ($key in @("${production}Sql__Region", "${production}SourceStorage__Region")) {
+    $region = Get-Setting $key
+    if ($null -ne $region -and -not [string]::Equals($region, $expectedDataRegion, [StringComparison]::Ordinal)) {
+        Add-Refusal 'RecoveryProfileRegionMismatch' $key
+    }
 }
 
 foreach ($key in $settings.Keys) {

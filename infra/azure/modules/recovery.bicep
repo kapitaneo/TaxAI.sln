@@ -18,9 +18,9 @@
 //     group with the same geo-zone backup storage and the same 35-day retention.
 //
 // It creates no application hosting, gateway, private endpoint in Canada East
-// or Document Intelligence resource. Canada East application-hosting
-// activation is a recorded pending plan-amendment item (evidence/T06.md);
-// Document Intelligence never fails over.
+// or Document Intelligence resource: the Canada East recovery host is the
+// separately, explicitly activated recovery profile of main.bicep. Document
+// Intelligence never fails over.
 
 @description('Recovery-only region. Only Canada East is approved.')
 @allowed([

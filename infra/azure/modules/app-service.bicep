@@ -13,13 +13,20 @@
 // the deny-default egress. WebSockets are on for the one approved Interactive
 // Server questionnaire island; nothing here widens interactivity.
 //
+// Spec 016 T06: the same hardened site also serves as the manually activated
+// Canada East recovery host (AC-107, DEP-18). Canada East offers no
+// availability zones (Microsoft Learn, "List of Azure regions", read
+// 2026-09-30), so the plan is zone redundant exactly in Canada Central and
+// non-zonal in Canada East; every other control is identical in both regions.
+//
 // No diagnostic setting is created. The platform's own forwarded-header switch
 // is off: the Portal honours exactly one trusted forwarded hop itself, and
 // refuses to start in Production if the platform switch is on.
 
-@description('Primary region. Only Canada Central is approved.')
+@description('Canada Central (primary) or Canada East (manually activated recovery host only).')
 @allowed([
   'canadacentral'
+  'canadaeast'
 ])
 param location string
 
@@ -63,6 +70,9 @@ param backendCertificateThumbprint string
 @description('Exact runtime application settings emitted by runtime-configuration.bicep.')
 param runtimeSettings object
 
+// Zone redundancy wherever the region offers zones: Canada Central.
+var zoneRedundant = location == 'canadacentral'
+
 var platformSettings = {
   ASPNETCORE_FORWARDEDHEADERS_ENABLED: 'false'
 }
@@ -78,7 +88,7 @@ resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
   properties: {
     reserved: true
-    zoneRedundant: true
+    zoneRedundant: zoneRedundant
     perSiteScaling: false
     elasticScaleEnabled: false
   }

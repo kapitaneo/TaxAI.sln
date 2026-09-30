@@ -12,13 +12,19 @@
 // WAF runs in Prevention mode with the GA Microsoft default rule set. Request
 // body inspection stays on; the file-upload limit is a bounded parameter so the
 // approved Spec 014 upload limit is preserved rather than silently truncated.
+// Spec 016 T06: the same gateway also fronts the manually activated Canada East
+// recovery host. Canada East offers no availability zones, so the gateway and
+// its address are zonal exactly in Canada Central; every listener, WAF and
+// backend-TLS control is identical in both regions.
+//
 // No diagnostic setting is created: no access, performance or firewall log -
 // all of which can carry request URIs or matched request content - is enabled
 // here, and no body/packet capture exists.
 
-@description('Primary region. Only Canada Central is approved.')
+@description('Canada Central (primary) or Canada East (manually activated recovery host only).')
 @allowed([
   'canadacentral'
+  'canadaeast'
 ])
 param location string
 
@@ -64,6 +70,13 @@ param fileUploadLimitInMb int
 
 var gatewayName = '${namePrefix}-agw'
 
+// Three zones wherever the region offers them: Canada Central.
+var zones = location == 'canadacentral' ? [
+  '1'
+  '2'
+  '3'
+] : []
+
 resource ingressAddress 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
   name: '${namePrefix}-pip-ingress'
   location: location
@@ -71,11 +84,7 @@ resource ingressAddress 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
     name: 'Standard'
     tier: 'Regional'
   }
-  zones: [
-    '1'
-    '2'
-    '3'
-  ]
+  zones: zones
   properties: {
     publicIPAllocationMethod: 'Static'
     publicIPAddressVersion: 'IPv4'
@@ -109,11 +118,7 @@ resource wafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPo
 resource gateway 'Microsoft.Network/applicationGateways@2024-05-01' = {
   name: gatewayName
   location: location
-  zones: [
-    '1'
-    '2'
-    '3'
-  ]
+  zones: zones
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

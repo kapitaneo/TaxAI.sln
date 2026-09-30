@@ -495,6 +495,16 @@ individual reasons are listed below. Do not manufacture parallelism.
 - `src/TaxAI.AzureInfrastructure/Configuration/ProductionConfigurationValidator.cs`
 - `tests/TaxAI.AzureInfrastructure.Tests/Configuration/ProductionConfigurationTests.cs`
 
+**Approved ownership amendment 2 (human-authorized 2026-09-30):** T06 additionally owns exactly these seven existing paths, **only to make the T06 regional-recovery drill (AC-107, DEP-18) executable**: a manually activated, non-zonal Canada East recovery application host (App Service, WAF v2 gateway, deny-default egress and its private endpoints) bound to the `CanadaEastRecovery` profile, and the region-aware policy rules and template tests that guard it. This transfers no other hosting responsibility to T06: the Canada Central primary topology, its posture and its later operational extensions (T09) remain with their existing owners.
+
+- `infra/azure/modules/app-service.bicep`
+- `infra/azure/modules/application-gateway.bicep`
+- `infra/azure/modules/egress.bicep`
+- `infra/azure/modules/private-endpoints.bicep`
+- `scripts/azure/Test-ProductionPlan.ps1`
+- `tests/TaxAI.Portal.Tests/Production/HostTemplateTests.cs`
+- `tests/TaxAI.Portal.Tests/Production/NetworkTemplateTests.cs`
+
 ## Wave 7
 
 - [ ] **T07** — Retention policy and lifecycle state — files: exact list below — depends on: T06

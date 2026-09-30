@@ -481,6 +481,14 @@ public sealed class AmendmentAuditTests
         "tests/TaxAI.Portal.Tests/Production/RepositoryContractTests.cs";
     private const string RecoveryOrchestrator =
         "tests/TaxAI.Portal.Tests/Production/RecoveryOrchestratorTests.cs";
+    private const string HostTemplate =
+        "tests/TaxAI.Portal.Tests/Production/HostTemplateTests.cs";
+    private const string NetworkTemplate =
+        "tests/TaxAI.Portal.Tests/Production/NetworkTemplateTests.cs";
+    private const string RecoveryTemplate =
+        "tests/TaxAI.Portal.Tests/Production/RecoveryTemplateTests.cs";
+    private const string RecoveryTooling =
+        "tests/TaxAI.Portal.Tests/Production/RecoveryToolingTests.cs";
 
     /// <summary>
     /// Spec 016 T06 — every historical assertion the recovery slice narrowed,
@@ -515,12 +523,29 @@ public sealed class AmendmentAuditTests
             P(ProductionStartup, "AnUnreleasedDatabaseQuarantinesAnOtherwiseAdmittedHost"),
             P(ProductionStartup, "AnInvalidConfigurationIsRefusedBeforeAnyReconciliation"),
             P(RecoveryOrchestrator, "EachFailureQuarantinesAndReleasesNothing")),
+        A("HostTemplateTests/Test-ProductionPlan.ps1 zone-redundancy rules", "zonal exactly in Canada Central",
+            "Zone redundancy is still required wherever the region offers zones; only the non-zonal Canada East recovery host is exempt, and forcing false or moving the condition is still refused.",
+            P(HostTemplate, "EveryHostingSecurityMutationIsRefused"),
+            P(HostTemplate, "EveryIngressSecurityMutationIsRefused"),
+            P(NetworkTemplate, "EveryNetworkSecurityMutationIsRefused"),
+            P(RecoveryTemplate, "TheHostingModulesServeCanadaEastWithoutWeakeningAnyControl")),
+        A("Canada Central-only hosting, gateway, egress and endpoint regions", "exactly the two Canadian regions",
+            "The four hosting modules allow only Canada Central and Canada East; any other region is still refused, and every listener, WAF, TLS, egress and private-endpoint control is unchanged.",
+            P(HostTemplate, "EveryHostingSecurityMutationIsRefused"),
+            P(RecoveryTemplate, "TheHostingModulesServeCanadaEastWithoutWeakeningAnyControl")),
+        A("NetworkTemplateTests passive recovery profile and deny-default egress", "passive unless explicitly activated",
+            "The recovery profile stays passive by default; only the explicit, recovery-only activation input deploys the Canada East host, always with deny-default egress, never a second Document Intelligence resource and never a public data path.",
+            P(NetworkTemplate, "TheRecoveryProfileDeploysNoActiveTrafficOrAlternateProcessor"),
+            P(NetworkTemplate, "TheCanadaEastRecoveryHostIsDeployedOnlyByExplicitActivation"),
+            P(NetworkTemplate, "EveryNetworkSecurityMutationIsRefused"),
+            P(RecoveryTemplate, "CanadaEastHostingIaCIsOwnedByT06AndNeverByT10"),
+            P(RecoveryTooling, "TheRegionalDrillIsTheCompleteReconciliationInclusiveSequence")),
     ];
 
     [Fact] // spec 016 T06
     public void EverySpec016T06AmendmentNamesALiveNarrowerProof()
     {
-        Assert.Equal(6, Spec016T06Amendments.Length);
+        Assert.Equal(9, Spec016T06Amendments.Length);
         Assert.Equal(
             Spec016T06Amendments.Length,
             Spec016T06Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());

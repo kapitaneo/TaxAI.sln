@@ -51,10 +51,12 @@ without one no older than four hours and newer than the recovered data.
 ## Zone failure (target RTO ≤ 15 min, no committed-data loss)
 
 Nothing to declare. SQL, the source store (GZRS), the key ring (GZRS) and the
-Canada Central ledger copy (ZRS) are zone-redundant; App Service keeps at least
-two instances. The database incarnation does not change, so restarted
-instances find their release and start immediately. Verify `/health` and one
-authenticated read; record the elapsed time.
+Canada Central ledger copy (ZRS) are zone-redundant; the primary App Service
+keeps at least two instances. The database incarnation does not change, so
+restarted instances find their release and start immediately.
+`-Mode ZoneFailover` forces an in-region database failover, restarts the
+primary host and measures the time until `/health` answers through the primary
+gateway (≤ 15 minutes).
 
 ## Point-in-time SQL restore (DEP-17, DEP-19, DEP-20)
 
@@ -76,39 +78,67 @@ authenticated read; record the elapsed time.
 5. Verify: a copied pre-restore cookie is refused (DEP-20), a purged record is
    gone (DEP-19), the host serves only after release. Record elapsed time.
 
+## Canada East recovery host (the activation input)
+
+The Canada East recovery application host is committed IaC, deployed only by
+an explicit activation — never automatically and never by the passive
+recovery parameter file:
+
+- **Where.** A dedicated Canada East recovery resource group (never the data
+  resource group), holding the passive recovery network and its own private DNS
+  zones linked only to the recovery virtual network, so no private-endpoint
+  record of the primary topology is overwritten.
+- **What.** `main.bicep` with `profile = 'recovery'` and the sealed
+  `activation` input (`dataResourceGroup` plus the same `topology` shape as the
+  primary). It deploys, all non-zonal because Canada East has no availability
+  zones: deny-default egress (`egress.bicep`, same allowlist), the same
+  hardened App Service (`app-service.bicep`, site `<siteName>-ce`, public access
+  disabled, VNet route-all), its private endpoints (`private-endpoints.bicep`:
+  the recovery site, the source account, the Canada East SQL server, Key Vault,
+  the Canada Central Document Intelligence resource, the key-ring account and
+  both ledger copies), and the WAF v2 gateway (`application-gateway.bicep`,
+  443 only, backend TLS to the private site). Its settings are the
+  `CanadaEastRecovery` profile emitted by `runtime-configuration.bicep`.
+- **Identity.** The existing user-assigned Portal and gateway identities from
+  the data resource group; no new identity or role is created.
+- **Operator prerequisites (not IaC).** The activation parameters file is the
+  real release inventory, never committed; the site certificate for the public
+  host name must be available to the Canada East web space before activation,
+  as it is for the primary; the recovery evidence manifest must be approved for
+  exactly the `CanadaEastRecovery` configuration digest; public DNS for the
+  approved host name is repointed to the recovery gateway address as the final,
+  manual cutover.
+
 ## Canada East regional recovery (DEP-18; target application RTO ≤ 4 h, SQL RPO ≤ 15 min)
 
 Manual and controlled only (AC-109). Document Intelligence **never** fails over
-(to Canada East, another region, another provider or a Development fallback):
-extraction stays unavailable until the Canada Central resource is valid again,
-and extraction routes answer the fixed `503`.
+(to Canada East, another region, another provider or a Development fallback).
+The recovery host reaches the one Canada Central resource privately while it is
+healthy; while it is unavailable, extraction routes answer the fixed `503`.
 
-1. Declare the recovery in the incident; record the start instant.
-2. Publish a current attestation to the Canada East control account (Canada
-   Central may be unreachable; the attestation read uses Canada East).
-3. Read the failover group's replication lag; then perform the Manual SQL
-   failover to the Canada East server (`-Mode RegionalFailover`). Record the
-   observed structured-data loss window against the 15-minute RPO.
-4. Customer-managed failover of the source and key-ring storage accounts to
-   Canada East. Asynchronously replicated sources may be missing: they are
-   never recreated; source-dependent work requires a new upload (AC-110).
-5. Confirm Key Vault availability (Microsoft-managed failover is best effort
-   and is **not** an RTO proof); wrap/unwrap is verified by admission.
-6. **Pending plan amendment:** Canada East application hosting (App Service,
-   WAF gateway and deny-default egress in `canadaeast`). The T02 hosting
-   modules are pinned to `canadacentral`; until an amendment authorizes the
-   Canada East hosting IaC, this step — and therefore the end-to-end
-   application RTO measurement — cannot be executed. Record it as unexecuted.
-7. Start hosts with the separately signed **`CanadaEastRecovery`** profile:
-   `TaxAi:Production:Recovery:Profile = CanadaEastRecovery`, `Sql:*` naming the
-   Canada East server (`Region = canadaeast`), `SourceStorage:Region =
-   canadaeast`, and everything else unchanged — Document Intelligence, Key
-   Vault and monitoring remain the Canada Central resources. Any other region
-   for Document Intelligence is refused. The profile's evidence manifest must
-   be approved for exactly this configuration digest.
-8. Hosts start quarantined (new incarnation) and release only after the
-   reconciliation in the restore section. Authentication, existing review
-   reads and non-extraction operations then resume (AC-155 to AC-157).
+`pwsh ./scripts/azure/Invoke-RecoveryDrill.ps1 -Mode RegionalFailover ... -ConfirmChangeAuthority`
+performs, in order, and measures from the first step:
+
+1. require a current membership attestation in the Canada East copy (publish
+   one first with `-Mode Attest`);
+2. record the geo-replication lag before failover (RPO ≤ 15 minutes);
+3. the Manual SQL failover-group failover to the Canada East server;
+4. customer-managed failover of the source and key-ring storage accounts.
+   Asynchronously replicated sources may be missing: they are never recreated;
+   source-dependent work requires a new upload (AC-110);
+5. activate the Canada East recovery host from the committed IaC;
+6. deploy the exact approved release artifact to it;
+7. require the host to stay unavailable while quarantined (new incarnation);
+8. observe the new release record in the Canada East ledger — written only after
+   deletion replay, session/link revocation and membership reconciliation;
+9. require the first healthy response to follow that release;
+10. require the host to answer through the recovery gateway;
+11. report the complete elapsed interval, reconciliation included (≤ 4 h).
+
+Key Vault availability during the outage is Microsoft-managed and best effort;
+it is **not** an RTO proof, and admission verifies wrap/unwrap before release.
+After release, authentication, existing review reads and non-extraction
+operations resume (AC-155 to AC-157).
 
 No step may be skipped or reordered to meet the four-hour objective (AC-165):
 there is no bypass flag, partial release or waiver of a quarantine reason.

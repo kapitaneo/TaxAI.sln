@@ -19,7 +19,7 @@
     { "name": "DocumentExtraction.Tests", "minimumTests": 676, "establishedBy": "spec 015 T01" },
     { "name": "CaseProcessing.Tests", "minimumTests": 609, "establishedBy": "spec 015 T01" },
     { "name": "CaseReview.Tests", "minimumTests": 482, "establishedBy": "spec 009" },
-    { "name": "TaxAI.Portal.Tests", "minimumTests": 1157, "establishedBy": "spec 016 T06" },
+    { "name": "TaxAI.Portal.Tests", "minimumTests": 1176, "establishedBy": "spec 016 T06" },
     { "name": "Tenancy.Tests", "minimumTests": 395, "establishedBy": "spec 016 T06" },
     { "name": "Persistence.Tests", "minimumTests": 305, "establishedBy": "spec 016 T06" },
     { "name": "ClientIntake.Tests", "minimumTests": 188, "establishedBy": "spec 016 T04" },

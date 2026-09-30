@@ -41,9 +41,21 @@
 // and resource group), the SQL backup policy (sql.bicep: 35-day point-in-time,
 // geo-zone backups, no long-term retention) and the passive Canada East SQL
 // geo-secondary behind a Manual failover group (recovery.bicep). The runtime
-// configuration names both ledger copies. The recovery profile below still
-// deploys only the passive network: Canada East application hosting is a
-// pending plan-amendment item, and Document Intelligence never fails over.
+// configuration names both ledger copies.
+//
+// Spec 016 T06 amendment 2 (AC-107, DEP-18): the recovery profile stays the
+// passive network foundation unless an operator explicitly supplies the
+// sealed `activation` input during a declared regional recovery. Only then does
+// it deploy, in its own Canada East resource group, the recovery application
+// host: deny-default egress, the same hardened App Service (non-zonal: Canada
+// East has no availability zones), its private endpoints to the SAME approved
+// inventory in the data resource group (Canada East SQL server, source and
+// key-ring accounts, Key Vault, both ledger copies and the Canada Central
+// Document Intelligence resource), and the WAF v2 gateway. Its settings are the
+// separately signed CanadaEastRecovery profile. Activation never happens by
+// itself, never creates a second Document Intelligence resource and never opens
+// a public data path; the host still starts quarantined until reconciliation
+// releases its database incarnation.
 
 targetScope = 'resourceGroup'
 
@@ -76,6 +88,9 @@ param network networkAddressing
 
 @description('Primary-only topology and runtime inputs. Required for the primary profile; forbidden for recovery.')
 param primary primaryTopology?
+
+@description('Recovery profile only, and only during an operator-declared regional recovery: the Canada East recovery host. Forbidden for the primary profile.')
+param activation recoveryActivation?
 
 @sealed()
 type networkAddressing = {
@@ -156,6 +171,16 @@ type runtimeInputs = {
 }
 
 @sealed()
+type recoveryActivation = {
+  @description('The resource group that holds the approved data inventory (the primary deployment\'s group). Never the recovery group itself.')
+  @minLength(1)
+  @maxLength(90)
+  dataResourceGroup: string
+  @description('The same topology and runtime inputs as the primary host; the recovery evidence manifest is the one signed for the CanadaEastRecovery configuration.')
+  topology: primaryTopology
+}
+
+@sealed()
 type primaryTopology = {
   hosting: hostingSettings
   ingress: ingressSettings
@@ -167,14 +192,25 @@ var location = isPrimary ? primaryRegion : recoveryRegion
 
 // Spec 016 T06: deterministic, globally unique control-ledger account names.
 var ledgerStem = toLower(replace(namePrefix, '-', ''))
-var controlLedgerCentralName = take('${ledgerStem}ledcc${uniqueString(resourceGroup().id, 'ledger-cc')}', 24)
-var controlLedgerEastName = take('${ledgerStem}ledce${uniqueString(resourceGroup().id, 'ledger-ce')}', 24)
+// The recovery host derives the same names from the data resource group.
+var controlLedgerCentralName = take('${ledgerStem}ledcc${uniqueString(dataResourceGroupId, 'ledger-cc')}', 24)
+var controlLedgerEastName = take('${ledgerStem}ledce${uniqueString(dataResourceGroupId, 'ledger-ce')}', 24)
 
 // Fail closed: the primary profile without its inputs, or the recovery profile
 // with them, cannot compile into a deployment that silently omits a control.
 var primaryInputs = isPrimary ? primary! : null
 var recoveryWithPrimaryInputs = !isPrimary && primary != null
 var profileInputsConsistent = recoveryWithPrimaryInputs ? fail('The recovery profile deploys no primary topology.') : true
+
+// Spec 016 T06: activation is recovery-only, explicit and never co-located
+// with the data inventory it binds.
+var activating = !isPrimary && activation != null
+var primaryWithActivation = isPrimary && activation != null
+var activationInputsConsistent = primaryWithActivation ? fail('The primary profile activates no recovery host.') : (activating && toLower(activation!.dataResourceGroup) == toLower(resourceGroup().name) ? fail('The recovery host deploys into its own Canada East resource group.') : true)
+var recoveryInputs = activating && activationInputsConsistent ? activation!.topology : null
+var dataResourceGroupName = activating ? activation!.dataResourceGroup : resourceGroup().name
+var dataResourceGroupId = activating ? '${subscription().id}/resourceGroups/${activation!.dataResourceGroup}' : resourceGroup().id
+var recoverySqlServerName = activating ? take('${recoveryInputs!.runtime.sqlServerName}-ce', 63) : ''
 
 module regionalNetwork 'modules/network.bicep' = {
   name: 'network'
@@ -186,7 +222,7 @@ module regionalNetwork 'modules/network.bicep' = {
     appIntegrationSubnetPrefix: network.appIntegrationSubnetPrefix
     privateEndpointSubnetPrefix: network.privateEndpointSubnetPrefix
     firewallSubnetPrefix: network.firewallSubnetPrefix
-    egressMode: isPrimary && profileInputsConsistent ? 'Firewall' : 'Blackhole'
+    egressMode: (isPrimary || activating) && profileInputsConsistent ? 'Firewall' : 'Blackhole'
   }
 }
 
@@ -327,6 +363,8 @@ module runtimeConfiguration 'modules/runtime-configuration.bicep' = if (isPrimar
     operationDeadline: primaryInputs!.runtime.operationDeadline
     probeDeadline: primaryInputs!.runtime.probeDeadline
     evidenceManifest: primaryInputs!.runtime.evidenceManifest
+    profile: 'Primary'
+    dataResourceGroupName: resourceGroup().name
     controlLedgerAccountName: controlLedgerCentralName
     controlLedgerReplicaAccountName: controlLedgerEastName
   }
@@ -363,6 +401,7 @@ module privateEndpoints 'modules/private-endpoints.bicep' = if (isPrimary) {
     sqlServerResourceId: resourceId('Microsoft.Sql/servers', primaryInputs!.runtime.sqlServerName)
     keyVaultResourceId: resourceId('Microsoft.KeyVault/vaults', primaryInputs!.runtime.keyVaultName)
     documentIntelligenceResourceId: documentIntelligence!.outputs.resourceId
+    controlAccountResourceIds: []
   }
   dependsOn: [
     keyVault
@@ -390,5 +429,112 @@ module ingress 'modules/application-gateway.bicep' = if (isPrimary) {
   ]
 }
 
+// ---------------------------------------------------------------------------
+// Spec 016 T06: the manually activated Canada East recovery host (AC-107,
+// DEP-18). Deployed only with the explicit activation input, into the recovery
+// resource group, binding the approved inventory in the data resource group.
+
+module recoveryEgress 'modules/egress.bicep' = if (activating) {
+  name: 'recovery-egress'
+  params: {
+    location: recoveryRegion
+    namePrefix: namePrefix
+    firewallSubnetId: regionalNetwork.outputs.firewallSubnetId
+    appIntegrationSubnetPrefix: network.appIntegrationSubnetPrefix
+  }
+}
+
+module recoveryRuntime 'modules/runtime-configuration.bicep' = if (activating) {
+  name: 'recovery-runtime-configuration'
+  params: {
+    primaryRegion: primaryRegion
+    recoveryRegion: recoveryRegion
+    profile: 'CanadaEastRecovery'
+    dataResourceGroupName: dataResourceGroupName
+    tenantId: recoveryInputs!.runtime.tenantId
+    artifactVersion: recoveryInputs!.runtime.artifactVersion
+    managedIdentityName: recoveryInputs!.runtime.managedIdentityName
+    managedIdentityClientId: recoveryInputs!.runtime.managedIdentityClientId
+    managedIdentityPrincipalId: recoveryInputs!.runtime.managedIdentityPrincipalId
+    documentIntelligenceName: recoveryInputs!.runtime.documentIntelligenceName
+    sourceStorageAccountName: recoveryInputs!.runtime.sourceStorageAccountName
+    keyVaultName: recoveryInputs!.runtime.keyVaultName
+    sqlServerName: recoverySqlServerName
+    sqlDatabaseName: recoveryInputs!.runtime.sqlDatabaseName
+    logAnalyticsWorkspaceName: recoveryInputs!.runtime.logAnalyticsWorkspaceName
+    sourceEnvelopeKeyName: recoveryInputs!.runtime.sourceEnvelopeKeyName
+    controlStorageAccountName: recoveryInputs!.runtime.controlStorageAccountName
+    keyRingContainerName: recoveryInputs!.runtime.keyRingContainerName
+    dataProtectionKeyName: recoveryInputs!.runtime.dataProtectionKeyName
+    applicationDiscriminator: recoveryInputs!.runtime.applicationDiscriminator
+    maximumAttempts: recoveryInputs!.runtime.maximumAttempts
+    operationDeadline: recoveryInputs!.runtime.operationDeadline
+    probeDeadline: recoveryInputs!.runtime.probeDeadline
+    evidenceManifest: recoveryInputs!.runtime.evidenceManifest
+    controlLedgerAccountName: controlLedgerCentralName
+    controlLedgerReplicaAccountName: controlLedgerEastName
+  }
+}
+
+module recoveryPortal 'modules/app-service.bicep' = if (activating) {
+  name: 'recovery-app-service'
+  params: {
+    location: recoveryRegion
+    namePrefix: namePrefix
+    siteName: take('${recoveryInputs!.hosting.siteName}-ce', 60)
+    minimumInstanceCount: recoveryInputs!.hosting.minimumInstanceCount
+    maximumInstanceCount: recoveryInputs!.hosting.maximumInstanceCount
+    backendCertificateThumbprint: recoveryInputs!.hosting.backendCertificateThumbprint
+    appIntegrationSubnetId: regionalNetwork.outputs.appIntegrationSubnetId
+    managedIdentityResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', recoveryInputs!.runtime.managedIdentityName)
+    publicHostName: recoveryInputs!.ingress.publicHostName
+    runtimeSettings: recoveryRuntime!.outputs.appSettings
+  }
+  dependsOn: [
+    recoveryEgress
+  ]
+}
+
+module recoveryEndpoints 'modules/private-endpoints.bicep' = if (activating) {
+  name: 'recovery-private-endpoints'
+  params: {
+    location: recoveryRegion
+    namePrefix: namePrefix
+    subnetId: regionalNetwork.outputs.privateEndpointSubnetId
+    zoneIds: privateDns.outputs.zoneIds
+    portalResourceId: recoveryPortal!.outputs.siteId
+    sourceStorageResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.Storage/storageAccounts', recoveryInputs!.runtime.sourceStorageAccountName)
+    sqlServerResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.Sql/servers', recoverySqlServerName)
+    keyVaultResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.KeyVault/vaults', recoveryInputs!.runtime.keyVaultName)
+    documentIntelligenceResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.CognitiveServices/accounts', recoveryInputs!.runtime.documentIntelligenceName)
+    controlAccountResourceIds: [
+      resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.Storage/storageAccounts', recoveryInputs!.runtime.controlStorageAccountName)
+      resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.Storage/storageAccounts', controlLedgerCentralName)
+      resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.Storage/storageAccounts', controlLedgerEastName)
+    ]
+  }
+}
+
+module recoveryIngress 'modules/application-gateway.bicep' = if (activating) {
+  name: 'recovery-application-gateway'
+  params: {
+    location: recoveryRegion
+    namePrefix: namePrefix
+    gatewaySubnetId: regionalNetwork.outputs.gatewaySubnetId
+    gatewayIdentityResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', recoveryInputs!.ingress.gatewayIdentityName)
+    frontendCertificateUri: recoveryInputs!.ingress.frontendCertificateUri
+    publicHostName: recoveryInputs!.ingress.publicHostName
+    backendHostName: recoveryPortal!.outputs.defaultHostName
+    minimumCapacity: recoveryInputs!.ingress.minimumCapacity
+    maximumCapacity: recoveryInputs!.ingress.maximumCapacity
+    fileUploadLimitInMb: recoveryInputs!.ingress.fileUploadLimitInMb
+  }
+  dependsOn: [
+    recoveryEndpoints
+  ]
+}
+
 output virtualNetworkId string = regionalNetwork.outputs.virtualNetworkId
 output plannedFirewallAddress string = regionalNetwork.outputs.firewallPrivateAddress
+output recoveryIngressAddressId string = activating ? recoveryIngress!.outputs.ingressAddressId : ''
+output recoverySiteName string = activating ? take('${recoveryInputs!.hosting.siteName}-ce', 60) : ''

@@ -32,6 +32,18 @@ param primaryRegion string
 ])
 param recoveryRegion string
 
+@description('Spec 016 T06: Primary for the Canada Central host; CanadaEastRecovery only for the manually activated Canada East recovery host, whose SQL server and failed-over source account are the Canada East ones. Document Intelligence, Key Vault and monitoring never move.')
+@allowed([
+  'Primary'
+  'CanadaEastRecovery'
+])
+param profile string
+
+@description('Spec 016 T06: the resource group holding the approved data inventory the settings name. The recovery host runs in its own Canada East resource group but binds the same inventory.')
+@minLength(1)
+@maxLength(90)
+param dataResourceGroupName string
+
 @description('Entra tenant of the Portal managed identity.')
 param tenantId string
 
@@ -106,7 +118,10 @@ param controlLedgerAccountName string
 @maxLength(24)
 param controlLedgerReplicaAccountName string
 
-var resourcePrefix = '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers'
+var resourcePrefix = '/subscriptions/${subscription().subscriptionId}/resourceGroups/${dataResourceGroupName}/providers'
+
+// Spec 016 T06: only the recovery profile's SQL and source storage are Canada East.
+var dataRegion = profile == 'CanadaEastRecovery' ? recoveryRegion : primaryRegion
 
 var privateDependency = {
   Region: primaryRegion
@@ -127,7 +142,7 @@ output appSettings object = {
   '${production}RecoveryRegion': recoveryRegion
   '${production}TenantId': tenantId
   '${production}SubscriptionId': subscription().subscriptionId
-  '${production}ResourceGroup': resourceGroup().name
+  '${production}ResourceGroup': dataResourceGroupName
   '${production}ArtifactVersion': artifactVersion
   '${production}ManagedIdentity__ClientId': managedIdentityClientId
   '${production}ManagedIdentity__PrincipalId': managedIdentityPrincipalId
@@ -142,7 +157,7 @@ output appSettings object = {
   '${production}DocumentIntelligence__Features': 'keyValuePairs'
   '${production}SourceStorage__Endpoint': 'https://${sourceStorageAccountName}.blob.${environment().suffixes.storage}/'
   '${production}SourceStorage__ResourceId': '${resourcePrefix}/Microsoft.Storage/storageAccounts/${sourceStorageAccountName}'
-  '${production}SourceStorage__Region': privateDependency.Region
+  '${production}SourceStorage__Region': dataRegion
   '${production}SourceStorage__PublicNetworkAccess': privateDependency.PublicNetworkAccess
   '${production}SourceStorage__PrivateEndpoint': privateDependency.PrivateEndpoint
   '${production}KeyVault__Endpoint': 'https://${keyVaultName}${keyVaultHost}/'
@@ -152,7 +167,7 @@ output appSettings object = {
   '${production}KeyVault__PrivateEndpoint': privateDependency.PrivateEndpoint
   '${production}Sql__Endpoint': '${sqlServerName}${sqlHost}'
   '${production}Sql__ResourceId': '${resourcePrefix}/Microsoft.Sql/servers/${sqlServerName}'
-  '${production}Sql__Region': privateDependency.Region
+  '${production}Sql__Region': dataRegion
   '${production}Sql__PublicNetworkAccess': privateDependency.PublicNetworkAccess
   '${production}Sql__PrivateEndpoint': privateDependency.PrivateEndpoint
   '${production}Monitoring__WorkspaceResourceId': '${resourcePrefix}/Microsoft.OperationalInsights/workspaces/${logAnalyticsWorkspaceName}'
@@ -172,7 +187,7 @@ output appSettings object = {
   '${production}Resilience__MaximumAttempts': string(maximumAttempts)
   '${production}Resilience__OperationDeadline': operationDeadline
   '${production}Resilience__ProbeDeadline': probeDeadline
-  '${production}Recovery__Profile': 'Primary'
+  '${production}Recovery__Profile': profile
   '${production}Recovery__ControlLedger__Endpoint': 'https://${controlLedgerAccountName}.blob.${environment().suffixes.storage}/'
   '${production}Recovery__ControlLedger__ResourceId': '${resourcePrefix}/Microsoft.Storage/storageAccounts/${controlLedgerAccountName}'
   '${production}Recovery__ControlLedger__Region': primaryRegion

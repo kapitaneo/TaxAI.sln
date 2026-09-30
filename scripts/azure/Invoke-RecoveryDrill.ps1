@@ -13,9 +13,10 @@
         A fully local simulation over synthetic facts. It proves the quarantine
         and release decisions (missing interval, missing acknowledgement, stale
         evidence, rollback, expired/revoked access, membership uncertainty),
-        the ledger window arithmetic and the record format, and it accounts a
-        synthetic reconciliation-inclusive timeline against the zone (15 min)
-        and regional (4 h) objectives. Nothing leaves the process. It is NOT
+        the ledger window arithmetic and the record format, and it proves the
+        structure and ordering of the zone and regional drills and that the
+        Canada East recovery-host IaC they activate exists. It measures
+        nothing and invents no timing. Nothing leaves the process. It is NOT
         deployment evidence: DEP-17 to DEP-20 stay pending until the Live
         drills are observed against the exact resources.
 
@@ -34,13 +35,33 @@
         The restored copy is a NEW incarnation: a host pointed at it starts
         quarantined until the orchestrator reconciles it.
 
-    RegionalFailover (Live, DEP-18)
-        With -ConfirmChangeAuthority only: performs the Manual failover-group
-        failover to Canada East in a synthetic-only subscription, measures the
-        time and the replication lag reported beforehand (RPO <= 15 min), and
-        stops. Canada East application-hosting activation is a pending
-        plan-amendment item; the drill records the application RTO as
-        unexecuted rather than inventing it.
+    ZoneFailover (Live, AC-105, AC-106)
+        With -ConfirmChangeAuthority only: forces an in-region failover of the
+        zone-redundant database, restarts the primary application host and
+        measures the time until the host answers /health through the primary
+        gateway again (target <= 15 min). Zone-redundant storage and ledger
+        copies need no action. The released incarnation is unchanged, so the
+        host must start without reconciliation.
+
+    RegionalFailover (Live, AC-107, AC-108, DEP-18)
+        With -ConfirmChangeAuthority only, in a synthetic-only subscription,
+        in this exact order, measuring from the first step:
+          1. require a current membership attestation in the Canada East copy;
+          2. record the geo-replication lag before failover (RPO <= 15 min);
+          3. Manual SQL failover-group failover to the Canada East server;
+          4. customer-managed failover of the source and key-ring accounts;
+          5. activate the Canada East recovery host (main.bicep, recovery
+             profile, the operator's -ActivationParametersPath);
+          6. deploy the exact release artifact to the recovery host;
+          7. require the host to stay unavailable while quarantined;
+          8. observe the new release record in the Canada East ledger - the
+             orchestrator writes it only after deletion replay, session/link
+             revocation and membership reconciliation all succeed;
+          9. require the first healthy response to follow that release;
+         10. require the host to answer through the recovery gateway;
+         11. report the complete elapsed interval (target <= 4 h).
+        Document Intelligence never fails over: extraction answers the fixed
+        503 until the Canada Central resource is reachable again.
 
     Attest
         Publishes the trusted provisioning process's current membership
@@ -81,7 +102,30 @@
     Posture, RegionalFailover: the Manual failover group.
 
 .PARAMETER ControlAccountNames
-    Posture, Attest: the Canada Central and Canada East control-ledger accounts.
+    Posture, Attest, RegionalFailover: the Canada Central and Canada East
+    control-ledger accounts, in that order.
+
+.PARAMETER RecoveryResourceGroup
+    RegionalFailover: the dedicated Canada East recovery resource group.
+
+.PARAMETER ActivationParametersPath
+    RegionalFailover: the operator's main.bicep parameters file for the
+    recovery profile with its sealed `activation` input (never committed).
+
+.PARAMETER ArtifactPath
+    RegionalFailover: the exact approved release artifact (zip).
+
+.PARAMETER StorageAccountNames
+    RegionalFailover: the source and key-ring storage accounts to fail over.
+
+.PARAMETER PublicHostName
+    ZoneFailover, RegionalFailover: the approved public host name.
+
+.PARAMETER SiteName
+    ZoneFailover: the primary App Service site.
+
+.PARAMETER GatewayAddress
+    ZoneFailover: the primary gateway public address.
 
 .PARAMETER MembershipsPath
     Attest only: a JSON array of { firmId, userId } exported from the trusted
@@ -96,7 +140,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Offline', 'Posture', 'SqlRestore', 'RegionalFailover', 'Attest')]
+    [ValidateSet('Offline', 'Posture', 'SqlRestore', 'ZoneFailover', 'RegionalFailover', 'Attest')]
     [string] $Mode = 'Offline',
 
     [string] $AssemblyDirectory,
@@ -114,6 +158,20 @@ param(
     [string[]] $ControlAccountNames,
 
     [string] $MembershipsPath,
+
+    [string] $RecoveryResourceGroup,
+
+    [string] $ActivationParametersPath,
+
+    [string] $ArtifactPath,
+
+    [string[]] $StorageAccountNames,
+
+    [string] $PublicHostName,
+
+    [string] $SiteName,
+
+    [string] $GatewayAddress,
 
     [switch] $ConfirmChangeAuthority
 )
@@ -215,6 +273,29 @@ function Get-Reasons {
     return @([Tenancy.Models.RecoveryReleasePolicy]::EvaluatePreconditions($facts) | ForEach-Object { $_.ToString() })
 }
 
+# ------------------------------------------------------------- the plans
+# The exact, ordered steps each Live drill performs. Offline proves their
+# structure; only a Live run against authorized resources measures anything.
+$RegionalPlan = @(
+    'RequireCurrentAttestation'
+    'CaptureReplicationLag'
+    'SqlFailoverToCanadaEast'
+    'StorageFailoverToCanadaEast'
+    'ActivateRecoveryHost'
+    'DeployReleaseArtifact'
+    'RequireQuarantinedStartup'
+    'ObserveCanadaEastRelease'
+    'RequireHealthyOnlyAfterRelease'
+    'RequireReachableThroughRecoveryGateway'
+    'MeasureElapsedRecovery'
+)
+$ZonePlan = @(
+    'ForceInRegionSqlFailover'
+    'RestartPrimaryHost'
+    'RequireHealthyThroughPrimaryGateway'
+    'MeasureElapsedRecovery'
+)
+
 # ------------------------------------------------------------ offline
 function Invoke-Offline {
     $now = [DateTimeOffset]::new(2026, 9, 29, 12, 0, 0, [TimeSpan]::Zero)
@@ -255,11 +336,25 @@ function Invoke-Offline {
     Add-Check 'LedgerNamesAreOpaque' (-not $name.Contains('aaaaaaaa') -and -not $name.Contains('cccccccc'))
     Add-Check 'LedgerRecordsRoundTripStrictly' (($null -ne $parsed) -and $parsed.SameAs($record))
 
-    # A synthetic, reconciliation-inclusive timeline (minutes). Not a measurement.
-    $zone = 2 + 3 + 4          # instance restart + ledger/incarnation check + health
-    $regional = 45 + 30 + 20 + 25 + 15   # SQL failover + storage failover + key checks + reconciliation + release/health
-    Add-Check 'SimulatedZoneTimelineWithin15Minutes' ($zone -le 15)
-    Add-Check 'SimulatedRegionalTimelineWithin4Hours' ($regional -le 240)
+    # Structure and ordering only. Nothing is timed offline.
+    $order = @{}
+    for ($index = 0; $index -lt $RegionalPlan.Count; $index++) { $order[$RegionalPlan[$index]] = $index }
+    Add-Check 'RegionalPlanIsComplete' ($RegionalPlan.Count -eq 11 -and @($RegionalPlan | Select-Object -Unique).Count -eq 11)
+    Add-Check 'AttestationPrecedesAnyChange' ($order['RequireCurrentAttestation'] -eq 0)
+    Add-Check 'RpoCapturedBeforeFailover' ($order['CaptureReplicationLag'] -lt $order['SqlFailoverToCanadaEast'])
+    Add-Check 'DataFailsOverBeforeTheHostActivates' ([Math]::Max($order['SqlFailoverToCanadaEast'], $order['StorageFailoverToCanadaEast']) -lt $order['ActivateRecoveryHost'])
+    Add-Check 'QuarantineObservedBeforeRelease' ($order['RequireQuarantinedStartup'] -lt $order['ObserveCanadaEastRelease'])
+    Add-Check 'AdmissionVerifiedOnlyAfterRelease' ($order['ObserveCanadaEastRelease'] -lt $order['RequireHealthyOnlyAfterRelease'])
+    Add-Check 'MeasurementEndsTheDrill' ($order['MeasureElapsedRecovery'] -eq $RegionalPlan.Count - 1)
+    Add-Check 'ZonePlanIsComplete' ($ZonePlan.Count -eq 4 -and $ZonePlan[-1] -eq 'MeasureElapsedRecovery')
+
+    # The recovery host the regional drill activates exists in this repository.
+    $main = Get-Content -LiteralPath (Join-Path $repositoryRoot 'infra/azure/main.bicep') -Raw
+    Add-Check 'RecoveryHostIaCPresent' (
+        ([regex]::Matches($main, "module recovery(?:Egress|Runtime|Portal|Endpoints|Ingress) '[^']+' = if \(activating\)")).Count -eq 5 -and
+        $main.Contains("profile: 'CanadaEastRecovery'"))
+    Add-Check 'HostingModulesServeCanadaEast' (@('app-service', 'application-gateway', 'egress', 'private-endpoints' | Where-Object {
+        (Get-Content -LiteralPath (Join-Path $repositoryRoot "infra/azure/modules/$_.bicep") -Raw) -notmatch "'canadaeast'" }).Count -eq 0)
 
     Complete 'SIMULATED OFFLINE DRILL - synthetic facts only. This is not deployment evidence; DEP-17 to DEP-20 remain pending until the Live drills are observed against the exact resources.'
 }
@@ -347,24 +442,149 @@ function Invoke-SqlRestore {
     Complete 'LIVE SQL RESTORE DRILL (DEP-17). Point a synthetic host at the restored copy: it must start quarantined and release only after reconciliation (DEP-19, DEP-20). Delete the synthetic copy under the same change authority.'
 }
 
-function Invoke-RegionalFailover {
-    Assert-LiveAuthority -Required @('SubscriptionId', 'ResourceGroup', 'SqlServerName', 'FailoverGroupName') -Mutating
+function Test-Healthy {
+    param([Parameter(Mandatory)][string] $Address)
+    # Through the gateway, presenting the approved host name; certificate
+    # validation stays on. Only the fixed /health literal is read.
+    $output = & curl.exe --silent --max-time 20 --resolve "${PublicHostName}:443:$Address" "https://$PublicHostName/health" 2>$null
+    return $LASTEXITCODE -eq 0 -and ($output -join '') -ceq 'Healthy'
+}
+
+function Wait-Healthy {
+    param([Parameter(Mandatory)][string] $Address, [Parameter(Mandatory)][TimeSpan] $Deadline, [DateTimeOffset] $Started)
+    while (([DateTimeOffset]::UtcNow - $Started) -lt $Deadline) {
+        if (Test-Healthy $Address) {
+            return [DateTimeOffset]::UtcNow
+        }
+        Start-Sleep -Seconds 30
+    }
+    return $null
+}
+
+function Invoke-ZoneFailover {
+    Assert-LiveAuthority -Required @('SubscriptionId', 'ResourceGroup', 'SqlServerName', 'SqlDatabaseName', 'SiteName', 'PublicHostName', 'GatewayAddress') -Mutating
+    if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+        Write-Host 'UNEXECUTED: curl is not available to observe the host. Record as unexecuted, never passed.' -ForegroundColor Yellow
+        exit 3
+    }
     $common = @('--resource-group', $ResourceGroup, '--subscription', $SubscriptionId)
+    $started = [DateTimeOffset]::UtcNow
     try {
-        $group = Invoke-Az (@('sql', 'failover-group', 'show', '--server', $SqlServerName, '--name', $FailoverGroupName) + $common)
-        Add-Check 'FailoverIsManual' ([string] $group['readWriteEndpoint']['failoverPolicy'] -eq 'Manual')
-        $partner = @($group['partnerServers'])[0]
-        $started = [DateTimeOffset]::UtcNow
-        Invoke-Az (@('sql', 'failover-group', 'set-primary', '--server', ([string] $partner['id']).Split('/')[-1], '--name', $FailoverGroupName) + $common) | Out-Null
-        $elapsed = ([DateTimeOffset]::UtcNow - $started).TotalMinutes
-        Add-Check 'ControlledSqlFailoverCompleted' $true
-        Write-Host ("  SQL failover elapsed minutes: {0:N1}" -f $elapsed)
+        Invoke-Az (@('sql', 'db', 'failover', '--server', $SqlServerName, '--name', $SqlDatabaseName) + $common) | Out-Null
+        Add-Check 'ForceInRegionSqlFailover' $true
+        Invoke-Az (@('webapp', 'restart', '--name', $SiteName) + $common) | Out-Null
+        Add-Check 'RestartPrimaryHost' $true
+        $healthy = Wait-Healthy -Address $GatewayAddress -Deadline ([TimeSpan]::FromMinutes(30)) -Started $started
+        Add-Check 'RequireHealthyThroughPrimaryGateway' ($null -ne $healthy)
+        if ($null -ne $healthy) {
+            $elapsed = ($healthy - $started).TotalMinutes
+            Write-Host ("  zone recovery elapsed minutes: {0:N1}" -f $elapsed)
+            Add-Check 'ZoneRecoveryWithin15Minutes' ($elapsed -le 15)
+        }
     }
     catch {
-        Add-Check 'ControlledSqlFailoverCompleted' $false
+        Add-Check 'ZoneDrillCompleted' $false
     }
-    Write-Host '  UNEXECUTED: Canada East application-hosting activation (pending plan amendment); the application RTO is not measured by this drill.' -ForegroundColor Yellow
-    Complete 'LIVE REGIONAL DRILL (DEP-18, partial). The application-recovery objective remains pending; Document Intelligence never fails over.'
+    Complete 'LIVE ZONE DRILL (AC-105, AC-106). Record the measured interval against the exact resources.'
+}
+
+function Get-NewReleaseInstant {
+    param([Parameter(Mandatory)][string] $EastAccount, [Parameter(Mandatory)][DateTimeOffset] $After)
+    $blobs = Invoke-Az @('storage', 'blob', 'list', '--auth-mode', 'login', '--account-name', $EastAccount,
+        '--container-name', 'taxai-recovery-ledger', '--prefix', 'release/')
+    $instants = @($blobs | ForEach-Object { [DateTimeOffset]::Parse([string] $_['properties']['lastModified'], [Globalization.CultureInfo]::InvariantCulture) } |
+        Where-Object { $_ -ge $After } | Sort-Object)
+    if ($instants.Count -eq 0) {
+        return $null
+    }
+    return $instants[0]
+}
+
+function Invoke-RegionalFailover {
+    Assert-LiveAuthority -Required @('SubscriptionId', 'ResourceGroup', 'RecoveryResourceGroup', 'SqlServerName', 'SqlDatabaseName', 'FailoverGroupName', 'ControlAccountNames', 'StorageAccountNames', 'ActivationParametersPath', 'ArtifactPath', 'PublicHostName') -Mutating
+    if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+        Write-Host 'UNEXECUTED: curl is not available to observe the host. Record as unexecuted, never passed.' -ForegroundColor Yellow
+        exit 3
+    }
+    if ($ControlAccountNames.Count -ne 2 -or $RecoveryResourceGroup -ieq $ResourceGroup) {
+        Write-Host 'FATAL: two control accounts (Canada Central, Canada East) and a distinct recovery resource group are required.' -ForegroundColor Red
+        exit 2
+    }
+
+    $common = @('--resource-group', $ResourceGroup, '--subscription', $SubscriptionId)
+    $eastLedger = $ControlAccountNames[1]
+    $started = [DateTimeOffset]::UtcNow
+    try {
+        # 1. Current authorization evidence exists before anything changes.
+        $attestations = Invoke-Az @('storage', 'blob', 'list', '--auth-mode', 'login', '--account-name', $eastLedger,
+            '--container-name', 'taxai-recovery-attestation', '--prefix', 'attestation/')
+        $newest = @($attestations | ForEach-Object { [DateTimeOffset]::Parse([string] $_['properties']['lastModified'], [Globalization.CultureInfo]::InvariantCulture) } | Sort-Object)[-1]
+        $attested = $null -ne $newest -and ($started - $newest) -le [Tenancy.Models.RecoveryRetentionWindow]::AttestationMaximumAge
+        Add-Check 'RequireCurrentAttestation' $attested
+        if (-not $attested) {
+            Complete 'REGIONAL DRILL STOPPED: publish a current attestation (-Mode Attest) first. Nothing was changed.'
+        }
+
+        # 2. The structured-data loss window, read before failover.
+        $links = Invoke-Az (@('sql', 'db', 'replica', 'list-links', '--server', $SqlServerName, '--name', $SqlDatabaseName) + $common)
+        $lag = @($links | ForEach-Object { $_['replicationLag'] } | Where-Object { $null -ne $_ } | ForEach-Object { [int] $_ }) | Measure-Object -Maximum
+        Add-Check 'CaptureReplicationLag' ($lag.Count -gt 0)
+        if ($lag.Count -gt 0) {
+            Write-Host ("  replication lag seconds before failover: {0}" -f $lag.Maximum)
+            Add-Check 'SqlRpoWithin15Minutes' ($lag.Maximum -le 900)
+        }
+
+        # 3. Manual, controlled SQL failover to Canada East.
+        $group = Invoke-Az (@('sql', 'failover-group', 'show', '--server', $SqlServerName, '--name', $FailoverGroupName) + $common)
+        Add-Check 'FailoverIsManual' ([string] $group['readWriteEndpoint']['failoverPolicy'] -eq 'Manual')
+        $partner = ([string] @($group['partnerServers'])[0]['id']).Split('/')[-1]
+        Invoke-Az (@('sql', 'failover-group', 'set-primary', '--server', $partner, '--name', $FailoverGroupName) + $common) | Out-Null
+        Add-Check 'SqlFailoverToCanadaEast' $true
+
+        # 4. Customer-managed failover of the source and key-ring accounts.
+        foreach ($account in $StorageAccountNames) {
+            Invoke-Az (@('storage', 'account', 'failover', '--name', $account, '--yes') + $common) | Out-Null
+        }
+        Add-Check 'StorageFailoverToCanadaEast' $true
+
+        # 5. Activate the Canada East recovery host from the committed IaC.
+        $deployment = Invoke-Az @('deployment', 'group', 'create', '--resource-group', $RecoveryResourceGroup, '--subscription', $SubscriptionId,
+            '--name', "taxai-recovery-$($started.ToString('yyyyMMddHHmm'))",
+            '--template-file', (Join-Path $repositoryRoot 'infra/azure/main.bicep'), '--parameters', "@$ActivationParametersPath")
+        $site = [string] $deployment['properties']['outputs']['recoverySiteName']['value']
+        $addressId = [string] $deployment['properties']['outputs']['recoveryIngressAddressId']['value']
+        Add-Check 'ActivateRecoveryHost' (-not [string]::IsNullOrEmpty($site) -and -not [string]::IsNullOrEmpty($addressId))
+        $address = [string] (Invoke-Az @('network', 'public-ip', 'show', '--ids', $addressId))['ipAddress']
+
+        # 6. The exact approved release artifact.
+        Invoke-Az @('webapp', 'deploy', '--resource-group', $RecoveryResourceGroup, '--subscription', $SubscriptionId,
+            '--name', $site, '--src-path', $ArtifactPath, '--type', 'zip') | Out-Null
+        Add-Check 'DeployReleaseArtifact' $true
+
+        # 7-9. Quarantined until the Canada East release; healthy only after it.
+        $quarantinedObserved = -not (Test-Healthy $address)
+        Add-Check 'RequireQuarantinedStartup' $quarantinedObserved
+        $healthy = Wait-Healthy -Address $address -Deadline ([TimeSpan]::FromHours(4)) -Started $started
+        $release = Get-NewReleaseInstant -EastAccount $eastLedger -After $started
+        Add-Check 'ObserveCanadaEastRelease' ($null -ne $release)
+        Add-Check 'RequireHealthyOnlyAfterRelease' ($null -ne $healthy -and $null -ne $release -and $release -le $healthy)
+
+        # 10-11. Reachable through the recovery gateway; the whole interval.
+        Add-Check 'RequireReachableThroughRecoveryGateway' ($null -ne $healthy)
+        if ($null -ne $healthy) {
+            $elapsed = ($healthy - $started).TotalMinutes
+            Write-Host ("  regional recovery elapsed minutes (reconciliation included): {0:N1}" -f $elapsed)
+            Add-Check 'MeasureElapsedRecovery' $true
+            Add-Check 'RegionalRecoveryWithin4Hours' ($elapsed -le 240)
+        }
+        else {
+            Add-Check 'MeasureElapsedRecovery' $false
+        }
+    }
+    catch {
+        Add-Check 'RegionalDrillCompleted' $false
+    }
+    Complete 'LIVE REGIONAL DRILL (AC-107, AC-108, DEP-18). Document Intelligence never fails over; extraction answers the fixed 503 until Canada Central is reachable. Record the measured results against the exact resources.'
 }
 
 function Invoke-Attest {
@@ -405,6 +625,7 @@ switch ($Mode) {
     'Offline' { Invoke-Offline }
     'Posture' { Invoke-Posture }
     'SqlRestore' { Invoke-SqlRestore }
+    'ZoneFailover' { Invoke-ZoneFailover }
     'RegionalFailover' { Invoke-RegionalFailover }
     'Attest' { Invoke-Attest }
 }

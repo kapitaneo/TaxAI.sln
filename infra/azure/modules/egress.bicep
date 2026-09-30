@@ -9,9 +9,10 @@
 // inspection (the tier cannot perform it), and no diagnostic setting is created:
 // no firewall log category - payload-bearing or otherwise - is enabled here.
 
-@description('Primary region. Only Canada Central is approved.')
+@description('Canada Central (primary) or Canada East (manually activated recovery host only).')
 @allowed([
   'canadacentral'
+  'canadaeast'
 ])
 param location string
 
@@ -28,6 +29,15 @@ param appIntegrationSubnetPrefix string
 
 var allowlist = loadJsonContent('../contracts/dependency-allowlist.json')
 
+// Spec 016 T06: the same deny-default egress serves the manually activated
+// Canada East recovery host with the identical allowlist. Three zones wherever
+// the region offers them: Canada Central (Canada East offers none).
+var zones = location == 'canadacentral' ? [
+  '1'
+  '2'
+  '3'
+] : []
+
 resource egressAddress 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
   name: '${namePrefix}-pip-egress'
   location: location
@@ -35,11 +45,7 @@ resource egressAddress 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
     name: 'Standard'
     tier: 'Regional'
   }
-  zones: [
-    '1'
-    '2'
-    '3'
-  ]
+  zones: zones
   properties: {
     publicIPAllocationMethod: 'Static'
     publicIPAddressVersion: 'IPv4'
@@ -95,11 +101,7 @@ resource approvedDestinations 'Microsoft.Network/firewallPolicies/ruleCollection
 resource firewall 'Microsoft.Network/azureFirewalls@2024-05-01' = {
   name: '${namePrefix}-fw-egress'
   location: location
-  zones: [
-    '1'
-    '2'
-    '3'
-  ]
+  zones: zones
   dependsOn: [
     approvedDestinations
   ]
