@@ -178,12 +178,21 @@ public sealed class PreservedSurfaceTests
     public void ExtractionSurfaceCannotReturnOrNameSourceContent()
     {
         var source = PortalFile("ExtractionEndpoints.cs");
-        var constants = typeof(Program).Assembly
+        var literals = typeof(Program).Assembly
             .GetType("TaxAI.Portal.ExtractionEndpoints", throwOnError: true)!
-            .GetFields(BindingFlags.Static | BindingFlags.NonPublic)
-            .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name.EndsWith("Path", StringComparison.Ordinal))
+            .GetFields(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .ToArray();
+        var constants = literals
+            .Where(field => field.Name.EndsWith("Path", StringComparison.Ordinal))
             .Select(field => Assert.IsType<string>(field.GetRawConstantValue()))
             .ToArray();
+
+        // Spec 016 T05: the only other literal is the fixed, taxpayer-safe
+        // unavailable response. It is not a route and names no content.
+        var other = Assert.Single(literals, field => !field.Name.EndsWith("Path", StringComparison.Ordinal));
+        Assert.Equal("UnavailableMessage", other.Name);
+        Assert.Equal("Document extraction is temporarily unavailable.", other.GetRawConstantValue());
 
         Assert.Equal(8, constants.Length);
         foreach (var path in constants)

@@ -583,19 +583,40 @@ public sealed class BoundaryTests
         Assert.Contains("OpenAsync", executable, StringComparison.Ordinal);
     }
 
+    [Theory] // spec 016 T05
+    [InlineData("cloud, mail, or logging provider")]
+    [InlineData("network egress")]
+    public void TheProviderExceptionIsExactlyTheTwoTransportFilesAndEachNeedsIt(string boundary)
+    {
+        var pattern = ForbiddenProductionPatterns()
+            .Select(row => ((string)row[0], (string)row[1]))
+            .Single(row => row.Item1 == boundary).Item2;
+        var regex = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+        var matching = ProductionSourceFiles()
+            .Where(path => regex.IsMatch(string.Join("\n", ExecutableLines(path))))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        // No other file in either module is exempted or would need to be, and
+        // each exempted transport file genuinely uses the exception.
+        Assert.Equal(ProductionTransportFiles, matching);
+    }
+
     // ---------------------------------------------------------------- helpers
 
-    private static bool ApprovedProviderBoundaryException(string path, string boundary)
-    {
-        if (!path.StartsWith(IntelligenceRoot, StringComparison.Ordinal)) return false;
-        var file = Path.GetFileName(path);
-        return boundary switch
-        {
-            "cloud, mail, or logging provider" => file is "AnalyzeOperationLifecycle.cs" or "AzureDocumentIntelligenceProvider.cs",
-            "network egress" => file is "AnalyzeOperationLifecycle.cs" or "AzureDocumentIntelligenceProvider.cs",
-            _ => false,
-        };
-    }
+    /// <summary>
+    /// Spec 016 T05: the production adapter's two transport files, the only
+    /// files exempted from the cloud and network-egress token scans.
+    /// </summary>
+    private static readonly string[] ProductionTransportFiles =
+        ["AnalyzeOperationLifecycle.cs", "AzureDocumentIntelligenceProvider.cs"];
+
+    private static bool ApprovedProviderBoundaryException(string path, string boundary) =>
+        path.StartsWith(IntelligenceRoot, StringComparison.Ordinal) &&
+        boundary is "cloud, mail, or logging provider" or "network egress" &&
+        ProductionTransportFiles.Contains(Path.GetFileName(path));
     private static string ProjectFor(string module) =>
         module == "ExtractionWorkflow" ? WorkflowProject : IntelligenceProject;
 

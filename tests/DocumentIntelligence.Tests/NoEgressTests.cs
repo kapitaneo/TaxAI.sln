@@ -127,7 +127,7 @@ public sealed class NoEgressTests
     }
 
     [Fact]
-    public void TheCompiledAdapterNamesNoNetworkingAssembly()
+    public void TheCompiledPortAssemblyNamesNoNetworkingAssembly()
     {
         var referenced = typeof(ExtractionWorkflow.Contracts.IDocumentIntelligenceProvider).Assembly
             .GetReferencedAssemblies()
@@ -195,8 +195,10 @@ public sealed class NoEgressTests
     /// Azure.Core and the key-ring Blob client pinned explicitly because the
     /// library names their types directly. T05: this adapter's Azure.Core only,
     /// which carries the forwarded managed-identity credential its REST calls
-    /// present, so the Azure.Identity package stays in the infrastructure library. The deterministic modules stay cloud-free; no Document Intelligence
-    /// SDK, source-storage, OCR, LLM or HTTP-client package is approved anywhere.
+    /// present, so the Azure.Identity package stays in the infrastructure
+    /// library. The deterministic modules stay cloud-free; no Document
+    /// Intelligence SDK, source-storage, OCR, LLM or HTTP-client package is
+    /// approved anywhere.
     /// </summary>
     private static readonly string[] ApprovedCloudPackageEdges =
     {
@@ -237,6 +239,31 @@ public sealed class NoEgressTests
             packages);
     }
 
+    /// <summary>
+    /// Spec 016 T05: the only files permitted a network API are the production
+    /// adapter's two transport files. The deterministic provider, its options,
+    /// the layout interpreter and recognition stay network-free.
+    /// </summary>
+    private static readonly string[] ProductionTransportFiles =
+        ["AnalyzeOperationLifecycle.cs", "AzureDocumentIntelligenceProvider.cs"];
+
+    [Fact] // spec 016 T05
+    public void TheNetworkApiExceptionIsExactlyTheTwoProductionTransportFiles()
+    {
+        var network = new Regex(@"\bHttpClient\b|\bHttpRequestMessage\b|\bSocketsHttpHandler\b",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var users = ProductionSourceFiles("DocumentIntelligence")
+            .Where(file => ExecutableLines(file).Any(line => network.IsMatch(line)))
+            .Select(Path.GetFileName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        // Both exempt files really use the exception, and nothing else does.
+        Assert.Equal(ProductionTransportFiles, users);
+        Assert.Contains(ProductionSourceFiles("DocumentIntelligence"),
+            file => Path.GetFileName(file) == "DeterministicDocumentIntelligenceProvider.cs");
+    }
+
     [Fact]
     public void NoExecutableLineInEitherModuleNamesANetworkApi()
     {
@@ -251,7 +278,7 @@ public sealed class NoEgressTests
         {
             foreach (var file in ProductionSourceFiles(module))
             {
-                if (module == "DocumentIntelligence" && new[] { "AnalyzeOperationLifecycle.cs", "AzureDocumentIntelligenceProvider.cs" }.Contains(Path.GetFileName(file))) continue;
+                if (module == "DocumentIntelligence" && ProductionTransportFiles.Contains(Path.GetFileName(file))) continue;
                 if (ExecutableLines(file).Any(line => network.IsMatch(line)))
                 {
                     offenders.Add(Path.GetFileName(file));

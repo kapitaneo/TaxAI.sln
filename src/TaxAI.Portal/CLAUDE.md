@@ -276,11 +276,44 @@ setting; the source container is fixed in code and template.
   bound registers nothing and is refused. The approved-resource probe also
   requires a GPv2 `Standard_GZRS` source account and a non-public,
   non-immutable source container.
-- **Still refused.** The extraction workflows still refuse outside Development
-  because no production Document Intelligence adapter exists (T05), and both
-  provider assurance gaps remain unresolved. No source preview, download,
-  export, SAS, blob address or content route exists; no portal file opens a
-  source lease except the Development reader.
+- **Still refused.** As of T04 the extraction workflows refused outside
+  Development because no production Document Intelligence adapter existed
+  (T05 below), and both provider assurance gaps remain unresolved. No source
+  preview, download, export, SAS, blob address or content route exists.
+
+## Spec 016 T05: production Document Intelligence
+
+In Production the composition root builds the adapter options from the
+existing closed profile (`ExtractionConfiguration.ProductionOptions`: the
+resource binding, managed identity, GA API/model/feature triple, the
+production source bound and the finite resilience deadlines, the operation
+deadline never above the provider call limit) and calls the one
+`AddDocumentIntelligence` extension. Invalid options register nothing. The
+production ingest and review workflows are then built over the concrete
+`AzureExtractionContentReader` the infrastructure library registered; the
+reader is still never a general service. No setting is added.
+
+- **Per-operation availability.** `Production/ExtractionAvailabilityGate.cs`
+  implements `IExtractionAvailabilityGate`. Outside Development and
+  Production it is always unavailable. In Production it rechecks, on every
+  call, the closed profile, artifact version, structural validator, evidence
+  manifest (both provider assurances included), managed-identity binding,
+  approved-resource probe and the adapter's non-content reachability probe,
+  inside the validated probe deadline. Any failure is unavailable.
+- **Scope first, then availability.** The extract, correction and finalize
+  routes carry one endpoint filter. It resolves the trusted firm, case and
+  document first, so a foreign or missing selector is the same empty `404`
+  as before; only an in-scope request consults availability. Unavailable is
+  a fixed `503` with the text `Document extraction is temporarily
+  unavailable.` and the intake no-store headers. Read routes are unchanged.
+- **No substitution.** There is no alternate region, processor, Development
+  provider or retry-with-another-model path. The gate refuses admission unless
+  the registered provider is exactly `AzureDocumentIntelligenceProvider` whose
+  options equal the configured ones and the availability gate is exactly this
+  class; the Development provider is still its own refusal.
+- **Still refused.** Every deployable host remains refused until real DEP
+  evidence (including DEP-04, DEP-12 and DEP-13, pending) is observed and both
+  provider assurance gaps are resolved.
 
 ## The narrowed gate — read before adding a surface
 

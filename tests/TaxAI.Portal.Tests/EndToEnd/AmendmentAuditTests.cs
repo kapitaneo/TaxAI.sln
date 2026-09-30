@@ -398,6 +398,102 @@ public sealed class AmendmentAuditTests
         }
     }
 
+    private const string ExtractionWorkflowBoundary =
+        "tests/ExtractionWorkflow.Tests/BoundaryTests.cs";
+    private const string ProviderAvailability =
+        "tests/TaxAI.Portal.Tests/Production/ProviderAvailabilityTests.cs";
+    private const string LayoutRecognition =
+        "tests/DocumentIntelligence.Tests/Production/LayoutRecognitionTests.cs";
+
+    /// <summary>
+    /// Spec 016 T05 — every historical assertion the production Document
+    /// Intelligence slice narrowed, each with the live test that still proves
+    /// the narrower rule.
+    /// </summary>
+    private static readonly Amendment[] Spec016T05Amendments =
+    [
+        A("NoEgressTests.NoRepositoryAssemblyReachableFromTheAdapterNamesANetworkingAssembly", "every reachable assembly except the approved adapter",
+            "Only the adapter assembly is excluded; every other reachable repository assembly still names no networking assembly, and only its two transport files may name a network API.",
+            P(NoEgress, "NoRepositoryAssemblyReachableFromTheAdapterNamesANetworkingAssembly"),
+            P(NoEgress, "TheNetworkApiExceptionIsExactlyTheTwoProductionTransportFiles")),
+        A("NoEgressTests.TheCompiledAdapterNamesNoNetworkingAssembly", "the port assembly names no networking assembly",
+            "The port the adapter implements still names no networking assembly; within the adapter only the two exact transport files are exempt, and the deterministic flow still completes with no networking assembly loaded.",
+            P(NoEgress, "TheCompiledPortAssemblyNamesNoNetworkingAssembly"),
+            P(NoEgress, "TheNetworkApiExceptionIsExactlyTheTwoProductionTransportFiles"),
+            P(NoEgress, "TheWholeFlowCompletesWithoutPullingInAnyNetworkingAssembly")),
+        A("NoEgressTests.TheAdapterProjectDeclaresOnlyTheDependencyInjectionAbstraction", "exactly Azure.Core and the DI abstraction",
+            "The package list stays exact and gains only Azure.Core; no Document Intelligence SDK, Azure.Identity, OCR, LLM or HTTP package is allowed anywhere else.",
+            P(NoEgress, "TheAdapterProjectDeclaresOnlyAzureCoreAndTheDependencyInjectionAbstraction"),
+            P(NoEgress, "NoProjectInTheRepositoryDeclaresAProviderOrTransportPackage")),
+        A("NoEgressTests.NoExecutableLineInEitherModuleNamesANetworkApi", "two exact transport files",
+            "Only the two named transport files are exempt, each of them must actually use the exception, and every other file in both modules stays network-free.",
+            P(NoEgress, "NoExecutableLineInEitherModuleNamesANetworkApi"),
+            P(NoEgress, "TheNetworkApiExceptionIsExactlyTheTwoProductionTransportFiles")),
+        A("BoundaryTests.ProductionSourceContainsNoForbiddenToken(cloud/network)", "two exact transport files for two patterns",
+            "Only the cloud and network-egress patterns are narrowed, only for the two transport files, and each must actually need it; every other pattern and file is unchanged.",
+            P(ExtractionWorkflowBoundary, "ProductionSourceContainsNoForbiddenToken"),
+            P(ExtractionWorkflowBoundary, "TheProviderExceptionIsExactlyTheTwoTransportFilesAndEachNeedsIt")),
+        A("BoundaryTests.NoTaxYearLiteralAppearsInEitherModule", "one exact API-version constant line",
+            "Only the approved API version constant is allowed; the page bound and poll cap carry no year-shaped literal and every tax-year literal stays forbidden.",
+            P(ExtractionWorkflowBoundary, "NoTaxYearLiteralAppearsInEitherModule")),
+        A("BoundaryTests.TheScannerSeesEveryProductionFileAndStillMatchesAKnownPattern", "exact adapter file inventory plus five production files",
+            "The inventory stays exact and gains only the five named production adapter files.",
+            P(ExtractionWorkflowBoundary, "TheScannerSeesEveryProductionFileAndStillMatchesAKnownPattern")),
+        A("PortalBoundaryTests.EveryRegistrationTokenIsApprovedForItsFile", "one endpoint filter and one renamed extension",
+            "Only the extraction endpoints gain the availability endpoint filter, and the one Document Intelligence extension keeps a single name; every other file's token set is unchanged.",
+            P(PortalBoundary, "EveryRegistrationTokenIsApprovedForItsFile"),
+            P(PortalBoundary, "TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule")),
+        A("PortalBoundaryTests/PortalSecurityTests production file inventories", "exact set plus the availability gate",
+            "Both inventories stay exact and gain only the availability gate, which remains confined like every other production file.",
+            P(PortalBoundary, "TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern"),
+            P(PortalSecurity, "TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern"),
+            P(PortalSecurity, "TimeProviderIsConfinedToTheCompositionAndIntakeBoundaries")),
+        A("CompositionRootTests.TheInfrastructureRegistrationIsTheOnlyProductionKeyedBranchAndEnablesNothing", "the concrete extraction reader may be resolved",
+            "The composition root may resolve only the concrete extraction reader the infrastructure library registered; it still constructs no Azure store or purger, and the reader is never a general service.",
+            P(CompositionRoot, "TheInfrastructureRegistrationIsTheOnlyProductionKeyedBranchAndEnablesNothing"),
+            P(ProductionStartup, "TheCompleteProfileRegistersTheRealAzureSourceAdaptersOnly")),
+        A("PreservedSurfaceTests.ExtractionSurfaceCannotReturnOrNameSourceContent", "path constants plus one fixed message",
+            "Every route constant is still checked; the only other literal is the exact fixed unavailable message, and no content-serving result exists.",
+            P(PreservedSurface, "ExtractionSurfaceCannotReturnOrNameSourceContent"),
+            P(ProviderAvailability, "UnavailableProviderReturnsSafe503OnlyAfterScopeAndRecovers")),
+        A("UpgradeBaselineContractTests.UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline(TaxAI.Portal)", "one named availability gate type",
+            "Every baseline signature is still compared; the only new portal approval is the availability gate type.",
+            P(UpgradeBaseline, "UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline")),
+        A("ProductionStartupTests.RequireAdmissionRefusesTheCompleteT01ProfileBecauseNoProductionAdapterExists", "no later-slice adapter remains",
+            "A missing, Development or mismatched adapter still refuses on its own; only synthetic complete evidence admits, and both provider assurance gaps still refuse independently.",
+            P(ProductionStartup, "CompleteControlledProfileHasNoMissingAdapterRefusalAfterT05"),
+            P(ProductionStartup, "EachIndividualAdmissionRuleRefusesIndependently"),
+            P(ProductionStartup, "BothProviderAssuranceGapsRefuseIndependentlyEvenWithEveryDepItemApproved")),
+        A("LayoutRecognition medical classification", "no layout is classified as medical evidence",
+            "Production medical recognition is refused, never approximated: no invented title, alias or format classifies a receipt, pending an approved Class A rule.",
+            P(LayoutRecognition, "NoLayoutIsEverClassifiedAsMedicalEvidence")),
+    ];
+
+    [Fact] // spec 016 T05
+    public void EverySpec016T05AmendmentNamesALiveNarrowerProof()
+    {
+        Assert.Equal(14, Spec016T05Amendments.Length);
+        Assert.Equal(
+            Spec016T05Amendments.Length,
+            Spec016T05Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var amendment in Spec016T05Amendments)
+        {
+            Assert.Matches(
+                new Regex(
+                    @"\b(exact|only|every|no|unchanged|preserv|forbid|narrow|fixed|allow|constrain|reduce|remain)\w*\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)),
+                amendment.WhyNarrower);
+            Assert.NotEmpty(amendment.Proofs);
+
+            foreach (var proof in amendment.Proofs)
+            {
+                AssertLiveTestProof(proof);
+            }
+        }
+    }
+
     [Fact] // spec 016 T03
     public void EverySpec016T03AmendmentNamesALiveNarrowerProof()
     {
