@@ -464,6 +464,12 @@ public sealed class AmendmentAuditTests
             P(ProductionStartup, "CompleteControlledProfileHasNoMissingAdapterRefusalAfterT05"),
             P(ProductionStartup, "EachIndividualAdmissionRuleRefusesIndependently"),
             P(ProductionStartup, "BothProviderAssuranceGapsRefuseIndependentlyEvenWithEveryDepItemApproved")),
+        A("RepositoryVerificationTests.TheReadmeExplicitlyDisclaimsEveryUnshippedSurface", "no LLM adapter and exactly one OCR adapter",
+            "The disclaimer is narrowed only to the one approved production OCR adapter with its medical refusal stated; no LLM adapter ships and every other disclaimer and forbidden claim is unchanged.",
+            P(RepositoryVerification, "TheReadmeExplicitlyDisclaimsEveryUnshippedSurface")),
+        A("RepositoryVerificationTests.TheReadmeClaimsNoWorkingOcrOrLlmIntegration", "exactly one bounded OCR adapter, untrusted output",
+            "Only the one approved OCR adapter may be described, its output must be stated as untrusted input to the existing engine, and every affirmative capability claim stays forbidden.",
+            P(RepositoryVerification, "TheReadmeClaimsNoWorkingOcrOrLlmIntegration")),
         A("LayoutRecognition medical classification", "no layout is classified as medical evidence",
             "Production medical recognition is refused, never approximated: no invented title, alias or format classifies a receipt, pending an approved Class A rule.",
             P(LayoutRecognition, "NoLayoutIsEverClassifiedAsMedicalEvidence")),
@@ -472,7 +478,7 @@ public sealed class AmendmentAuditTests
     [Fact] // spec 016 T05
     public void EverySpec016T05AmendmentNamesALiveNarrowerProof()
     {
-        Assert.Equal(14, Spec016T05Amendments.Length);
+        Assert.Equal(16, Spec016T05Amendments.Length);
         Assert.Equal(
             Spec016T05Amendments.Length,
             Spec016T05Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());

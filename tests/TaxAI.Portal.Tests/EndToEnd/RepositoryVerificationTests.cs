@@ -144,7 +144,10 @@ public sealed class RepositoryVerificationTests
                      "No taxpayer listing or unapproved taxpayer-data surface",
                      "No raw-content preview, read, or download surface",
                      "encrypted opaque source object outside web root",
-                     "No OCR or LLM adapter ships.",
+                     // Spec 016 T05: exactly one production OCR adapter ships; no LLM.
+                     "No LLM adapter ships.",
+                     "exactly one production OCR adapter",
+                     "production medical-receipt interpretation is refused",
                      "No production deployment configuration ships.",
                      "No production provisioning ships",
                  })
@@ -185,7 +188,11 @@ public sealed class RepositoryVerificationTests
         // none — a substring test cannot tell a claim from its negation, so it
         // must test only wording that could not appear in a disclaimer.
         Assert.Contains("No adapter implementation ships", readme, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("No OCR or LLM adapter ships", readme, StringComparison.OrdinalIgnoreCase);
+        // Spec 016 T05: the one approved production OCR adapter is described
+        // with its bounds; no LLM adapter ships and no claim below may appear.
+        Assert.Contains("No LLM adapter ships", readme, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("exactly one production OCR", readme, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("untrusted input to the existing parser and engine", NormalizeWhitespace(readme), StringComparison.OrdinalIgnoreCase);
 
         foreach (var claim in new[]
                  {

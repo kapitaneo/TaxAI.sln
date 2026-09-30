@@ -59,6 +59,7 @@ public sealed class ProviderAvailabilityTests
         Assert.Equal(2, wire.Deletions);
         var stored = await world.Extractions.FindDocumentAsync(seeded.Firm, seeded.CaseId, seeded.FirstT4DocumentId, CancellationToken.None);
         Assert.True(stored is null || stored.Versions.Count == 0);
+        AssertNoProviderArtifactPersisted(stored);
         var acceptance = await ExtractionPortalHttp.PostReviewMutationAsync(accountant, seeded.CaseId, seeded.FirstT4DocumentId,
             $"/intake-cases/{seeded.CaseId:D}/extractions/{seeded.FirstT4DocumentId:D}/accept", new Dictionary<string, string>());
         Assert.NotEqual(HttpStatusCode.OK, acceptance.StatusCode);
@@ -89,7 +90,21 @@ public sealed class ProviderAvailabilityTests
         // accepted the employee copy with no Box 54 and the required Box 12/45.
         Assert.Empty(version.FieldOutcomes);
         Assert.DoesNotContain(ExtractionPortalWorld.PlantedSin, extraction.All, StringComparison.Ordinal);
+        AssertNoProviderArtifactPersisted(stored);
     }
+
+    // AC-073, AC-074: neither the result identifier nor any raw provider payload
+    // reaches the durable extraction record, on success or on failure.
+    private static void AssertNoProviderArtifactPersisted(object? stored)
+    {
+        var durable = System.Text.Json.JsonSerializer.Serialize(stored) + "\n" + stored;
+        foreach (var artifact in new[] { OperationId, "analyzeResult", "keyValuePairs", "boundingRegions", "Operation-Location", ExtractionPortalWorld.PlantedSin })
+        {
+            Assert.DoesNotContain(artifact, durable, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private const string OperationId = "33333333-3333-4333-8333-333333333333";
 
     internal sealed class MutableAvailability : IExtractionAvailabilityGate
     {
