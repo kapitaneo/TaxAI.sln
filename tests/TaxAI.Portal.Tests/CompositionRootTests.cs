@@ -290,8 +290,9 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
         Assert.True(_factory.Services.GetRequiredService<IServiceProviderIsService>().IsService(orchestrator));
         Assert.Null(_factory.Services.GetService<IRecoveryControlStore>());
         Assert.Throws<InvalidOperationException>(() => _factory.Services.GetService(orchestrator));
-        Assert.Empty(_factory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
-            .Where(service => service.GetType().Assembly == typeof(Program).Assembly));
+        Assert.DoesNotContain(
+            _factory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>(),
+            service => service.GetType().Assembly == typeof(Program).Assembly);
         Assert.False(typeof(Microsoft.Extensions.Hosting.IHostedService).IsAssignableFrom(orchestrator));
 
         var registration = string.Join("\n", ExecutableLines(PortalFile("ModuleRegistration.cs")));

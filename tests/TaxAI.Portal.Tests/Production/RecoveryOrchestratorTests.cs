@@ -47,7 +47,7 @@ public sealed class RecoveryOrchestratorTests
 
         Assert.True(result.IsReleased);
         Assert.False(result.WasReconciled);
-        Assert.Empty(harness.Reconciler.Calls.Where(call => call != "incarnation"));
+        Assert.Equal(new[] { "incarnation" }, harness.Reconciler.Calls);
     }
 
     [Fact] // First deployment: an empty ledger beside a pristine database.
