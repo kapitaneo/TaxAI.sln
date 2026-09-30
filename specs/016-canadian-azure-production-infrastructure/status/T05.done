@@ -1,0 +1,43 @@
+# Spec 016 — T05 complete
+
+Task: T05 — Production Document Intelligence.
+Branch: `codex/spec-016-t05`
+PR: #151 — https://github.com/kapitaneo/TaxAI.sln/pull/151
+Implementation commit: `bf1ff3c`
+
+## Gate — committed branch state (Windows)
+
+```powershell
+dotnet build TaxAI.sln
+pwsh ./scripts/Invoke-SolutionTests.ps1
+pwsh ./scripts/azure/Test-ProductionPlan.ps1
+pwsh ./scripts/azure/Test-DocumentIntelligence.ps1
+pwsh ./scripts/azure/Test-DocumentIntelligence.ps1 -Mode Live
+git diff --check
+```
+
+- Build: 0 errors; 18 pre-existing analyzer warnings, none on a T05 line.
+- Solution gate on the clean committed tree at `bf1ff3c`: PASS. All 12
+  registered projects ran with no failure or skip and every floor met; 5,331
+  tests. Floors raised: DocumentIntelligence.Tests 230 (was 65),
+  ExtractionWorkflow.Tests 360 (was 356), TaxAI.Portal.Tests 1073 (was 1051);
+  every other floor unchanged, none lowered.
+- Offline plan check: exit 0; the pinned Bicep compile, lint and build-params
+  passed with `document-intelligence.bicep` included.
+- Document Intelligence probe: Offline exit 0 (simulated, not deployment
+  evidence); Live without explicit authority exit 3, unexecuted.
+- `git diff --check`: clean.
+
+Details, the verified CRA T4 (25) vocabulary and its canada.ca sources,
+[ASSUMED] decisions, findings and AC/DEP traceability are in `evidence/T05.md`.
+
+**Pending Class A item:** production medical-receipt recognition is refused
+(no approved rule; CRA prescribes receipt contents, not a title or layout). No
+T05 single-owner AC requires it.
+
+DEP-04, DEP-12 and DEP-13 are pending/unexecuted: the executable probe ships,
+but it was not run against a deployed resource. This marker is not deployment or
+real-taxpayer authorization; production admission stays REFUSED (evidence
+unobserved; both provider assurance gaps unresolved; the Document Intelligence
+customer-managed key needs a plan amendment). `tasks.md` was not edited; T06 was
+not started. Not merged or self-approved; human review remains required.
