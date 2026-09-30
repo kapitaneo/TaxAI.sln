@@ -1,0 +1,42 @@
+# Spec 016 — T06 complete
+
+Task: T06 — Recovery, backup and Canadian DR.
+Branch: `feat/016-w6-t06`
+PR: #152 — https://github.com/kapitaneo/TaxAI.sln/pull/152
+Implementation commits: `8dbb0b1`, `0c9a053` (gate run on `0c9a053`); evidence `086d286`.
+
+## Gate — committed branch state (Windows)
+
+```powershell
+dotnet build TaxAI.sln --no-incremental
+pwsh ./scripts/Invoke-SolutionTests.ps1
+pwsh ./scripts/azure/Test-ProductionPlan.ps1
+pwsh ./scripts/azure/Invoke-RecoveryDrill.ps1
+pwsh ./scripts/azure/Invoke-RecoveryDrill.ps1 -Mode Posture
+git diff --check
+```
+
+- Build: 0 errors; 18 pre-existing analyzer warnings, none on a T06 line.
+- Solution gate: PASS. All 12 registered projects ran with no failure or skip
+  and every floor met; 5,561 tests. Floors raised: TaxAI.Portal.Tests 1157
+  (was 1073), Tenancy.Tests 395 (was 352), Persistence.Tests 305 (was 291),
+  TaxAI.AzureInfrastructure.Tests 528 (was 439); none lowered.
+- Offline plan check: exit 0 (pinned Bicep compile and lint).
+- Recovery drill: Offline exit 0, 18/18 held (simulated, not deployment
+  evidence); Live without authority exit 3, unexecuted.
+- `git diff --check`: clean.
+
+Human-authorized plan amendment: T06 also edited the runtime-configuration
+schema and module, the spec runtime-profile schema,
+`Test-ProductionConfiguration.ps1`, `AzureInfrastructureOptions.cs`,
+`ProductionConfigurationValidator.cs` and `ProductionConfigurationTests.cs`.
+
+**Pending plan-amendment item:** Canada East application hosting (App Service,
+WAF, egress). The regional application RTO (AC-107 and the application part of
+DEP-18) cannot be executed until it is authorized.
+
+DEP-17, DEP-18, DEP-19 and DEP-20 are pending/unexecuted. This marker is not
+deployment or real-taxpayer authorization; production admission stays REFUSED
+(evidence unobserved; both provider assurance gaps unresolved). `tasks.md` was
+not edited; T07 was not started. Not merged or self-approved; human review
+remains required. Details in `evidence/T06.md`.
