@@ -210,7 +210,7 @@ public sealed class ResilienceSettings
 /// FR-10, FR-11). Every value is policy, not tuning:
 /// <list type="bullet">
 /// <item><see cref="Profile"/> is exactly <c>Primary</c> or
-/// <c>CanadaEastRecovery</c>. The recovery profile runs the application with a
+/// <c>RegionalRecovery</c>. The recovery profile runs the application with a
 /// Canada East SQL database and failed-over Canada East source storage while
 /// Document Intelligence stays the Canada Central resource.</item>
 /// <item><see cref="ControlLedger"/> is the Canada Central copy and

@@ -164,8 +164,8 @@ public sealed class RecoveryTemplateTests
 
         var runtime = InfrastructurePlanHarness.Read("modules/runtime-configuration.bicep");
         Assert.Contains("'${production}Recovery__Profile': profile", runtime, StringComparison.Ordinal);
-        Assert.Contains("@allowed([\n  'Primary'\n  'CanadaEastRecovery'\n])\nparam profile string", runtime, StringComparison.Ordinal);
-        Assert.Contains("var dataRegion = profile == 'CanadaEastRecovery' ? recoveryRegion : primaryRegion", runtime, StringComparison.Ordinal);
+        Assert.Contains("@allowed([\n  'Primary'\n  'RegionalRecovery'\n])\nparam profile string", runtime, StringComparison.Ordinal);
+        Assert.Contains("var dataRegion = profile == 'RegionalRecovery' ? recoveryRegion : primaryRegion", runtime, StringComparison.Ordinal);
         Assert.Contains("'${production}DocumentIntelligence__Region': privateDependency.Region", runtime, StringComparison.Ordinal);
         Assert.Contains("profile: 'Primary'", Main, StringComparison.Ordinal);
         Assert.Contains("'${production}Recovery__ControlLedgerReplica__Region': recoveryRegion", runtime, StringComparison.Ordinal);
@@ -193,13 +193,33 @@ public sealed class RecoveryTemplateTests
             Assert.DoesNotContain("publicNetworkAccess: 'Enabled'", template, StringComparison.Ordinal);
         }
 
-        Assert.Contains("var zoneRedundant = location == 'canadacentral'", InfrastructurePlanHarness.Read("modules/app-service.bicep"), StringComparison.Ordinal);
+        Assert.Contains("zoneRedundant: zoneRedundant", InfrastructurePlanHarness.Read("modules/app-service.bicep"), StringComparison.Ordinal);
         foreach (var module in new[] { "application-gateway", "egress" })
         {
             var template = InfrastructurePlanHarness.Read($"modules/{module}.bicep");
-            Assert.Contains("var zones = location == 'canadacentral' ? [\n  '1'\n  '2'\n  '3'\n] : []", template, StringComparison.Ordinal);
+            Assert.Contains("var zones = zoneRedundant ? [\n  '1'\n  '2'\n  '3'\n] : []", template, StringComparison.Ordinal);
             Assert.Equal(2, Regex.Matches(template, "zones: zones").Count);
         }
+    }
+
+    [Fact] // Zone support is a stated capability of a deployment role, never a property of a region's name.
+    public void ZoneCapabilityIsAnExplicitInputAndNeverInferredFromARegionName()
+    {
+        foreach (var module in new[] { "app-service", "application-gateway", "egress" })
+        {
+            var template = InfrastructurePlanHarness.Read($"modules/{module}.bicep");
+            Assert.Single(Regex.Matches(template, @"(?m)^param zoneRedundant bool$"));
+            Assert.DoesNotMatch(new Regex(@"location\s*[!=]=\s*'"), template);
+            Assert.DoesNotMatch(new Regex(@"(?m)^var zoneRedundant\b"), template);
+        }
+
+        // The effective rule is unchanged: the primary deployment is zonal and
+        // the manually activated recovery deployment is non-zonal.
+        Assert.Contains("var zoneCapability = {\n  primary: true\n  recovery: false\n}", Main, StringComparison.Ordinal);
+        Assert.Equal(3, Regex.Matches(Main, @"location: primaryRegion\n    zoneRedundant: zoneCapability\.primary\n").Count);
+        Assert.Equal(3, Regex.Matches(Main, @"location: recoveryRegion\n    zoneRedundant: zoneCapability\.recovery\n").Count);
+        Assert.Equal(6, Regex.Matches(Main, "zoneRedundant: ").Count);
+        Assert.DoesNotMatch(new Regex(@"[Rr]egion\s*[!=]=\s*'canada"), Main);
     }
 
     [Fact] // The recovery host starts with its key ring and both ledger copies reachable privately.

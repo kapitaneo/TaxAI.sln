@@ -172,7 +172,7 @@
         "canadacentral",
         "canadaeast"
       ],
-      "description": "Source content storage account region: canadacentral for the Primary profile; canadaeast only with CanadaEastRecovery (the offline check and the validator bind the two)."
+      "description": "Source content storage account region: canadacentral for the Primary profile; canadaeast only with RegionalRecovery (the offline check and the validator bind the two)."
     },
     "TaxAi__Production__SourceStorage__PublicNetworkAccess": {
       "const": "Disabled",
@@ -219,7 +219,7 @@
         "canadacentral",
         "canadaeast"
       ],
-      "description": "Azure SQL logical server region: canadacentral for the Primary profile; canadaeast only with CanadaEastRecovery (the offline check and the validator bind the two)."
+      "description": "Azure SQL logical server region: canadacentral for the Primary profile; canadaeast only with RegionalRecovery (the offline check and the validator bind the two)."
     },
     "TaxAi__Production__Sql__PublicNetworkAccess": {
       "const": "Disabled",
@@ -328,9 +328,9 @@
     "TaxAi__Production__Recovery__Profile": {
       "enum": [
         "Primary",
-        "CanadaEastRecovery"
+        "RegionalRecovery"
       ],
-      "description": "Spec 016 T06: Primary for the Canada Central host; CanadaEastRecovery only for the manually activated Canada East recovery host (a separately signed configuration). Document Intelligence, Key Vault and monitoring never move."
+      "description": "Spec 016 T06: Primary for the Canada Central host; RegionalRecovery only for the manually activated Canada East recovery host (a separately signed configuration). Document Intelligence, Key Vault and monitoring never move."
     },
     "TaxAi__Production__Recovery__ControlLedger__Endpoint": {
       "type": "string",

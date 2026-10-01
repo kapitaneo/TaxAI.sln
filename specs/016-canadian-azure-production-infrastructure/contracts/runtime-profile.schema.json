@@ -299,7 +299,7 @@
     },
     "Recovery:Profile": {
       "const": "Primary",
-      "description": "Spec 016 T06: the deployment profile. The IaC emits the primary Canada Central profile only; the manual CanadaEastRecovery profile is a separately signed configuration validated by ProductionConfigurationValidator (docs/operations/canadian-recovery.md)."
+      "description": "Spec 016 T06: the deployment profile. The IaC emits the primary Canada Central profile only; the manual RegionalRecovery profile is a separately signed configuration validated by ProductionConfigurationValidator (docs/operations/canadian-recovery.md)."
     },
     "Recovery:ControlLedger:Endpoint": {
       "type": "string",

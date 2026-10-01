@@ -111,7 +111,7 @@ public sealed class ProductionConfigurationTests
     internal static Dictionary<string, string?> RecoverySettings()
     {
         var settings = ApprovedSettings();
-        settings["Recovery:Profile"] = "CanadaEastRecovery";
+        settings["Recovery:Profile"] = "RegionalRecovery";
         settings["Sql:Region"] = "canadaeast";
         settings["SourceStorage:Region"] = "canadaeast";
         return settings;
@@ -238,13 +238,13 @@ public sealed class ProductionConfigurationTests
     // ---------------------------------------------- spec 016 T06: recovery
 
     [Fact]
-    public void TheCanadaEastRecoveryProfilePassesWithCanadaEastDataAndCanadaCentralDocumentIntelligence()
+    public void TheRegionalRecoveryProfilePassesWithCanadaEastDataAndCanadaCentralDocumentIntelligence()
     {
         var result = _validator.Validate(Options(RecoverySettings()), ConnectionString);
 
         Assert.Empty(result.Refusals);
-        Assert.True(ProductionConfigurationValidator.IsCanadaEastRecovery(Options(RecoverySettings())));
-        Assert.False(ProductionConfigurationValidator.IsCanadaEastRecovery(Options(ApprovedSettings())));
+        Assert.True(ProductionConfigurationValidator.IsRegionalRecovery(Options(RecoverySettings())));
+        Assert.False(ProductionConfigurationValidator.IsRegionalRecovery(Options(ApprovedSettings())));
     }
 
     public static TheoryData<string, string?, ProductionAdmissionRefusal> RecoveryProfileRefusals() => new()

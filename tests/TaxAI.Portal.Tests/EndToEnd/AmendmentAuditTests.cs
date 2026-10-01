@@ -536,7 +536,7 @@ public sealed class AmendmentAuditTests
         A("NetworkTemplateTests passive recovery profile and deny-default egress", "passive unless explicitly activated",
             "The recovery profile stays passive by default; only the explicit, recovery-only activation input deploys the Canada East host, always with deny-default egress, never a second Document Intelligence resource and never a public data path.",
             P(NetworkTemplate, "TheRecoveryProfileDeploysNoActiveTrafficOrAlternateProcessor"),
-            P(NetworkTemplate, "TheCanadaEastRecoveryHostIsDeployedOnlyByExplicitActivation"),
+            P(NetworkTemplate, "TheRegionalRecoveryHostIsDeployedOnlyByExplicitActivation"),
             P(NetworkTemplate, "EveryNetworkSecurityMutationIsRefused"),
             P(RecoveryTemplate, "CanadaEastHostingIaCIsOwnedByT06AndNeverByT10"),
             P(RecoveryTooling, "TheRegionalDrillIsTheCompleteReconciliationInclusiveSequence")),

@@ -624,7 +624,7 @@ public sealed class ProjectStructureTests
         foreach (var claim in new[]
                  {
                      "Spec 016 T06", "RecoveryOrchestrator", "database incarnation", "quarantine",
-                     "CanadaEastRecovery", "never fails over", "manually activated Canada East recovery host",
+                     "RegionalRecovery", "never fails over", "manually activated Canada East recovery host",
                  })
         {
             Assert.Contains(claim, portal, StringComparison.Ordinal);

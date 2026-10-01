@@ -319,9 +319,9 @@ reader is still never a general service. No setting is added.
 
 - **Recovery settings.** The closed profile gains fourteen digest-covered
   `TaxAi:Production:Recovery:*` keys: the profile (`Primary` or the separately
-  signed `CanadaEastRecovery`), the Canada Central and Canada East control-ledger
+  signed `RegionalRecovery`), the Canada Central and Canada East control-ledger
   bindings, and the 35-day point-in-time, 7-day backup-chain and 90-day ledger
-  windows. In `CanadaEastRecovery`, SQL and source storage are the Canada East
+  windows. In `RegionalRecovery`, SQL and source storage are the Canada East
   resources; Document Intelligence, Key Vault and monitoring stay Canada
   Central. Document Intelligence never fails over: another region is refused.
 - **Admission adds three rules.** Exactly the Azure control ledger and evidence
@@ -345,7 +345,7 @@ reader is still never a general service. No setting is added.
   authorized state and runs non-extraction operations; new extraction keeps the
   fixed `503` until the Canada Central provider is valid again.
 - **The manually activated Canada East recovery host** (T06 amendment 2) runs
-  this same composition with the `CanadaEastRecovery` profile, deployed from the
+  this same composition with the `RegionalRecovery` profile, deployed from the
   committed IaC only by an explicit activation input, in its own recovery
   resource group. It starts quarantined like any other host and is admitted only
   after reconciliation releases its database incarnation. See

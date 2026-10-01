@@ -16,7 +16,7 @@
 // Activating recovered application service is manual and follows
 // docs/operations/canadian-recovery.md: controlled SQL failover, customer-
 // managed failover of the source and key-ring accounts, then a host started
-// with the separately signed CanadaEastRecovery runtime profile
+// with the separately signed RegionalRecovery runtime profile
 // (TaxAi:Production:Recovery:Profile), whose admission gate and recovery
 // orchestrator keep it quarantined until reconciliation completes. The Canada
 // East recovery host (App Service, WAF and egress in this region) is deployed

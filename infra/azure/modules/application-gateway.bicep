@@ -13,9 +13,9 @@
 // body inspection stays on; the file-upload limit is a bounded parameter so the
 // approved Spec 014 upload limit is preserved rather than silently truncated.
 // Spec 016 T06: the same gateway also fronts the manually activated Canada East
-// recovery host. Canada East offers no availability zones, so the gateway and
-// its address are zonal exactly in Canada Central; every listener, WAF and
-// backend-TLS control is identical in both regions.
+// recovery host. Zone placement is an explicit capability input stated by
+// main.bicep per deployment role; every listener, WAF and backend-TLS control
+// is identical for both roles.
 //
 // No diagnostic setting is created: no access, performance or firewall log -
 // all of which can carry request URIs or matched request content - is enabled
@@ -32,6 +32,9 @@ param location string
 @minLength(3)
 @maxLength(16)
 param namePrefix string
+
+@description('Whether the deployment region offers availability zones. An explicit capability supplied by main.bicep per deployment role; it is never inferred from a region name.')
+param zoneRedundant bool
 
 @description('Application Gateway subnet.')
 param gatewaySubnetId string
@@ -70,8 +73,8 @@ param fileUploadLimitInMb int
 
 var gatewayName = '${namePrefix}-agw'
 
-// Three zones wherever the region offers them: Canada Central.
-var zones = location == 'canadacentral' ? [
+// Three zones wherever the deployment region offers them.
+var zones = zoneRedundant ? [
   '1'
   '2'
   '3'

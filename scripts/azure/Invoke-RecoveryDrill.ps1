@@ -101,6 +101,12 @@
 .PARAMETER FailoverGroupName
     Posture, RegionalFailover: the Manual failover group.
 
+.PARAMETER RecoveryRegion
+    Posture: the deployment's configured recovery region - the exact value of
+    the `TaxAi:Production:RecoveryRegion` setting (main.bicep `recoveryRegion`).
+    The failover partner's programmatic location is compared to this value;
+    no region name is built into the drill.
+
 .PARAMETER ControlAccountNames
     Posture, Attest, RegionalFailover: the Canada Central and Canada East
     control-ledger accounts, in that order.
@@ -154,6 +160,8 @@ param(
     [string] $SqlDatabaseName,
 
     [string] $FailoverGroupName,
+
+    [string] $RecoveryRegion,
 
     [string[]] $ControlAccountNames,
 
@@ -352,7 +360,7 @@ function Invoke-Offline {
     $main = Get-Content -LiteralPath (Join-Path $repositoryRoot 'infra/azure/main.bicep') -Raw
     Add-Check 'RecoveryHostIaCPresent' (
         ([regex]::Matches($main, "module recovery(?:Egress|Runtime|Portal|Endpoints|Ingress) '[^']+' = if \(activating\)")).Count -eq 5 -and
-        $main.Contains("profile: 'CanadaEastRecovery'"))
+        $main.Contains("profile: 'RegionalRecovery'"))
     Add-Check 'HostingModulesServeCanadaEast' (@('app-service', 'application-gateway', 'egress', 'private-endpoints' | Where-Object {
         (Get-Content -LiteralPath (Join-Path $repositoryRoot "infra/azure/modules/$_.bicep") -Raw) -notmatch "'canadaeast'" }).Count -eq 0)
 
@@ -392,7 +400,7 @@ function Assert-LiveAuthority {
 }
 
 function Invoke-Posture {
-    Assert-LiveAuthority -Required @('SubscriptionId', 'ResourceGroup', 'SqlServerName', 'SqlDatabaseName', 'FailoverGroupName', 'ControlAccountNames')
+    Assert-LiveAuthority -Required @('SubscriptionId', 'ResourceGroup', 'SqlServerName', 'SqlDatabaseName', 'FailoverGroupName', 'RecoveryRegion', 'ControlAccountNames')
     try {
         $common = @('--resource-group', $ResourceGroup, '--subscription', $SubscriptionId)
         $shortTerm = Invoke-Az (@('sql', 'db', 'str-policy', 'show', '--server', $SqlServerName, '--name', $SqlDatabaseName) + $common)
@@ -404,7 +412,12 @@ function Invoke-Posture {
         Add-Check 'SqlZoneRedundant' ([bool] $database['zoneRedundant'])
         $group = Invoke-Az (@('sql', 'failover-group', 'show', '--server', $SqlServerName, '--name', $FailoverGroupName) + $common)
         Add-Check 'FailoverIsManual' ([string] $group['readWriteEndpoint']['failoverPolicy'] -eq 'Manual')
-        Add-Check 'FailoverPartnerInCanadaEast' (@($group['partnerServers'] | Where-Object { [string] $_['location'] -ne 'Canada East' }).Count -eq 0)
+        # The partner's programmatic location is read from the server resource and
+        # compared with the configured recovery region, never with display text.
+        $partners = @($group['partnerServers'])
+        $partnerRegions = @($partners | ForEach-Object { [string] (Invoke-Az @('sql', 'server', 'show', '--ids', [string] $_['id']))['location'] })
+        Add-Check 'FailoverPartnerInRecoveryRegion' ($partners.Count -eq 1 -and
+            @($partnerRegions | Where-Object { -not [string]::Equals($_, $RecoveryRegion, [StringComparison]::Ordinal) }).Count -eq 0)
 
         $window = [Tenancy.Models.RecoveryRetentionWindow]::LongestRecoverableWindow(35, 7).TotalDays
         foreach ($accountName in $ControlAccountNames) {

@@ -209,7 +209,7 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe, IRecoveryInv
     public async Task<ApprovedResourceProbeResult> ProbeRecoveryInventoryAsync(CancellationToken cancellationToken)
     {
         var findings = new List<ApprovedResourceFinding>();
-        var recovering = ProductionConfigurationValidator.IsCanadaEastRecovery(_options);
+        var recovering = ProductionConfigurationValidator.IsRegionalRecovery(_options);
         await ProbeControlAccountAsync(
             _options.Recovery.ControlLedger.Endpoint,
             required: !recovering,
@@ -383,7 +383,7 @@ public sealed class ApprovedResourceProbe : IApprovedResourceProbe, IRecoveryInv
                        capture.AccountKind,
                        capture.HierarchicalNamespace,
                        properties.Value,
-                       ProductionConfigurationValidator.IsCanadaEastRecovery(_options))
+                       ProductionConfigurationValidator.IsRegionalRecovery(_options))
                 ? null
                 : ApprovedResourceFinding.SourceStorageNotApproved;
         }

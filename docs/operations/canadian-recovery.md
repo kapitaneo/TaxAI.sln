@@ -34,6 +34,10 @@ az storage container immutability-policy lock --account-name <account> --contain
 ```
 
 `Invoke-RecoveryDrill.ps1 -Mode Posture` refuses until all six are `Locked`.
+Pass `-RecoveryRegion` with the deployment's configured recovery region (the
+`TaxAi:Production:RecoveryRegion` setting): the drill reads the failover
+partner server's programmatic location and compares it with that value. It
+never compares a region's display name.
 
 ## Authorization attestation
 
@@ -90,22 +94,24 @@ recovery parameter file:
   record of the primary topology is overwritten.
 - **What.** `main.bicep` with `profile = 'recovery'` and the sealed
   `activation` input (`dataResourceGroup` plus the same `topology` shape as the
-  primary). It deploys, all non-zonal because Canada East has no availability
-  zones: deny-default egress (`egress.bicep`, same allowlist), the same
+  primary). It deploys, all non-zonal because `main.bicep` states the recovery
+  role's zone capability as `false` (the current recovery region offers no
+  availability zones; the hosting modules take zone capability as an explicit
+  input and never infer it from a region name): deny-default egress (`egress.bicep`, same allowlist), the same
   hardened App Service (`app-service.bicep`, site `<siteName>-ce`, public access
   disabled, VNet route-all), its private endpoints (`private-endpoints.bicep`:
   the recovery site, the source account, the Canada East SQL server, Key Vault,
   the Canada Central Document Intelligence resource, the key-ring account and
   both ledger copies), and the WAF v2 gateway (`application-gateway.bicep`,
   443 only, backend TLS to the private site). Its settings are the
-  `CanadaEastRecovery` profile emitted by `runtime-configuration.bicep`.
+  `RegionalRecovery` profile emitted by `runtime-configuration.bicep`.
 - **Identity.** The existing user-assigned Portal and gateway identities from
   the data resource group; no new identity or role is created.
 - **Operator prerequisites (not IaC).** The activation parameters file is the
   real release inventory, never committed; the site certificate for the public
   host name must be available to the Canada East web space before activation,
   as it is for the primary; the recovery evidence manifest must be approved for
-  exactly the `CanadaEastRecovery` configuration digest; public DNS for the
+  exactly the `RegionalRecovery` configuration digest; public DNS for the
   approved host name is repointed to the recovery gateway address as the final,
   manual cutover.
 

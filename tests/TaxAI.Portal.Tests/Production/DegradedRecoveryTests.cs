@@ -66,7 +66,7 @@ public sealed class DegradedRecoveryTests
     public void TheRecoveryProfileRegistersOnlyTheCanadaCentralProvider()
     {
         var settings = ProductionStartupTests.ProductionProfile();
-        settings["TaxAi:Production:Recovery:Profile"] = "CanadaEastRecovery";
+        settings["TaxAi:Production:Recovery:Profile"] = "RegionalRecovery";
         settings["TaxAi:Production:Sql:Region"] = "canadaeast";
         settings["TaxAi:Production:SourceStorage:Region"] = "canadaeast";
         settings["TaxAi:Extraction:Provider"] = "AzureDocumentIntelligence";
@@ -77,7 +77,7 @@ public sealed class DegradedRecoveryTests
 
         var options = ProductionConfigurationRead(configuration);
         Assert.Empty(new ProductionConfigurationValidator().Validate(options, ProductionStartupTests.ProductionConnectionString).Refusals);
-        Assert.True(ProductionConfigurationValidator.IsCanadaEastRecovery(options));
+        Assert.True(ProductionConfigurationValidator.IsRegionalRecovery(options));
         Assert.Equal("canadacentral", options.DocumentIntelligence.Resource.Region);
         Assert.Equal("canadaeast", options.Sql.Region);
 

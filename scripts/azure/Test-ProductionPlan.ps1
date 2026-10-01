@@ -94,11 +94,17 @@ function Read-Source {
 $rules = @(
     # ---- hosting (FR-02, AC-018 to AC-020)
     @{ Code = 'PlanSkuNotP1v3'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = "name: 'P1v3'\s+tier: 'PremiumV3'" }
-    # Spec 016 T06: zone redundant exactly where the region offers zones (Canada
-    # Central); the manually activated Canada East recovery host is non-zonal.
-    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = "var zoneRedundant = location == 'canadacentral'" }
+    # Spec 016 T06: zone redundancy is an explicit capability input, stated per
+    # deployment role in main.bicep and never inferred from a region name. The
+    # primary deployment is zonal; the recovery host is non-zonal.
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = '(?m)^param zoneRedundant bool$' }
     @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'zoneRedundant: zoneRedundant' }
-    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Forbid'; Pattern = 'zoneRedundant: false' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Forbid'; Pattern = 'zoneRedundant: (?:true|false)' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/app-service.bicep'; Kind = 'Forbid'; Pattern = "location [!=]= '" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'main.bicep'; Kind = 'Require'; Pattern = 'var zoneCapability = \{\s+primary: true\s+recovery: false\s+\}' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'main.bicep'; Kind = 'Count'; Expected = 3; Pattern = "module (?:egress|portal|ingress) '[^']+' = if \(isPrimary\) \{\s+name: '[^']+'\s+params: \{\s+location: primaryRegion\s+zoneRedundant: zoneCapability\.primary" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'main.bicep'; Kind = 'Count'; Expected = 3; Pattern = "module recovery(?:Egress|Portal|Ingress) '[^']+' = if \(activating\) \{\s+name: '[^']+'\s+params: \{\s+location: recoveryRegion\s+zoneRedundant: zoneCapability\.recovery" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'main.bicep'; Kind = 'Count'; Expected = 6; Pattern = 'zoneRedundant: ' }
     @{ Code = 'PerSiteScalingEnabled'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'perSiteScaling: false' }
     @{ Code = 'MinimumWorkersBelowTwo'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = '@minValue\(2\)\s+@maxValue\(10\)\s+param minimumInstanceCount int' }
     @{ Code = 'MinimumWorkersBelowTwo'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = 'capacity: minimumInstanceCount' }
@@ -153,10 +159,14 @@ $rules = @(
     @{ Code = 'BackendNotCertificateValidated'; File = 'modules/application-gateway.bicep'; Kind = 'Forbid'; Pattern = '(?:validateCertChainAndExpiry|validateSNI): false' }
     @{ Code = 'BackendNotCertificateValidated'; File = 'modules/application-gateway.bicep'; Kind = 'Forbid'; Pattern = 'trustedRootCertificates:' }
     @{ Code = 'TransportBelowMinimum'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = "policyType: 'Predefined'\s+policyName: 'AppGwSslPolicy20220101S'" }
-    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = "var zones = location == 'canadacentral' \? \[\s+'1'\s+'2'\s+'3'\s+\] : \[\]" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = '(?m)^param zoneRedundant bool$' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Require'; Pattern = "var zones = zoneRedundant \? \[\s+'1'\s+'2'\s+'3'\s+\] : \[\]" }
     @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Count'; Expected = 2; Pattern = 'zones: zones' }
-    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Require'; Pattern = "var zones = location == 'canadacentral' \? \[\s+'1'\s+'2'\s+'3'\s+\] : \[\]" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/application-gateway.bicep'; Kind = 'Forbid'; Pattern = "location [!=]= '" }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Require'; Pattern = '(?m)^param zoneRedundant bool$' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Require'; Pattern = "var zones = zoneRedundant \? \[\s+'1'\s+'2'\s+'3'\s+\] : \[\]" }
     @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Count'; Expected = 2; Pattern = 'zones: zones' }
+    @{ Code = 'ZoneRedundancyDisabled'; File = 'modules/egress.bicep'; Kind = 'Forbid'; Pattern = "location [!=]= '" }
 
     # ---- Spec 016 T06: hosting modules serve exactly the two Canadian regions
     @{ Code = 'RegionNotApproved'; File = 'modules/app-service.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+'canadaeast'\s+\]\)\s+param location string" }
@@ -203,7 +213,7 @@ $rules = @(
     @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "fail\('The primary profile activates no recovery host\.'\)" }
     @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "fail\('The recovery host deploys into its own Canada East resource group\.'\)" }
     @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Count'; Expected = 5; Pattern = "module recovery(?:Egress|Runtime|Portal|Endpoints|Ingress) '[^']+' = if \(activating\)" }
-    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "profile: 'CanadaEastRecovery'" }
+    @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Require'; Pattern = "profile: 'RegionalRecovery'" }
     @{ Code = 'RecoveryActivationUnguarded'; File = 'main.bicep'; Kind = 'Forbid'; Pattern = "module \w+ 'modules/document-intelligence\.bicep' = if \((?!isPrimary\))" }
     @{ Code = 'RegionNotApproved'; File = 'main.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadacentral'\s+\]\)\s+param primaryRegion string" }
     @{ Code = 'RegionNotApproved'; File = 'main.bicep'; Kind = 'Require'; Pattern = "@allowed\(\[\s+'canadaeast'\s+\]\)\s+param recoveryRegion string" }

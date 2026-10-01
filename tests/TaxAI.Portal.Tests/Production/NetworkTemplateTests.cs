@@ -44,7 +44,11 @@ public sealed class NetworkTemplateTests
         { Main, "module recoveryPortal 'modules/app-service.bicep' = if (activating)", "module recoveryPortal 'modules/app-service.bicep' = if (!isPrimary)", "RecoveryActivationUnguarded" },
         { Main, "fail('The primary profile activates no recovery host.')", "true", "RecoveryActivationUnguarded" },
         { Main, "fail('The recovery host deploys into its own Canada East resource group.')", "true", "RecoveryActivationUnguarded" },
-        { Egress, "var zones = location == 'canadacentral' ? [", "var zones = location == 'canadaeast' ? [", "ZoneRedundancyDisabled" },
+        // Spec 016 T06: zone capability is an explicit input, never a region-name test.
+        { Egress, "var zones = zoneRedundant ? [", "var zones = location == 'canadacentral' ? [", "ZoneRedundancyDisabled" },
+        { Egress, "param zoneRedundant bool", "var zoneRedundant = false", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    firewallSubnetId", "zoneRedundant: zoneCapability.recovery\n    namePrefix: namePrefix\n    firewallSubnetId", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.recovery\n    namePrefix: namePrefix\n    firewallSubnetId", "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    firewallSubnetId", "ZoneRedundancyDisabled" },
 
         // AC-057/AC-058 — outbound is deny by default.
         { Network, "name: 'DenyAllOtherOutbound'\n        properties: {\n          priority: 4000\n          direction: 'Outbound'\n          access: 'Deny'", "name: 'DenyAllOtherOutbound'\n        properties: {\n          priority: 4000\n          direction: 'Outbound'\n          access: 'Allow'", "OutboundNotDenyDefault" },
@@ -127,7 +131,7 @@ public sealed class NetworkTemplateTests
     }
 
     [Fact] // Spec 016 T06: activation is explicit, recovery-only and binds the same inventory.
-    public void TheCanadaEastRecoveryHostIsDeployedOnlyByExplicitActivation()
+    public void TheRegionalRecoveryHostIsDeployedOnlyByExplicitActivation()
     {
         var main = InfrastructurePlanHarness.Read(Main);
 
@@ -142,7 +146,7 @@ public sealed class NetworkTemplateTests
         }
 
         Assert.Contains("location: recoveryRegion", main, StringComparison.Ordinal);
-        Assert.Contains("profile: 'CanadaEastRecovery'", main, StringComparison.Ordinal);
+        Assert.Contains("profile: 'RegionalRecovery'", main, StringComparison.Ordinal);
         Assert.Contains("sqlServerName: recoverySqlServerName", main, StringComparison.Ordinal);
 
         // No second Document Intelligence resource and no public data path:

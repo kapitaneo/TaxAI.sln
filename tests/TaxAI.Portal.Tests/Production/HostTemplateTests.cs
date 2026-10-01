@@ -46,9 +46,15 @@ public sealed class HostTemplateTests
         { AppService, "tier: 'PremiumV3'", "tier: 'Standard'", "PlanSkuNotP1v3" },
 
         // AC-019 — zone-redundant placement with at least two workers.
-        // Spec 016 T06: zone redundant exactly in Canada Central (Canada East has no zones).
+        // Spec 016 T06: zone capability is an explicit input stated per deployment
+        // role in main.bicep (primary zonal, recovery non-zonal), never a region-name test.
         { AppService, "zoneRedundant: zoneRedundant", "zoneRedundant: false", "ZoneRedundancyDisabled" },
-        { AppService, "var zoneRedundant = location == 'canadacentral'", "var zoneRedundant = false", "ZoneRedundancyDisabled" },
+        { AppService, "param zoneRedundant bool", "var zoneRedundant = false", "ZoneRedundancyDisabled" },
+        { AppService, "param zoneRedundant bool", "var zoneRedundant = location == 'canadacentral'", "ZoneRedundancyDisabled" },
+        { Main, "  primary: true\n  recovery: false", "  primary: false\n  recovery: false", "ZoneRedundancyDisabled" },
+        { Main, "  primary: true\n  recovery: false", "  primary: true\n  recovery: true", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    siteName: primaryInputs", "zoneRedundant: zoneCapability.recovery\n    namePrefix: namePrefix\n    siteName: primaryInputs", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    siteName: primaryInputs", "zoneRedundant: false\n    namePrefix: namePrefix\n    siteName: primaryInputs", "ZoneRedundancyDisabled" },
         { AppService, "  'canadacentral'\n  'canadaeast'\n])\nparam location string", "  'canadacentral'\n  'canadaeast'\n  'eastus'\n])\nparam location string", "RegionNotApproved" },
         { AppService, "perSiteScaling: false", "perSiteScaling: true", "PerSiteScalingEnabled" },
         { AppService, "@minValue(2)\n@maxValue(10)\nparam minimumInstanceCount int", "@minValue(1)\n@maxValue(10)\nparam minimumInstanceCount int", "MinimumWorkersBelowTwo" },
@@ -108,7 +114,9 @@ public sealed class HostTemplateTests
         { Gateway, "        name: 'public'\n        properties: {\n", "        name: 'public'\n        properties: {\n          privateIPAllocationMethod: 'Dynamic'\n", "PublicListenerNotHttps443Only" },
         { Gateway, "protocol: 'Https'\n          hostName: publicHostName\n          requireServerNameIndication: true", "protocol: 'Http'\n          hostName: publicHostName\n          requireServerNameIndication: true", "PlaintextForwardingConfigured" },
         { Gateway, "zones: zones\n  identity", "zones: []\n  identity", "ZoneRedundancyDisabled" },
-        { Gateway, "var zones = location == 'canadacentral' ? [", "var zones = location == 'canadaeast' ? [", "ZoneRedundancyDisabled" },
+        { Gateway, "var zones = zoneRedundant ? [", "var zones = location == 'canadacentral' ? [", "ZoneRedundancyDisabled" },
+        { Gateway, "var zones = zoneRedundant ? [", "var zones = false ? [", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    gatewaySubnetId", "zoneRedundant: zoneCapability.recovery\n    namePrefix: namePrefix\n    gatewaySubnetId", "ZoneRedundancyDisabled" },
         { Gateway, "  'canadacentral'\n  'canadaeast'\n])\nparam location string", "  'canadacentral'\n  'westeurope'\n])\nparam location string", "RegionNotApproved" },
 
         // AC-023 — the backend leg is certificate- and host-name-validated HTTPS.

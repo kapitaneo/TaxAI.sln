@@ -49,7 +49,7 @@ public sealed class ProductionConfigurationValidator
     /// Vault and monitoring remain the Canada Central resources, so extraction
     /// stays unavailable while Canada Central is.
     /// </summary>
-    public const string CanadaEastRecoveryProfile = "CanadaEastRecovery";
+    public const string RegionalRecoveryProfile = "RegionalRecovery";
 
     public const int FinalizedSourceDays = 30;
     public const int RejectedSourceDays = 7;
@@ -161,7 +161,7 @@ public sealed class ProductionConfigurationValidator
         ValidateDocumentIntelligence(options.DocumentIntelligence, deployment, refusals);
 
         // Spec 016 T06: an unknown profile is never silently the primary one.
-        var recovering = IsExactly(options.Recovery.Profile, CanadaEastRecoveryProfile);
+        var recovering = IsExactly(options.Recovery.Profile, RegionalRecoveryProfile);
         if (!recovering && !IsExactly(options.Recovery.Profile, PrimaryProfile))
         {
             refusals.Add(ProductionAdmissionRefusal.RecoveryRegionNotCanadaEast);
@@ -482,10 +482,10 @@ public sealed class ProductionConfigurationValidator
     }
 
     /// <summary>True only for the exact Canada East recovery profile.</summary>
-    public static bool IsCanadaEastRecovery(AzureInfrastructureOptions options)
+    public static bool IsRegionalRecovery(AzureInfrastructureOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return IsExactly(options.Recovery.Profile, CanadaEastRecoveryProfile);
+        return IsExactly(options.Recovery.Profile, RegionalRecoveryProfile);
     }
 
     private static void ValidateSqlConnection(

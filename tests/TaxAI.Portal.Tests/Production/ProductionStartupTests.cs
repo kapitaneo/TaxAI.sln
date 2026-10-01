@@ -492,7 +492,7 @@ public sealed class ProductionStartupTests
                 ProductionAdmissionRefusal.RetentionOutsidePolicy),
             ["seven-year SQL backup"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:SqlPointInTimeRestoreDays", "2555"),
                 ProductionAdmissionRefusal.RetentionOutsidePolicy),
-            ["recovery DI failover"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:Profile", "CanadaEastRecovery")
+            ["recovery DI failover"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:Profile", "RegionalRecovery")
                     .Set("TaxAi:Production:Sql:Region", "canadaeast").Set("TaxAi:Production:SourceStorage:Region", "canadaeast")
                     .Set("TaxAi:Production:DocumentIntelligence:Region", "canadaeast"),
                 ProductionAdmissionRefusal.DocumentIntelligenceBindingInvalid),
@@ -795,10 +795,10 @@ public sealed class ProductionStartupTests
     }
 
     [Fact] // Spec 016 T06: the Canada East recovery profile is admitted, DI staying Canada Central.
-    public void TheSignedCanadaEastRecoveryProfileIsAdmitted()
+    public void TheSignedRegionalRecoveryProfileIsAdmitted()
     {
         var recovery = Scenario.Complete()
-            .Set("TaxAi:Production:Recovery:Profile", "CanadaEastRecovery")
+            .Set("TaxAi:Production:Recovery:Profile", "RegionalRecovery")
             .Set("TaxAi:Production:Sql:Region", "canadaeast")
             .Set("TaxAi:Production:SourceStorage:Region", "canadaeast");
 

@@ -77,7 +77,7 @@ public sealed class RepositoryContractTests
             new[]
             {
                 TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.PrimaryProfile,
-                TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.CanadaEastRecoveryProfile,
+                TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.RegionalRecoveryProfile,
             },
             Enum("Recovery__Profile"));
         foreach (var key in new[] { "Sql__Region", "SourceStorage__Region" })

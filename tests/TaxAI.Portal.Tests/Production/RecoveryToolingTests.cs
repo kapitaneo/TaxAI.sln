@@ -82,6 +82,35 @@ public sealed class RecoveryToolingTests
         Assert.DoesNotContain("document-intelligence", body, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact] // The posture check compares the partner's actual location to the configured recovery region.
+    public void ThePostureDrillComparesThePartnerLocationToTheConfiguredRecoveryRegion()
+    {
+        var script = File.ReadAllText(DrillScript);
+        var body = script[script.IndexOf("function Invoke-Posture", StringComparison.Ordinal)..script.IndexOf("function Invoke-SqlRestore", StringComparison.Ordinal)];
+
+        Assert.Contains("'FailoverGroupName', 'RecoveryRegion', 'ControlAccountNames'", body, StringComparison.Ordinal);
+        Assert.Contains("Invoke-Az @('sql', 'server', 'show', '--ids', [string] $_['id'])", body, StringComparison.Ordinal);
+        Assert.Contains("[string]::Equals($_, $RecoveryRegion, [StringComparison]::Ordinal)", body, StringComparison.Ordinal);
+        Assert.Contains("'FailoverPartnerInRecoveryRegion'", body, StringComparison.Ordinal);
+
+        // No region is identified by display text or by a built-in name.
+        Assert.DoesNotMatch(new Regex(@"-(?:c|i)?(?:eq|ne|like|notlike|match|notmatch)\s+'(?:Canada (?:East|Central)|canada(?:east|central))'"), script);
+        Assert.DoesNotContain("FailoverPartnerInCanadaEast", script, StringComparison.Ordinal);
+    }
+
+    [Fact] // A posture run that names no configured recovery region is unexecuted, never passed.
+    public void ThePostureDrillWithoutTheConfiguredRecoveryRegionIsUnexecuted()
+    {
+        var (exitCode, output) = InfrastructurePlanHarness.Run(
+            DrillScript, "-Mode", "Posture", "-SubscriptionId", "22222222-2222-4222-8222-222222222222",
+            "-ResourceGroup", "rg-synthetic", "-SqlServerName", "sql-synthetic", "-SqlDatabaseName", "taxai",
+            "-FailoverGroupName", "fog-synthetic", "-ControlAccountNames", "stsyntheticcc,stsyntheticce");
+
+        Assert.Equal(3, exitCode);
+        Assert.Contains("RecoveryRegion", output, StringComparison.Ordinal);
+        Assert.Contains("never passed", output, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("Posture")]
     [InlineData("SqlRestore")]
@@ -138,7 +167,7 @@ public sealed class RecoveryToolingTests
     {
         { "TaxAi__Production__Recovery__ControlLedger__Endpoint", "https://sttaxaisrccc.blob.core.windows.net/", "StorageBindingInvalid" },
         { "TaxAi__Production__Recovery__ControlLedgerReplica__Region", "eastus", "ApprovedConstantNotMet" },
-        { "TaxAi__Production__Recovery__Profile", "CanadaEastRecovery", "RecoveryProfileRegionMismatch" },
+        { "TaxAi__Production__Recovery__Profile", "RegionalRecovery", "RecoveryProfileRegionMismatch" },
         { "TaxAi__Production__Recovery__Profile", "Anywhere", "ApprovedConstantNotMet" },
         { "TaxAi__Production__Sql__Region", "canadaeast", "RecoveryProfileRegionMismatch" },
         { "TaxAi__Production__Recovery__ControlLedgerRetentionDays", "42", "ApprovedConstantNotMet" },
@@ -146,10 +175,10 @@ public sealed class RecoveryToolingTests
     };
 
     [Fact] // The recovery host's own settings pass: the profile and its Canada East data together.
-    public void TheOfflineCheckAcceptsTheCanadaEastRecoveryHostSettings()
+    public void TheOfflineCheckAcceptsTheRegionalRecoveryHostSettings()
     {
         var settings = AppSettings();
-        settings["TaxAi__Production__Recovery__Profile"] = "CanadaEastRecovery";
+        settings["TaxAi__Production__Recovery__Profile"] = "RegionalRecovery";
         settings["TaxAi__Production__Sql__Region"] = "canadaeast";
         settings["TaxAi__Production__SourceStorage__Region"] = "canadaeast";
 

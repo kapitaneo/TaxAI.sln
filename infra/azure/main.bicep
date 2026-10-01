@@ -52,7 +52,7 @@
 // inventory in the data resource group (Canada East SQL server, source and
 // key-ring accounts, Key Vault, both ledger copies and the Canada Central
 // Document Intelligence resource), and the WAF v2 gateway. Its settings are the
-// separately signed CanadaEastRecovery profile. Activation never happens by
+// separately signed RegionalRecovery profile. Activation never happens by
 // itself, never creates a second Document Intelligence resource and never opens
 // a public data path; the host still starts quarantined until reconciliation
 // releases its database incarnation.
@@ -176,7 +176,7 @@ type recoveryActivation = {
   @minLength(1)
   @maxLength(90)
   dataResourceGroup: string
-  @description('The same topology and runtime inputs as the primary host; the recovery evidence manifest is the one signed for the CanadaEastRecovery configuration.')
+  @description('The same topology and runtime inputs as the primary host; the recovery evidence manifest is the one signed for the RegionalRecovery configuration.')
   topology: primaryTopology
 }
 
@@ -189,6 +189,16 @@ type primaryTopology = {
 
 var isPrimary = profile == 'primary'
 var location = isPrimary ? primaryRegion : recoveryRegion
+
+// Spec 016 T06: availability-zone capability per deployment role, stated
+// once and explicitly rather than inferred from a region name. The primary
+// deployment is zonal (FR-02); the current recovery region offers no
+// availability zones (Microsoft Learn, "List of Azure regions", read
+// 2026-09-30), so the manually activated recovery host is non-zonal.
+var zoneCapability = {
+  primary: true
+  recovery: false
+}
 
 // Spec 016 T06: deterministic, globally unique control-ledger account names.
 var ledgerStem = toLower(replace(namePrefix, '-', ''))
@@ -240,6 +250,7 @@ module egress 'modules/egress.bicep' = if (isPrimary) {
   name: 'egress'
   params: {
     location: primaryRegion
+    zoneRedundant: zoneCapability.primary
     namePrefix: namePrefix
     firewallSubnetId: regionalNetwork.outputs.firewallSubnetId
     appIntegrationSubnetPrefix: network.appIntegrationSubnetPrefix
@@ -374,6 +385,7 @@ module portal 'modules/app-service.bicep' = if (isPrimary) {
   name: 'app-service'
   params: {
     location: primaryRegion
+    zoneRedundant: zoneCapability.primary
     namePrefix: namePrefix
     siteName: primaryInputs!.hosting.siteName
     minimumInstanceCount: primaryInputs!.hosting.minimumInstanceCount
@@ -414,6 +426,7 @@ module ingress 'modules/application-gateway.bicep' = if (isPrimary) {
   name: 'application-gateway'
   params: {
     location: primaryRegion
+    zoneRedundant: zoneCapability.primary
     namePrefix: namePrefix
     gatewaySubnetId: regionalNetwork.outputs.gatewaySubnetId
     gatewayIdentityResourceId: resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', primaryInputs!.ingress.gatewayIdentityName)
@@ -438,6 +451,7 @@ module recoveryEgress 'modules/egress.bicep' = if (activating) {
   name: 'recovery-egress'
   params: {
     location: recoveryRegion
+    zoneRedundant: zoneCapability.recovery
     namePrefix: namePrefix
     firewallSubnetId: regionalNetwork.outputs.firewallSubnetId
     appIntegrationSubnetPrefix: network.appIntegrationSubnetPrefix
@@ -449,7 +463,7 @@ module recoveryRuntime 'modules/runtime-configuration.bicep' = if (activating) {
   params: {
     primaryRegion: primaryRegion
     recoveryRegion: recoveryRegion
-    profile: 'CanadaEastRecovery'
+    profile: 'RegionalRecovery'
     dataResourceGroupName: dataResourceGroupName
     tenantId: recoveryInputs!.runtime.tenantId
     artifactVersion: recoveryInputs!.runtime.artifactVersion
@@ -480,6 +494,7 @@ module recoveryPortal 'modules/app-service.bicep' = if (activating) {
   name: 'recovery-app-service'
   params: {
     location: recoveryRegion
+    zoneRedundant: zoneCapability.recovery
     namePrefix: namePrefix
     siteName: take('${recoveryInputs!.hosting.siteName}-ce', 60)
     minimumInstanceCount: recoveryInputs!.hosting.minimumInstanceCount
@@ -519,6 +534,7 @@ module recoveryIngress 'modules/application-gateway.bicep' = if (activating) {
   name: 'recovery-application-gateway'
   params: {
     location: recoveryRegion
+    zoneRedundant: zoneCapability.recovery
     namePrefix: namePrefix
     gatewaySubnetId: regionalNetwork.outputs.gatewaySubnetId
     gatewayIdentityResourceId: resourceId(subscription().subscriptionId, dataResourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', recoveryInputs!.ingress.gatewayIdentityName)

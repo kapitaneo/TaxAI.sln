@@ -32,10 +32,10 @@ param primaryRegion string
 ])
 param recoveryRegion string
 
-@description('Spec 016 T06: Primary for the Canada Central host; CanadaEastRecovery only for the manually activated Canada East recovery host, whose SQL server and failed-over source account are the Canada East ones. Document Intelligence, Key Vault and monitoring never move.')
+@description('Spec 016 T06: Primary for the Canada Central host; RegionalRecovery only for the manually activated Canada East recovery host, whose SQL server and failed-over source account are the Canada East ones. Document Intelligence, Key Vault and monitoring never move.')
 @allowed([
   'Primary'
-  'CanadaEastRecovery'
+  'RegionalRecovery'
 ])
 param profile string
 
@@ -121,7 +121,7 @@ param controlLedgerReplicaAccountName string
 var resourcePrefix = '/subscriptions/${subscription().subscriptionId}/resourceGroups/${dataResourceGroupName}/providers'
 
 // Spec 016 T06: only the recovery profile's SQL and source storage are Canada East.
-var dataRegion = profile == 'CanadaEastRecovery' ? recoveryRegion : primaryRegion
+var dataRegion = profile == 'RegionalRecovery' ? recoveryRegion : primaryRegion
 
 var privateDependency = {
   Region: primaryRegion

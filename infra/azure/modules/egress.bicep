@@ -21,6 +21,9 @@ param location string
 @maxLength(16)
 param namePrefix string
 
+@description('Whether the deployment region offers availability zones. An explicit capability supplied by main.bicep per deployment role; it is never inferred from a region name.')
+param zoneRedundant bool
+
 @description('AzureFirewallSubnet.')
 param firewallSubnetId string
 
@@ -30,9 +33,9 @@ param appIntegrationSubnetPrefix string
 var allowlist = loadJsonContent('../contracts/dependency-allowlist.json')
 
 // Spec 016 T06: the same deny-default egress serves the manually activated
-// Canada East recovery host with the identical allowlist. Three zones wherever
-// the region offers them: Canada Central (Canada East offers none).
-var zones = location == 'canadacentral' ? [
+// recovery host with the identical allowlist. Three zones wherever the
+// deployment region offers them, an explicit capability input from main.bicep.
+var zones = zoneRedundant ? [
   '1'
   '2'
   '3'
