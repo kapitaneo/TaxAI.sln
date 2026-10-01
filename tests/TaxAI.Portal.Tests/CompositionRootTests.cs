@@ -321,6 +321,11 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
         ("development fixture seeding", @"\bIDevelopmentFixtureSeeder\b|\bSeedAsync\b"),
         ("developer exception page", @"\bDeveloperExceptionPage\b"),
         ("startup refusal", @"\bRequireDatabaseConnectionString\b|\bRequireSafeStartup\b|\bthrow new InvalidOperationException\b"),
+
+        // Spec 017 T01: mapping the Development-only sign-in. The branch maps
+        // routes; it switches no control off, which the forbidden list below
+        // still proves for this branch as for every other.
+        ("development sign-in", @"\bDevelopmentSignInEndpoints\b"),
     };
 
     /// <summary>
@@ -427,13 +432,16 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
     public void TheApprovedConcernVocabularyIsExactlyFour()
     {
         // Without this, someone widening the list would widen the rule rather
-        // than fail against it.
+        // than fail against it. Spec 017 T01 (human-authorized) adds exactly
+        // one concern, so the vocabulary is now exactly five; the method keeps
+        // its name because the amendment ledger refers to guards by name.
         Assert.Equal(
             new[]
             {
                 "developer exception page",
                 "developer key ring",
                 "development fixture seeding",
+                "development sign-in",
                 "startup refusal",
             },
             ApprovedEnvironmentConcerns

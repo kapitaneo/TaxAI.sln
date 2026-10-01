@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Persistence;
 using Persistence.Services;
 using Persistence.Tests.Support;
 using Tenancy.Models;
@@ -69,20 +70,61 @@ public sealed class DevelopmentSeederTests
         Assert.Equal(1, await context.Set<PersistedLineEntry>().CountAsync());
         Assert.Equal(1, await context.Set<PersistedSourceBoxCode>().CountAsync());
         Assert.Equal(1, await context.Set<PersistedUnmappedBoxCode>().CountAsync());
+        Assert.Equal(1, await context.Set<PortalUser>().CountAsync());
+        Assert.Equal(1, await context.Set<FirmMembership>().CountAsync());
     }
 
+    /// <summary>
+    /// Spec 017 T01 (AC-18, human-authorized) — replaces "the seeder creates no
+    /// identity row at all". It now creates exactly one synthetic user and
+    /// exactly one active membership of the seeded firm, and still no session
+    /// and no credential: the user row carries an issuer and a subject and
+    /// nothing a caller could present as proof of identity.
+    /// </summary>
     [Fact]
-    public async Task SeederCreatesNoIdentityMembershipSessionOrCredentialRow()
+    public async Task SeederCreatesExactlyOneSyntheticUserAndMembershipAndNoSessionOrCredential()
     {
         await using var relational = await RelationalTestContext.CreateAsync();
         await using var context = relational.CreateContext();
+        var seeder = new DevelopmentFixtureSeeder(context);
 
-        await new DevelopmentFixtureSeeder(context)
-            .SeedAsync(CancellationToken.None);
+        await seeder.SeedAsync(CancellationToken.None);
+        await seeder.SeedAsync(CancellationToken.None);
 
-        Assert.Empty(await context.Set<PortalUser>().ToArrayAsync());
-        Assert.Empty(await context.Set<FirmMembership>().ToArrayAsync());
+        var user = Assert.Single(await context.Set<PortalUser>().AsNoTracking().ToArrayAsync());
+        var membership = Assert.Single(
+            await context.Set<FirmMembership>().AsNoTracking().ToArrayAsync());
+        var firm = Assert.Single(await context.Set<Firm>().AsNoTracking().ToArrayAsync());
+
+        Assert.True(user.IsActive);
+        Assert.Equal(DevelopmentFixtureIdentity.Issuer, user.Issuer);
+        Assert.Equal(DevelopmentFixtureIdentity.Subject, user.Subject);
+        Assert.True(membership.IsActive);
+        Assert.Equal(user.UserId, membership.UserId);
+        Assert.Equal(firm.FirmId, membership.FirmId);
         Assert.Empty(await context.Set<AuthenticationSession>().ToArrayAsync());
+
+        // Synthetic and unusable as a real identity: a reserved top-level
+        // domain no provider can issue for, and no nine-digit run anywhere.
+        Assert.EndsWith(".invalid/", user.Issuer, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"\d{9}", user.Issuer + user.Subject);
+
+        // The identity tables hold exactly the approved structural columns, so
+        // there is nowhere a credential or token could have been written.
+        Assert.Equal(
+            new[] { "CreatedAtUtc", "IsActive", "Issuer", "Subject", "UpdatedAtUtc", "UserId" },
+            context.Model.FindEntityType(typeof(PortalUser))!
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+        Assert.Equal(
+            new[] { "CreatedAtUtc", "FirmId", "IsActive", "MembershipId", "UpdatedAtUtc", "UserId" },
+            context.Model.FindEntityType(typeof(FirmMembership))!
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
     }
 
     [Fact]

@@ -1,0 +1,99 @@
+# Spec 017 — T01 complete
+
+Task: T01 — Local startup and Development identity/session.
+Branch: `feat/017-w1-t01`
+PR: #154 — https://github.com/kapitaneo/TaxAI.sln/pull/154
+Implementation commit: `eee6c29`. Gate run on the tree of `eee6c29`.
+
+## Gate — Windows
+
+```powershell
+dotnet build TaxAI.sln --no-incremental
+pwsh ./scripts/Invoke-SolutionTests.ps1
+```
+
+Result: build 0 errors; test execution gate passed. Every registered project
+ran, nothing failed, nothing was skipped, every floor was met.
+
+| Project | Passed | Floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 1230 | 1230 (raised from 1189) |
+| Tenancy.Tests | 395 | 395 |
+| Persistence.Tests | 338 | 338 (raised from 305) |
+| ClientIntake.Tests | 188 | 188 |
+| ExtractionWorkflow.Tests | 360 | 360 |
+| DocumentIntelligence.Tests | 230 | 230 |
+| TaxAI.AzureInfrastructure.Tests | 528 | 528 |
+
+Total: 5,667 passed. No floor was lowered.
+
+## Local run observed (Windows, LocalDB)
+
+`pwsh ./scripts/local/Start-LocalDemo.ps1` created the local database, applied
+the repository-owned migrations through the repository-local `dotnet-ef`, and
+started the host on HTTPS loopback. Over HTTPS: the Development sign-in page
+returned 200; the sign-in POST with its antiforgery token returned 302 to the
+create-case page; the create-case page returned 200 with the session and 401
+without it; a sign-in POST without an antiforgery token returned 400. No key or
+connection value was printed.
+
+## Guard amendments made by T01
+
+Approved PRD table:
+
+- `tests/Persistence.Tests/Composition/DevelopmentSeederTests.cs` — the seeder
+  now writes exactly one synthetic user and one active membership (AC-18).
+- `tests/TaxAI.Portal.Tests/Boundaries/PortalBoundaryTests.cs` and
+  `tests/TaxAI.Portal.Tests/Security/PortalSecurityTests.cs` — production-file
+  lists plus exactly `DevelopmentSignInEndpoints.cs`.
+- `tests/TaxAI.Portal.Tests/CompositionRootTests.cs` — one added approved
+  environment concern.
+
+Authorized X-items (tasks.md):
+
+- X-2 `tests/TaxAI.Portal.Tests/Upgrade/UpgradeBaselineContractTests.cs` — the
+  two overloads by exact signature, `Persistence.DevelopmentFixtureIdentity`,
+  `TaxAI.Portal.DevelopmentSignInEndpoints`, and
+  `Components.Pages.DevelopmentSignInPage`.
+- X-4 `tests/Persistence.Tests/Contracts/PersistenceContractTests.cs` — exports
+  are the registration class and the constants class; the registration class
+  has exactly the two approved overloads.
+- X-5 `PortalSecurityTests.cs` authentication allowlists and enumerated file
+  set, and `CompositionRootTests.cs` concern vocabulary (now exactly five).
+
+Additional narrow amendment, authorized by the human on 2026-10-01 after the
+gate exposed it (it is not one of X-1 to X-7):
+
+- `PortalBoundaryTests.TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule`
+  — the count of `AddTaxAiPersistence` declarations in Persistence is re-pinned
+  from 1 to 2, because T01 adds the already-approved overload. The
+  architectural guarantee is preserved: Persistence declares exactly the two
+  approved overloads; the portal composition root still calls the Persistence
+  registration extension exactly once, which the same test still asserts; no
+  additional registration entry point is authorized; and the
+  contributing-module and composition-root assertions are otherwise unchanged.
+
+Every amended guard keeps its existing test method names, except one test that
+no ledger references and whose name would have become false:
+`SeederCreatesNoIdentityMembershipSessionOrCredentialRow` is now
+`SeederCreatesExactlyOneSyntheticUserAndMembershipAndNoSessionOrCredential`.
+`AmendmentAuditTests.cs` is not edited.
+
+Guards listed for T01 that needed no edit: `ConnectionStringGuardTests.cs`,
+`PersistenceBoundaryTests.cs`, `RouteAuthenticationBaselineTests.cs`,
+`BlazorBoundaryTests.cs`, `ProjectStructureTests.cs`.
+
+## Scope confirmation
+
+No file under `src/TaxLogicEngine/`, `src/TaxCases/`, `src/DocumentExtraction/`,
+`src/CaseProcessing/`, `src/CaseReview/`, `src/ExtractionWorkflow/`,
+`src/DocumentIntelligence/`, `src/ClientIntake/`,
+`src/TaxAI.AzureInfrastructure/`, `src/TaxAI.Portal/Production/`,
+`specs/016-canadian-azure-production-infrastructure/`, `infra/azure/`, or
+`scripts/azure/` changed. `TaxAI.Portal.csproj` and `TaxAI.sln` are unchanged.
+The sign-in success redirect is the existing create-case page until T03.

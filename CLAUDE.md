@@ -526,6 +526,38 @@ removed line and an exact digest of approved additions; every other preserved
 file stays byte-identical) and to register the two new projects in
 `scripts/Assert-DotNet10Toolchain.ps1`.
 
+**Spec 016 is frozen after T06.** T07 to T10 are not resumed, no Azure resource
+is deployed, the pending drills are not executed, and production admission stays
+refused. The project priority is a locally runnable product.
+
+Spec 017 (Local End-to-End Accountant MVP) is approved and planned as four
+sequential tasks. **T01 (local startup and Development identity) is
+implemented; no later task is selected.** T01 delivers:
+
+- `scripts/local/Start-LocalDemo.ps1` — one command that prepares LocalDB,
+  applies the repository-owned migrations with the repository-local `dotnet-ef`
+  (the application still never migrates), generates the Development settings
+  once, and starts the host on HTTPS loopback. Generated settings live in the
+  user-secrets store under the tool's own identifier and reach the host as
+  process environment; `TaxAI.Portal.csproj` declares no `UserSecretsId`, so no
+  test host reads them. The tool prints no key and no connection value.
+- A Development-local database allowance: `TrustServerCertificate=True` is
+  accepted only through an explicit opt-in **and** only for a loopback data
+  source, with encryption still explicit. The default guard, the host's
+  non-Development refusal and the production validator are unchanged.
+- One seeded synthetic user and active membership in the existing seeded firm
+  (Development only; no credential; no migration inserts a row).
+- `GET`/`POST /development/sign-in`, mapped only for the exact `Development`
+  environment. It signs the seeded user in through the existing cookie sign-in
+  event and durable session store, so every later request passes the normal
+  revalidation. Outside Development the path is indistinguishable from an
+  unmapped one.
+
+**A local run is never production authorization**, and no real taxpayer document
+may be used locally. Still to come in spec 017: the upload-to-extraction bridge
+and locally generated samples (T02), the case list, navigation and refusal
+notices (T03), and the vertical-slice proof and demo guide (T04).
+
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their
 approved path, never that they are the only projects in the solution. A total

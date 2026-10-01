@@ -354,6 +354,50 @@ reader is still never a general service. No setting is added.
 Production admission remains refused: DEP evidence is unobserved and both
 provider assurance gaps are unresolved.
 
+## Spec 017 T01: local run and the Development-only sign-in
+
+Spec 017 makes the host runnable on a developer machine. T01 adds exactly one
+surface, and it exists in Development alone.
+
+- **`DevelopmentSignInEndpoints.cs`** maps `GET` and `POST /development/sign-in`,
+  both explicitly anonymous, the `POST` requiring antiforgery. `Program.cs`
+  calls its `Map` once, inside the one branch that is both `IsDevelopment()`
+  and the ordinal `PortalStartupGuards.RunsInDevelopment` comparison. In every
+  other environment neither route exists and the path answers exactly like any
+  unmapped path. The application route inventory outside Development is
+  unchanged.
+- **It is a shortcut around the identity provider, not a second authorization
+  model.** The handler signs in to the existing cookie scheme with a principal
+  carrying only the fixed synthetic issuer and subject
+  (`Persistence.DevelopmentFixtureIdentity`), exactly as the OpenID Connect
+  handler does after validating a token. The existing sign-in event resolves
+  the local user, the existing rule issues the firm claim only for exactly one
+  active membership, and `SessionTicketStore` writes the durable session. Every
+  later request passes the same R-1 revalidation; sign-out and revocation apply
+  unchanged. The handler reads no request value, issues no claim of its own,
+  names no session store, and redirects to a compile-time constant.
+- **The handler enforces its own antiforgery result.** It binds no form value,
+  so it reads `IAntiforgeryValidationFeature` and refuses with a fixed `400`
+  unless the token is valid.
+- **`DevelopmentSignInPage`** is a parameterless, statically rendered component
+  holding one antiforgery form. It injects nothing.
+- **Local database allowance.** The composition root's single
+  `AddTaxAiPersistence` call passes the existing ordinal `runsInDevelopment`
+  flag. `PortalStartupGuards` is unchanged: outside Development a connection
+  string that disables certificate validation is still refused before a
+  container exists.
+- **`Properties/launchSettings.json`** gains one HTTPS loopback profile for the
+  local tool. Nothing binds a non-loopback address.
+- **No `UserSecretsId`.** `scripts/local/Start-LocalDemo.ps1` keeps generated
+  settings in the user-secrets store under its own identifier and hands them to
+  the launched host as that process's environment. This project file is
+  unchanged, so no test host reads a developer's secrets.
+
+None of this is production authorization. The gate below is unchanged: the
+Development sign-in authorizes no taxpayer-data surface, and the OIDC
+configuration requirement, the admission gate, and every non-Development
+refusal are exactly as before.
+
 ## The narrowed gate — read before adding a surface
 
 The identity, trusted-firm, session, logging, and residency decisions made by

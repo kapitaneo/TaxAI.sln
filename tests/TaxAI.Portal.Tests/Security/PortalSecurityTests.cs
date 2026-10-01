@@ -44,6 +44,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
+        "DevelopmentSignInEndpoints.cs",
         "ExtractionAvailabilityGate.cs",
         "ExtractionConfiguration.cs",
         "ExtractionEndpoints.cs",
@@ -443,6 +444,10 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+
+                // Spec 017 T01: the Development-only sign-in declares both
+                // of its routes explicitly anonymous.
+                "DevelopmentSignInEndpoints.cs",
                 "ExtractionEndpoints.cs",
                 "FirmEndpoints.cs",
                 "IntakeEndpoints.cs",
@@ -456,6 +461,10 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             @"\bClaimsPrincipal\b|\bClaimsIdentity\b|\bIdentityUser\b|\bSignInAsync\b",
             new[]
             {
+                // Spec 017 T01: the Development-only sign-in hands an
+                // issuer-and-subject principal to the existing cookie sign-in
+                // event, exactly as firm selection does.
+                "DevelopmentSignInEndpoints.cs",
                 "FirmEndpoints.cs",
                 "PortalAuthorization.cs",
                 "PortalIdentity.cs",
@@ -553,6 +562,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             new[]
             {
                 "ClientIntakeEndpoints.cs",
+                "DevelopmentSignInEndpoints.cs",
                 "ExtractionEndpoints.cs",
                 "FirmEndpoints.cs",
                 "IntakeEndpoints.cs",

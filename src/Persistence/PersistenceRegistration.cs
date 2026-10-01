@@ -24,6 +24,13 @@ public static class PersistenceRegistration
         "ConnectionStrings__TaxAiDatabase";
 
     /// <summary>
+    /// The one explicit argument the local migration tool passes after
+    /// <c>--</c>. Without it the design-time path is exactly as strict as the
+    /// host's default.
+    /// </summary>
+    private const string DevelopmentLoopbackArgument = "--development-loopback";
+
+    /// <summary>
     /// Registers the context and the implementations of Tenancy's ports.
     /// <para>
     /// The connection string arrives from configuration providers outside source
@@ -33,12 +40,34 @@ public static class PersistenceRegistration
     /// </summary>
     public static IServiceCollection AddTaxAiPersistence(
         this IServiceCollection services,
-        string connectionString)
+        string connectionString) =>
+        AddTaxAiPersistence(
+            services,
+            connectionString,
+            allowDevelopmentLoopbackCertificateTrust: false);
+
+    /// <summary>
+    /// The same registration, with the spec 017 Development-local database
+    /// allowance stated explicitly by the host.
+    /// <para>
+    /// This module reads no environment. Only the Development host passes
+    /// <see langword="true"/>, and even then the unvalidated certificate is
+    /// accepted solely for a loopback data source with encryption still
+    /// explicitly required. Every deployable host passes
+    /// <see langword="false"/> and gets the strict guard unchanged.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddTaxAiPersistence(
+        this IServiceCollection services,
+        string connectionString,
+        bool allowDevelopmentLoopbackCertificateTrust)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         var validatedConnectionString =
-            SqlConnectionStringGuard.RequireValid(connectionString);
+            SqlConnectionStringGuard.RequireValid(
+                connectionString,
+                allowDevelopmentLoopbackCertificateTrust);
 
         services.AddDbContext<TaxAiDbContext>(
             options => options.UseSqlServer(validatedConnectionString));
@@ -72,7 +101,8 @@ public static class PersistenceRegistration
         {
             var connectionString = SqlConnectionStringGuard.RequireValid(
                 Environment.GetEnvironmentVariable(
-                    DesignTimeConnectionStringEnvironmentVariable));
+                    DesignTimeConnectionStringEnvironmentVariable),
+                args.Contains(DevelopmentLoopbackArgument, StringComparer.Ordinal));
             var options = new DbContextOptionsBuilder<TaxAiDbContext>()
                 .UseSqlServer(connectionString)
                 .Options;

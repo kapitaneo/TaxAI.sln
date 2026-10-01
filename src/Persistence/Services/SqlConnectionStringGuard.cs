@@ -16,6 +16,16 @@ namespace Persistence.Services;
 /// and in-process verification hosts; the production profile validator
 /// independently requires the managed identity with strict encryption.
 /// </para>
+/// <para>
+/// Spec 017 T01 (D-4): the strict rule above is the default and the only rule
+/// any deployable host can reach. One explicit opt-in, supplied by the
+/// Development host or by the local migration tool and never read from the
+/// environment here, lets a <b>loopback</b> data source present a certificate
+/// that is not validated, because a local SQL Server instance has a self-signed
+/// one. Every other rule still applies on that path: encryption stays explicit
+/// and required, a host-name override is still refused, and the authentication
+/// rules are unchanged.
+/// </para>
 /// </summary>
 internal static class SqlConnectionStringGuard
 {
@@ -30,7 +40,12 @@ internal static class SqlConnectionStringGuard
     private const string AuthenticationMessage =
         "The database connection string must not use a stored, interactive or chained credential.";
 
-    public static string RequireValid(string? connectionString)
+    public static string RequireValid(string? connectionString) =>
+        RequireValid(connectionString, allowDevelopmentLoopbackCertificateTrust: false);
+
+    public static string RequireValid(
+        string? connectionString,
+        bool allowDevelopmentLoopbackCertificateTrust)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -59,7 +74,11 @@ internal static class SqlConnectionStringGuard
                 nameof(connectionString));
         }
 
-        if (builder.TrustServerCertificate ||
+        var trustsLocalCertificate =
+            allowDevelopmentLoopbackCertificateTrust &&
+            IsLoopbackDataSource(builder.DataSource);
+
+        if ((builder.TrustServerCertificate && !trustsLocalCertificate) ||
             !string.IsNullOrEmpty(builder.HostNameInCertificate))
         {
             throw new ArgumentException(
@@ -86,4 +105,57 @@ internal static class SqlConnectionStringGuard
 
         return connectionString;
     }
+
+    /// <summary>
+    /// True only for a data source on this machine: a LocalDB instance, or a
+    /// server addressed by a loopback name or address. A protocol prefix, port,
+    /// and instance name are removed before the host is compared, so none of
+    /// them can carry a remote host past the comparison.
+    /// </summary>
+    private static bool IsLoopbackDataSource(string? dataSource)
+    {
+        var candidate = (dataSource ?? string.Empty).Trim();
+
+        if (candidate.StartsWith(LocalDbPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return candidate.Length > LocalDbPrefix.Length &&
+                   candidate.IndexOfAny(HostSeparators, LocalDbPrefix.Length) < 0;
+        }
+
+        foreach (var prefix in ProtocolPrefixes)
+        {
+            if (candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                candidate = candidate[prefix.Length..];
+                break;
+            }
+        }
+
+        var instance = candidate.IndexOf(InstanceSeparator);
+        if (instance >= 0)
+        {
+            candidate = candidate[..instance];
+        }
+
+        var port = candidate.LastIndexOf(',');
+        if (port >= 0)
+        {
+            candidate = candidate[..port];
+        }
+
+        candidate = candidate.Trim();
+
+        return LoopbackHosts.Contains(candidate, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private const string LocalDbPrefix = @"(localdb)\";
+
+    private const char InstanceSeparator = '\\';
+
+    private static readonly char[] HostSeparators = [InstanceSeparator, ',', ':', '/'];
+
+    private static readonly string[] ProtocolPrefixes = ["tcp:", "np:", "lpc:"];
+
+    private static readonly string[] LoopbackHosts =
+        ["localhost", "127.0.0.1", "::1", "[::1]", ".", "(local)"];
 }
