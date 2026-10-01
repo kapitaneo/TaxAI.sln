@@ -26,6 +26,15 @@ namespace TaxAI.AzureInfrastructure.Content;
 /// for replay. Replica and every-retained-form verification is a later slice's
 /// completion evidence, not a success fabricated here.
 /// </para>
+/// <para>
+/// Spec 016 T06 reuses it unchanged in scope for <b>replayed</b> terminal
+/// destruction during recovery: the orchestrator calls it only for a resource an
+/// acknowledged ledger fact names, in that fact's firm and case, after the
+/// recovered registry row has been re-fenced. After a Canada East storage
+/// failover the account has no observable secondary either, so the same honest
+/// outcomes apply; <see cref="SourceObjectPurgeOutcome.Unavailable"/> keeps the
+/// environment quarantined and the replay runs again.
+/// </para>
 /// </summary>
 public sealed class AzureSourceObjectPurger : ISourceObjectPurger
 {

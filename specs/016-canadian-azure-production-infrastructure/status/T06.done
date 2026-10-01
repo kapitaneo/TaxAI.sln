@@ -1,0 +1,41 @@
+# Spec 016 — T06 complete
+
+Task: T06 — Recovery, backup and Canadian DR (with approved ownership
+amendments 1 and 2 recorded in `tasks.md`).
+Branch: `feat/016-w6-t06`
+PR: #152 — https://github.com/kapitaneo/TaxAI.sln/pull/152
+Implementation commits: `8dbb0b1`, `0c9a053`, `173c9e1` (amendment 2: the
+executable Canada East recovery host), `62d133c` (2026-10-01 pre-merge cleanup:
+explicit zone capability, configured recovery-region check, role-based
+`RegionalRecovery` profile). Gate run on `62d133c`.
+
+## Gate — committed branch state (Windows)
+
+```powershell
+dotnet build TaxAI.sln --no-incremental
+pwsh ./scripts/Invoke-SolutionTests.ps1
+pwsh ./scripts/azure/Test-ProductionPlan.ps1
+pwsh ./scripts/azure/Invoke-RecoveryDrill.ps1
+git diff --check
+```
+
+- Build: 0 errors; 18 pre-existing analyzer warnings, none on a T06 line.
+- Solution gate: PASS. All 12 registered projects ran with no failure or skip
+  and every floor met; 5,593 tests. Floors: TaxAI.Portal.Tests 1189,
+  Tenancy.Tests 395, Persistence.Tests 305, TaxAI.AzureInfrastructure.Tests
+  528; none lowered.
+- Offline plan check: exit 0 (policy plus pinned Bicep compile and lint,
+  0 warnings); a scratch activation parameters file also builds cleanly.
+- Recovery drill: Offline exit 0, 26/26 structural checks (it measures
+  nothing); every Live mode without authority exit 3, unexecuted.
+- `git diff --check`: clean.
+
+The regional recovery drill (AC-107, DEP-18) is executable from committed IaC:
+T10 supplies authorized targets and operator inputs and records measurements;
+it adds no infrastructure.
+
+DEP-17, DEP-18, DEP-19 and DEP-20 are pending/unexecuted. This marker is not
+deployment or real-taxpayer authorization; production admission stays REFUSED
+(evidence unobserved; both provider assurance gaps unresolved). T07 and T10 were
+not started. Not merged or self-approved; human review remains required.
+Details in `evidence/T06.md`.

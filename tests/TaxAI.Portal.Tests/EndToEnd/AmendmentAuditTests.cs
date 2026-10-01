@@ -475,6 +475,98 @@ public sealed class AmendmentAuditTests
             P(LayoutRecognition, "NoLayoutIsEverClassifiedAsMedicalEvidence")),
     ];
 
+    private const string TenancyContract =
+        "tests/Tenancy.Tests/Contracts/TenancyContractTests.cs";
+    private const string RepositoryContract =
+        "tests/TaxAI.Portal.Tests/Production/RepositoryContractTests.cs";
+    private const string RecoveryOrchestrator =
+        "tests/TaxAI.Portal.Tests/Production/RecoveryOrchestratorTests.cs";
+    private const string HostTemplate =
+        "tests/TaxAI.Portal.Tests/Production/HostTemplateTests.cs";
+    private const string NetworkTemplate =
+        "tests/TaxAI.Portal.Tests/Production/NetworkTemplateTests.cs";
+    private const string RecoveryTemplate =
+        "tests/TaxAI.Portal.Tests/Production/RecoveryTemplateTests.cs";
+    private const string RecoveryTooling =
+        "tests/TaxAI.Portal.Tests/Production/RecoveryToolingTests.cs";
+
+    /// <summary>
+    /// Spec 016 T06 — every historical assertion the recovery slice narrowed,
+    /// each with the live test that still proves the narrower rule.
+    /// </summary>
+    private static readonly Amendment[] Spec016T06Amendments =
+    [
+        A("PortalBoundaryTests/PortalSecurityTests production file inventories", "exact set plus the recovery orchestrator",
+            "Both inventories stay exact and gain only the recovery orchestrator, which registers nothing and reads only the registered clock.",
+            P(PortalBoundary, "TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern"),
+            P(PortalSecurity, "TheScanner_SeesEveryProductionFileAndStillMatchesAKnownPattern"),
+            P(PortalSecurity, "TimeProviderIsConfinedToTheCompositionAndIntakeBoundaries")),
+        A("PortalBoundaryTests.TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule", "fourteen exact singletons",
+            "The singleton count stays exact and gains only the Production-only recovery orchestrator; the extension-per-module rule is unchanged.",
+            P(PortalBoundary, "TheCompositionRootCallsExactlyOneRegistrationExtensionPerContributingModule"),
+            P(CompositionRoot, "TheRecoveryOrchestratorIsProductionOnlyAndNotAHostedService")),
+        A("UpgradeBaselineContractTests.UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline(T06)", "named recovery types, reconciler and one guard predicate",
+            "Every baseline signature is still compared; only the named recovery types, the one reconciler and the one durable-reconciler predicate are approved.",
+            P(UpgradeBaseline, "UserDeclaredPublicAndInternalContractsMatchTheApprovedBaseline")),
+        A("TenancyContractTests.TheModuleExportsExactlyTheApprovedTypes", "exact exports plus the consumed recovery contracts",
+            "The export list stays exact; every new identifier is serialization-omitted and the firm-scope exemption list is unchanged at four.",
+            P(TenancyContract, "TheModuleExportsExactlyTheApprovedTypes"),
+            P(TenancyContract, "EveryTaxpayerContentPropertyIsIgnoredByTheSerializer"),
+            P(TenancyContract, "TheFirmScopeExemptionListIsExactlyFourNamedEntries")),
+        A("RepositoryContractTests.TheIaCSchemaDeclaresExactlyThePortalProductionKeysAndRequiresAllOfThem", "one closed key set plus fourteen recovery keys",
+            "The key set stays closed and identical across the Portal, both schemas and the module; the recovery keys are digest-covered and carry no switch, bypass or permissive parameter.",
+            P(RepositoryContract, "TheIaCSchemaDeclaresExactlyThePortalProductionKeysAndRequiresAllOfThem"),
+            P(RepositoryContract, "TheBicepModuleEmitsEveryRequiredSettingAndNoPermissiveParameter")),
+        A("ProductionStartupTests admission", "admission also requires recovery control, stored evidence and release",
+            "Every earlier refusal remains; recovery adds refusals and a startup quarantine only, never an admitting path, and invalid configuration refuses before any reconciliation.",
+            P(ProductionStartup, "EachIndividualAdmissionRuleRefusesIndependently"),
+            P(ProductionStartup, "AnUnreleasedDatabaseQuarantinesAnOtherwiseAdmittedHost"),
+            P(ProductionStartup, "AnInvalidConfigurationIsRefusedBeforeAnyReconciliation"),
+            P(RecoveryOrchestrator, "EachFailureQuarantinesAndReleasesNothing")),
+        A("HostTemplateTests/Test-ProductionPlan.ps1 zone-redundancy rules", "zonal exactly in Canada Central",
+            "Zone redundancy is still required wherever the region offers zones; only the non-zonal Canada East recovery host is exempt, and forcing false or moving the condition is still refused.",
+            P(HostTemplate, "EveryHostingSecurityMutationIsRefused"),
+            P(HostTemplate, "EveryIngressSecurityMutationIsRefused"),
+            P(NetworkTemplate, "EveryNetworkSecurityMutationIsRefused"),
+            P(RecoveryTemplate, "TheHostingModulesServeCanadaEastWithoutWeakeningAnyControl")),
+        A("Canada Central-only hosting, gateway, egress and endpoint regions", "exactly the two Canadian regions",
+            "The four hosting modules allow only Canada Central and Canada East; any other region is still refused, and every listener, WAF, TLS, egress and private-endpoint control is unchanged.",
+            P(HostTemplate, "EveryHostingSecurityMutationIsRefused"),
+            P(RecoveryTemplate, "TheHostingModulesServeCanadaEastWithoutWeakeningAnyControl")),
+        A("NetworkTemplateTests passive recovery profile and deny-default egress", "passive unless explicitly activated",
+            "The recovery profile stays passive by default; only the explicit, recovery-only activation input deploys the Canada East host, always with deny-default egress, never a second Document Intelligence resource and never a public data path.",
+            P(NetworkTemplate, "TheRecoveryProfileDeploysNoActiveTrafficOrAlternateProcessor"),
+            P(NetworkTemplate, "TheRegionalRecoveryHostIsDeployedOnlyByExplicitActivation"),
+            P(NetworkTemplate, "EveryNetworkSecurityMutationIsRefused"),
+            P(RecoveryTemplate, "CanadaEastHostingIaCIsOwnedByT06AndNeverByT10"),
+            P(RecoveryTooling, "TheRegionalDrillIsTheCompleteReconciliationInclusiveSequence")),
+    ];
+
+    [Fact] // spec 016 T06
+    public void EverySpec016T06AmendmentNamesALiveNarrowerProof()
+    {
+        Assert.Equal(9, Spec016T06Amendments.Length);
+        Assert.Equal(
+            Spec016T06Amendments.Length,
+            Spec016T06Amendments.Select(amendment => amendment.RowKey).Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var amendment in Spec016T06Amendments)
+        {
+            Assert.Matches(
+                new Regex(
+                    @"\b(exact|only|every|no|unchanged|preserv|forbid|narrow|fixed|allow|constrain|reduce|remain)\w*\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)),
+                amendment.WhyNarrower);
+            Assert.NotEmpty(amendment.Proofs);
+
+            foreach (var proof in amendment.Proofs)
+            {
+                AssertLiveTestProof(proof);
+            }
+        }
+    }
+
     [Fact] // spec 016 T05
     public void EverySpec016T05AmendmentNamesALiveNarrowerProof()
     {

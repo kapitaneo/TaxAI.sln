@@ -134,6 +134,21 @@ foreach ($key in $schema['required']) {
     if ($rule.Contains('pattern') -and $value -cnotmatch $rule['pattern']) {
         Add-Refusal 'ApprovedPatternNotMet' $key
     }
+    if ($rule.Contains('enum') -and -not (@($rule['enum'] | ForEach-Object { [string] $_ }) -ccontains $value)) {
+        Add-Refusal 'ApprovedConstantNotMet' $key
+    }
+}
+
+# Spec 016 T06: the recovery profile and the Canada East data move together.
+# Primary keeps SQL and source storage in Canada Central; only the manually
+# activated RegionalRecovery host names their Canada East counterparts.
+$profile = Get-Setting "${production}Recovery__Profile"
+$expectedDataRegion = if ($profile -ceq 'RegionalRecovery') { 'canadaeast' } else { 'canadacentral' }
+foreach ($key in @("${production}Sql__Region", "${production}SourceStorage__Region")) {
+    $region = Get-Setting $key
+    if ($null -ne $region -and -not [string]::Equals($region, $expectedDataRegion, [StringComparison]::Ordinal)) {
+        Add-Refusal 'RecoveryProfileRegionMismatch' $key
+    }
 }
 
 foreach ($key in $settings.Keys) {
@@ -221,6 +236,26 @@ if (-not $dataProtectionKey -or
     -not [string]::Equals($controlHost, "$controlName.blob.core.windows.net", [StringComparison]::OrdinalIgnoreCase) -or
     ($hosts.Contains('SourceStorage') -and [string]::Equals($controlHost, $hosts['SourceStorage'], [StringComparison]::OrdinalIgnoreCase))) {
     Add-Refusal 'DataProtectionConfigurationMissing' 'DataProtection'
+}
+
+# Spec 016 T06: the two control-ledger copies are each bound to their own
+# account, and no storage account holds two roles (source, key ring, ledger).
+$ledgerHosts = foreach ($copy in @('ControlLedger', 'ControlLedgerReplica')) {
+    $ledgerName = Get-ResourceName (Get-Setting "${production}Recovery__${copy}__ResourceId") 'Microsoft.Storage/storageAccounts'
+    $ledgerHost = Get-Host (Get-Setting "${production}Recovery__${copy}__Endpoint")
+    if (-not $ledgerName -or -not $ledgerHost -or
+        -not [string]::Equals($ledgerHost, "$ledgerName.blob.core.windows.net", [StringComparison]::OrdinalIgnoreCase)) {
+        Add-Refusal 'StorageBindingInvalid' "Recovery__$copy"
+    }
+    else {
+        $ledgerHost
+    }
+}
+$storageHosts = @($ledgerHosts) + @($controlHost) + @($(if ($hosts.Contains('SourceStorage')) { $hosts['SourceStorage'] })) |
+    Where-Object { $_ } |
+    ForEach-Object { $_.ToLowerInvariant() }
+if (@($storageHosts | Select-Object -Unique).Count -ne @($storageHosts).Count) {
+    Add-Refusal 'StorageBindingInvalid' 'Recovery'
 }
 
 $connection = Get-Setting 'ConnectionStrings__TaxAiDatabase'

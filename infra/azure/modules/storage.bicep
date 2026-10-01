@@ -26,6 +26,13 @@
 //
 // The Portal identity receives Storage Blob Data Contributor on the one source
 // container only - not the account and not any other container.
+//
+// Spec 016 T06 (FR-11, AC-110) validates recovery without changing retention or
+// enabling any shadow copy: the account keeps standard (not DNS-zone) endpoints,
+// which customer-managed failover to the paired Canada East region requires,
+// so a regional recovery keeps the same resource and endpoint. Replication is
+// asynchronous; a recent source missing after failover is never recreated from
+// anywhere, and source-dependent work requires a new upload.
 
 @description('Primary region. Only Canada Central is approved.')
 @allowed([
@@ -105,6 +112,7 @@ resource account 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     accessTier: 'Hot'
     isHnsEnabled: false
     isSftpEnabled: false
+    dnsEndpointType: 'Standard'
     isLocalUserEnabled: false
     allowBlobPublicAccess: false
     allowSharedKeyAccess: false

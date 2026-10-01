@@ -277,6 +277,36 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
             .IsService(typeof(TaxAI.AzureInfrastructure.Configuration.IApprovedResourceProbe)));
     }
 
+    [Fact] // spec 016 T06: recovery runs once at startup, only in Production.
+    public void TheRecoveryOrchestratorIsProductionOnlyAndNotAHostedService()
+    {
+        using var client = _factory.CreateClient();
+        var orchestrator = typeof(Program).Assembly
+            .GetType("TaxAI.Portal.Production.RecoveryOrchestrator", throwOnError: true)!;
+
+        // The orchestrator is registered in the Production branch only, and it
+        // cannot be constructed without the approved control ledger: this host's
+        // configuration names none, so none is registered and the gate refuses.
+        Assert.True(_factory.Services.GetRequiredService<IServiceProviderIsService>().IsService(orchestrator));
+        Assert.Null(_factory.Services.GetService<IRecoveryControlStore>());
+        Assert.Throws<InvalidOperationException>(() => _factory.Services.GetService(orchestrator));
+        Assert.DoesNotContain(
+            _factory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>(),
+            service => service.GetType().Assembly == typeof(Program).Assembly);
+        Assert.False(typeof(Microsoft.Extensions.Hosting.IHostedService).IsAssignableFrom(orchestrator));
+
+        var registration = string.Join("\n", ExecutableLines(PortalFile("ModuleRegistration.cs")));
+        var infrastructure = registration[registration.IndexOf("services.AddTaxAiAzureInfrastructure(", StringComparison.Ordinal)..];
+        Assert.Contains("new RecoveryOrchestrator(", infrastructure[..infrastructure.IndexOf("services.AddScoped<IAccountantIntakeWorkflow", StringComparison.Ordinal)], StringComparison.Ordinal);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(registration, @"new RecoveryOrchestrator\("));
+
+        // The gate runs it only after every admission rule has passed.
+        var gate = string.Join("\n", ExecutableLines(Path.Combine(Path.GetDirectoryName(PortalFile("ModuleRegistration.cs"))!, "Production", "ProductionAdmissionGate.cs")));
+        Assert.True(
+            gate.IndexOf("throw new InvalidOperationException(RefusalMessage);", StringComparison.Ordinal) <
+            gate.IndexOf("RecoveryOrchestrator.RequireRelease(", StringComparison.Ordinal));
+    }
+
     // --------------------------------------------------------- spec 011 AC-32
 
     /// <summary>
@@ -463,6 +493,7 @@ public sealed class CompositionRootTests : IClassFixture<WebApplicationFactory<P
     [InlineData(typeof(IReviewRecordPurgeService))]
     [InlineData(typeof(IOpaqueIdentifierSource))]
     [InlineData(typeof(IDevelopmentFixtureSeeder))]
+    [InlineData(typeof(IRecoveryReconciler))] // spec 016 T06
     public void EveryTenancyPortResolvesFromTheContainer(Type port)
     {
         // The host calls one registration extension per contributing module, so

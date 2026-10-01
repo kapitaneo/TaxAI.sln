@@ -38,7 +38,17 @@ public sealed class NetworkTemplateTests
         { Network, "disableBgpRoutePropagation: true", "disableBgpRoutePropagation: false", "DefaultRouteBypass" },
         { Network, "defaultOutboundAccess: false", "defaultOutboundAccess: true", "DefaultRouteBypass" },
         { Network, "          routeTable: {\n            id: egressRoutes.id\n          }\n", string.Empty, "DefaultRouteBypass" },
-        { Main, "isPrimary && profileInputsConsistent ? 'Firewall' : 'Blackhole'", "'Blackhole'", "OutboundNotDenyDefault" },
+        { Main, "(isPrimary || activating) && profileInputsConsistent ? 'Firewall' : 'Blackhole'", "'Blackhole'", "OutboundNotDenyDefault" },
+        // Spec 016 T06: the recovery host exists only by explicit activation.
+        { Main, "var activating = !isPrimary && activation != null", "var activating = !isPrimary", "RecoveryActivationUnguarded" },
+        { Main, "module recoveryPortal 'modules/app-service.bicep' = if (activating)", "module recoveryPortal 'modules/app-service.bicep' = if (!isPrimary)", "RecoveryActivationUnguarded" },
+        { Main, "fail('The primary profile activates no recovery host.')", "true", "RecoveryActivationUnguarded" },
+        { Main, "fail('The recovery host deploys into its own Canada East resource group.')", "true", "RecoveryActivationUnguarded" },
+        // Spec 016 T06: zone capability is an explicit input, never a region-name test.
+        { Egress, "var zones = zoneRedundant ? [", "var zones = location == 'canadacentral' ? [", "ZoneRedundancyDisabled" },
+        { Egress, "param zoneRedundant bool", "var zoneRedundant = false", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    firewallSubnetId", "zoneRedundant: zoneCapability.recovery\n    namePrefix: namePrefix\n    firewallSubnetId", "ZoneRedundancyDisabled" },
+        { Main, "zoneRedundant: zoneCapability.recovery\n    namePrefix: namePrefix\n    firewallSubnetId", "zoneRedundant: zoneCapability.primary\n    namePrefix: namePrefix\n    firewallSubnetId", "ZoneRedundancyDisabled" },
 
         // AC-057/AC-058 — outbound is deny by default.
         { Network, "name: 'DenyAllOtherOutbound'\n        properties: {\n          priority: 4000\n          direction: 'Outbound'\n          access: 'Deny'", "name: 'DenyAllOtherOutbound'\n        properties: {\n          priority: 4000\n          direction: 'Outbound'\n          access: 'Allow'", "OutboundNotDenyDefault" },
@@ -65,7 +75,8 @@ public sealed class NetworkTemplateTests
         // AC-049 to AC-052 — every binding and private DNS zone is required.
         { Endpoints, "groupId: 'account'", "groupId: 'portal'", "PrivateBindingMissing" },
         { Endpoints, "@minLength(1)\nparam documentIntelligenceResourceId string", "param documentIntelligenceResourceId string = ''", "PrivateBindingMissing" },
-        { Endpoints, "privateDnsZoneId: zoneIds[binding.name]", "privateDnsZoneId: ''", "PrivateBindingMissing" },
+        { Endpoints, "privateDnsZoneId: zoneIds[binding.zone]", "privateDnsZoneId: ''", "PrivateBindingMissing" },
+        { Endpoints, "groupId: 'blob'\n  zone: 'SourceStorage'\n  resourceId: accountId", "groupId: 'blob'\n  zone: 'KeyVault'\n  resourceId: accountId", "PrivateBindingMissing" },
         { Dns, "registrationEnabled: false", "registrationEnabled: true", "PrivateDnsNotBound" },
         { Dns, "  KeyVault: 'privatelink.vaultcore.azure.net'\n", string.Empty, "PrivateDnsNotBound" },
         { Main, "module privateEndpoints 'modules/private-endpoints.bicep' = if (isPrimary)", "module privateEndpoints 'modules/private-endpoints.bicep' = if (false)", "PrivateBindingMissing" },
@@ -117,6 +128,32 @@ public sealed class NetworkTemplateTests
         {
             Assert.Matches(new Regex($@"(?m)^\s+{name}: '"), dns);
         }
+    }
+
+    [Fact] // Spec 016 T06: activation is explicit, recovery-only and binds the same inventory.
+    public void TheRegionalRecoveryHostIsDeployedOnlyByExplicitActivation()
+    {
+        var main = InfrastructurePlanHarness.Read(Main);
+
+        foreach (var (module, file) in new[]
+                 {
+                     ("recoveryEgress", "egress"), ("recoveryRuntime", "runtime-configuration"),
+                     ("recoveryPortal", "app-service"), ("recoveryEndpoints", "private-endpoints"),
+                     ("recoveryIngress", "application-gateway"),
+                 })
+        {
+            Assert.Matches(new Regex($@"module {module} 'modules/{file}\.bicep' = if \(activating\)"), main);
+        }
+
+        Assert.Contains("location: recoveryRegion", main, StringComparison.Ordinal);
+        Assert.Contains("profile: 'RegionalRecovery'", main, StringComparison.Ordinal);
+        Assert.Contains("sqlServerName: recoverySqlServerName", main, StringComparison.Ordinal);
+
+        // No second Document Intelligence resource and no public data path:
+        // the recovery host binds the one Canada Central resource privately.
+        Assert.Single(Regex.Matches(main, @"module \w+ 'modules/document-intelligence\.bicep'"));
+        Assert.Contains("'Microsoft.CognitiveServices/accounts', recoveryInputs!.runtime.documentIntelligenceName", main, StringComparison.Ordinal);
+        Assert.DoesNotContain("publicNetworkAccess: 'Enabled'", main, StringComparison.Ordinal);
     }
 
     [Fact] // FR-05: the recovery profile is a passive foundation only.

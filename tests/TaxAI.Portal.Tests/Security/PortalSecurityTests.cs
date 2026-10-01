@@ -60,6 +60,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "ProductionAdmissionGate.cs",
         "ProductionConfiguration.cs",
         "Program.cs",
+        "RecoveryOrchestrator.cs",
         "ReviewEndpoints.cs",
         "ReviewPageModel.cs",
         "SessionTicketStore.cs",
@@ -744,7 +745,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
         // Spec 016 T01 adds exactly one consumer: the production admission gate
         // reads the registered clock once, to decide whether release evidence is
-        // currently valid. It reads no system clock directly.
+        // currently valid. It reads no system clock directly. Spec 016 T06 adds
+        // the recovery orchestrator, which takes the registered clock for its
+        // recovery instant and ledger timestamps; it reads no system clock either.
         Assert.Equal(
             new[]
             {
@@ -754,6 +757,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
                 "IntakeEndpoints.cs",
                 "ModuleRegistration.cs",
                 "ProductionAdmissionGate.cs",
+                "RecoveryOrchestrator.cs",
             },
             matching);
 

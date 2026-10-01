@@ -87,7 +87,35 @@ public sealed class ProductionConfigurationTests
         ["Resilience:MaximumAttempts"] = "3",
         ["Resilience:OperationDeadline"] = "00:02:00",
         ["Resilience:ProbeDeadline"] = "00:00:15",
+        ["Recovery:Profile"] = "Primary",
+        ["Recovery:ControlLedger:Endpoint"] = "https://sttaxailedcc.blob.core.windows.net/",
+        ["Recovery:ControlLedger:ResourceId"] = ResourcePrefix + "Microsoft.Storage/storageAccounts/sttaxailedcc",
+        ["Recovery:ControlLedger:Region"] = "canadacentral",
+        ["Recovery:ControlLedger:PublicNetworkAccess"] = "Disabled",
+        ["Recovery:ControlLedger:PrivateEndpoint"] = "Required",
+        ["Recovery:ControlLedgerReplica:Endpoint"] = "https://sttaxailedce.blob.core.windows.net/",
+        ["Recovery:ControlLedgerReplica:ResourceId"] = ResourcePrefix + "Microsoft.Storage/storageAccounts/sttaxailedce",
+        ["Recovery:ControlLedgerReplica:Region"] = "canadaeast",
+        ["Recovery:ControlLedgerReplica:PublicNetworkAccess"] = "Disabled",
+        ["Recovery:ControlLedgerReplica:PrivateEndpoint"] = "Required",
+        ["Recovery:SqlPointInTimeRestoreDays"] = "35",
+        ["Recovery:BackupChainDays"] = "7",
+        ["Recovery:ControlLedgerRetentionDays"] = "90",
     };
+
+    /// <summary>
+    /// Spec 016 T06: the manual Canada East application-recovery profile. SQL
+    /// and the failed-over source account are the Canada East ones; Document
+    /// Intelligence, Key Vault and monitoring stay Canada Central.
+    /// </summary>
+    internal static Dictionary<string, string?> RecoverySettings()
+    {
+        var settings = ApprovedSettings();
+        settings["Recovery:Profile"] = "RegionalRecovery";
+        settings["Sql:Region"] = "canadaeast";
+        settings["SourceStorage:Region"] = "canadaeast";
+        return settings;
+    }
 
     internal static AzureInfrastructureOptions Options(IReadOnlyDictionary<string, string?> s) => new()
     {
@@ -146,6 +174,15 @@ public sealed class ProductionConfigurationTests
             OperationDeadline = s.GetValueOrDefault("Resilience:OperationDeadline"),
             ProbeDeadline = s.GetValueOrDefault("Resilience:ProbeDeadline"),
         },
+        Recovery = new RecoverySettings
+        {
+            Profile = s.GetValueOrDefault("Recovery:Profile"),
+            ControlLedger = Dependency(s, "Recovery:ControlLedger"),
+            ControlLedgerReplica = Dependency(s, "Recovery:ControlLedgerReplica"),
+            SqlPointInTimeRestoreDays = s.GetValueOrDefault("Recovery:SqlPointInTimeRestoreDays"),
+            BackupChainDays = s.GetValueOrDefault("Recovery:BackupChainDays"),
+            ControlLedgerRetentionDays = s.GetValueOrDefault("Recovery:ControlLedgerRetentionDays"),
+        },
     };
 
     private static PrivateDependencySettings Dependency(
@@ -196,6 +233,128 @@ public sealed class ProductionConfigurationTests
         {
             Assert.Contains(expected, result.Refusals);
         }
+    }
+
+    // ---------------------------------------------- spec 016 T06: recovery
+
+    [Fact]
+    public void TheRegionalRecoveryProfilePassesWithCanadaEastDataAndCanadaCentralDocumentIntelligence()
+    {
+        var result = _validator.Validate(Options(RecoverySettings()), ConnectionString);
+
+        Assert.Empty(result.Refusals);
+        Assert.True(ProductionConfigurationValidator.IsRegionalRecovery(Options(RecoverySettings())));
+        Assert.False(ProductionConfigurationValidator.IsRegionalRecovery(Options(ApprovedSettings())));
+    }
+
+    public static TheoryData<string, string?, ProductionAdmissionRefusal> RecoveryProfileRefusals() => new()
+    {
+        // No Document Intelligence failover, to Canada East or anywhere else.
+        { "DocumentIntelligence:Region", "canadaeast", ProductionAdmissionRefusal.DocumentIntelligenceBindingInvalid },
+        // The recovery profile's data really is the Canada East data.
+        { "Sql:Region", "canadacentral", ProductionAdmissionRefusal.SqlBindingInvalid },
+        { "SourceStorage:Region", "canadacentral", ProductionAdmissionRefusal.StorageBindingInvalid },
+        // The vault and the monitoring workspace do not move.
+        { "KeyVault:Region", "canadaeast", ProductionAdmissionRefusal.KeyVaultBindingInvalid },
+        { "Monitoring:Region", "canadaeast", ProductionAdmissionRefusal.MonitoringBindingInvalid },
+        // Recovery never relocates the policy primary region.
+        { "PrimaryRegion", "canadaeast", ProductionAdmissionRefusal.PrimaryRegionNotCanadaCentral },
+    };
+
+    [Theory]
+    [MemberData(nameof(RecoveryProfileRefusals))]
+    public void TheRecoveryProfileRefusesEveryForbiddenFailover(
+        string key,
+        string? value,
+        ProductionAdmissionRefusal expected)
+    {
+        var settings = RecoverySettings();
+        settings[key] = value;
+
+        Assert.Contains(expected, _validator.Validate(Options(settings), ConnectionString).Refusals);
+    }
+
+    [Fact]
+    public void ThePrimaryProfileStillRefusesCanadaEastData()
+    {
+        var settings = ApprovedSettings();
+        settings["Sql:Region"] = "canadaeast";
+        settings["SourceStorage:Region"] = "canadaeast";
+
+        var refusals = _validator.Validate(Options(settings), ConnectionString).Refusals;
+
+        Assert.Contains(ProductionAdmissionRefusal.SqlBindingInvalid, refusals);
+        Assert.Contains(ProductionAdmissionRefusal.StorageBindingInvalid, refusals);
+    }
+
+    public static TheoryData<string, string?, ProductionAdmissionRefusal> RecoverySettingRefusals() => new()
+    {
+        { "Recovery:Profile", null, ProductionAdmissionRefusal.RecoveryRegionNotCanadaEast },
+        { "Recovery:Profile", "primary", ProductionAdmissionRefusal.RecoveryRegionNotCanadaEast },
+        { "Recovery:Profile", "CanadaCentralRecovery", ProductionAdmissionRefusal.RecoveryRegionNotCanadaEast },
+        { "Recovery:ControlLedger:Endpoint", null, ProductionAdmissionRefusal.StorageConfigurationMissing },
+        { "Recovery:ControlLedgerReplica:ResourceId", "", ProductionAdmissionRefusal.StorageConfigurationMissing },
+        { "Recovery:ControlLedger:Region", "canadaeast", ProductionAdmissionRefusal.StorageBindingInvalid },
+        { "Recovery:ControlLedgerReplica:Region", "canadacentral", ProductionAdmissionRefusal.StorageBindingInvalid },
+        { "Recovery:ControlLedgerReplica:Region", "eastus", ProductionAdmissionRefusal.StorageBindingInvalid },
+        { "Recovery:ControlLedger:Endpoint", "https://sttaxailedce.blob.core.windows.net/", ProductionAdmissionRefusal.StorageBindingInvalid },
+        { "Recovery:ControlLedgerReplica:PublicNetworkAccess", "Enabled", ProductionAdmissionRefusal.PublicEndpointConfigured },
+        { "Recovery:ControlLedger:PrivateEndpoint", "Optional", ProductionAdmissionRefusal.PublicEndpointConfigured },
+        { "Recovery:SqlPointInTimeRestoreDays", "7", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:SqlPointInTimeRestoreDays", "36", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:SqlPointInTimeRestoreDays", null, ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:BackupChainDays", "6", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:ControlLedgerRetentionDays", "42", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:ControlLedgerRetentionDays", "366", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:ControlLedgerRetentionDays", "-90", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+        { "Recovery:ControlLedgerRetentionDays", "P90D", ProductionAdmissionRefusal.RetentionOutsidePolicy },
+    };
+
+    [Theory]
+    [MemberData(nameof(RecoverySettingRefusals))]
+    public void EachRecoverySettingRefusesIndependently(
+        string key,
+        string? value,
+        ProductionAdmissionRefusal expected)
+    {
+        var settings = ApprovedSettings();
+        settings[key] = value;
+
+        var result = _validator.Validate(Options(settings), ConnectionString);
+
+        Assert.False(result.IsAdmitted);
+        Assert.Contains(expected, result.Refusals);
+    }
+
+    [Theory]
+    [InlineData("Recovery:ControlLedger:Endpoint", "Recovery:ControlLedger:ResourceId", "sttaxaisrccc")]
+    [InlineData("Recovery:ControlLedgerReplica:Endpoint", "Recovery:ControlLedgerReplica:ResourceId", "sttaxaictlcc")]
+    public void AControlLedgerCopyThatSharesAnotherStorageRoleIsRefused(string endpoint, string resourceId, string account)
+    {
+        // Sharing the source or key-ring account would make them one failure
+        // and one permission domain.
+        var settings = ApprovedSettings();
+        settings[endpoint] = $"https://{account}.blob.core.windows.net/";
+        settings[resourceId] = ResourcePrefix + "Microsoft.Storage/storageAccounts/" + account;
+
+        Assert.Contains(
+            ProductionAdmissionRefusal.StorageBindingInvalid,
+            _validator.Validate(Options(settings), ConnectionString).Refusals);
+    }
+
+    [Fact]
+    public void TheRecoveryWindowsAreReadOnlyWhenTheLedgerOutlivesEveryBackup()
+    {
+        Assert.True(ProductionConfigurationValidator.TryReadRecoveryWindows(
+            Options(ApprovedSettings()), out var restoreDays, out var chainDays, out var ledgerDays));
+        Assert.Equal(35, restoreDays);
+        Assert.Equal(7, chainDays);
+        Assert.Equal(90, ledgerDays);
+        Assert.True(TimeSpan.FromDays(ledgerDays) > TimeSpan.FromDays(restoreDays + chainDays));
+
+        var equal = ApprovedSettings();
+        equal["Recovery:ControlLedgerRetentionDays"] = "42";
+        Assert.False(ProductionConfigurationValidator.TryReadRecoveryWindows(Options(equal), out _, out _, out _));
     }
 
     // ------------------------------------------- one change, one refusal

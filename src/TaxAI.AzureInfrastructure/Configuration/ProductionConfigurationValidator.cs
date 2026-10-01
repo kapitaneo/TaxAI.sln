@@ -40,6 +40,17 @@ public sealed class ProductionConfigurationValidator
     public const string PublicNetworkAccessDisabled = "Disabled";
     public const string PrivateEndpointRequired = "Required";
 
+    /// <summary>Spec 016 T06: the normal Canada Central deployment profile.</summary>
+    public const string PrimaryProfile = "Primary";
+
+    /// <summary>
+    /// Spec 016 T06: manual Canada East application recovery. The SQL database
+    /// and source storage are the Canada East ones; Document Intelligence, Key
+    /// Vault and monitoring remain the Canada Central resources, so extraction
+    /// stays unavailable while Canada Central is.
+    /// </summary>
+    public const string RegionalRecoveryProfile = "RegionalRecovery";
+
     public const int FinalizedSourceDays = 30;
     public const int RejectedSourceDays = 7;
     public const int DuplicateSourceDays = 7;
@@ -149,11 +160,21 @@ public sealed class ProductionConfigurationValidator
 
         ValidateDocumentIntelligence(options.DocumentIntelligence, deployment, refusals);
 
+        // Spec 016 T06: an unknown profile is never silently the primary one.
+        var recovering = IsExactly(options.Recovery.Profile, RegionalRecoveryProfile);
+        if (!recovering && !IsExactly(options.Recovery.Profile, PrimaryProfile))
+        {
+            refusals.Add(ProductionAdmissionRefusal.RecoveryRegionNotCanadaEast);
+        }
+
+        var dataRegion = recovering ? RecoveryRegion : PrimaryRegion;
+
         var sourceStorage = ValidateDependency(
             options.SourceStorage,
             deployment,
             StorageType,
             BlobSuffix,
+            dataRegion,
             endpointIsHostName: false,
             ProductionAdmissionRefusal.StorageConfigurationMissing,
             ProductionAdmissionRefusal.StorageBindingInvalid,
@@ -164,6 +185,7 @@ public sealed class ProductionConfigurationValidator
             deployment,
             KeyVaultType,
             KeyVaultSuffix,
+            PrimaryRegion,
             endpointIsHostName: false,
             ProductionAdmissionRefusal.KeyVaultConfigurationMissing,
             ProductionAdmissionRefusal.KeyVaultBindingInvalid,
@@ -174,6 +196,7 @@ public sealed class ProductionConfigurationValidator
             deployment,
             SqlType,
             SqlSuffix,
+            dataRegion,
             endpointIsHostName: true,
             ProductionAdmissionRefusal.SqlConfigurationMissing,
             ProductionAdmissionRefusal.SqlBindingInvalid,
@@ -200,6 +223,8 @@ public sealed class ProductionConfigurationValidator
             keyVault,
             sourceKey,
             refusals);
+
+        ValidateRecovery(options, deployment, sourceStorage, refusals);
 
         if (!IsInteger(options.Retention.FinalizedSourceDays, FinalizedSourceDays) ||
             !IsInteger(options.Retention.RejectedSourceDays, RejectedSourceDays) ||
@@ -307,6 +332,7 @@ public sealed class ProductionConfigurationValidator
             deployment,
             CognitiveServicesType,
             CognitiveServicesSuffix,
+            PrimaryRegion,
             endpointIsHostName: false,
             ProductionAdmissionRefusal.DocumentIntelligenceConfigurationMissing,
             ProductionAdmissionRefusal.DocumentIntelligenceBindingInvalid,
@@ -329,6 +355,7 @@ public sealed class ProductionConfigurationValidator
         Deployment? deployment,
         string resourceType,
         string hostSuffix,
+        string expectedRegion,
         bool endpointIsHostName,
         ProductionAdmissionRefusal missing,
         ProductionAdmissionRefusal invalidBinding,
@@ -358,7 +385,7 @@ public sealed class ProductionConfigurationValidator
 
         if (host is null ||
             resourceName is null ||
-            !IsExactly(settings.Region, PrimaryRegion) ||
+            !IsExactly(settings.Region, expectedRegion) ||
             !string.Equals(host, resourceName + hostSuffix, StringComparison.OrdinalIgnoreCase))
         {
             refusals.Add(invalidBinding);
@@ -366,6 +393,99 @@ public sealed class ProductionConfigurationValidator
         }
 
         return host;
+    }
+
+    /// <summary>
+    /// Spec 016 T06: the two control-ledger copies are distinct private Canadian
+    /// accounts (the Canada Central copy and the authoritative Canada East
+    /// copy), neither of which is the source account or the Data Protection
+    /// key-ring account; SQL point-in-time retention is exactly the 35-day
+    /// maximum; and the ledger is retained strictly longer than the longest
+    /// recoverable backup window.
+    /// </summary>
+    private static void ValidateRecovery(
+        AzureInfrastructureOptions options,
+        Deployment? deployment,
+        string? sourceStorageHost,
+        List<ProductionAdmissionRefusal> refusals)
+    {
+        var recovery = options.Recovery;
+
+        var ledger = ValidateDependency(
+            recovery.ControlLedger,
+            deployment,
+            StorageType,
+            BlobSuffix,
+            PrimaryRegion,
+            endpointIsHostName: false,
+            ProductionAdmissionRefusal.StorageConfigurationMissing,
+            ProductionAdmissionRefusal.StorageBindingInvalid,
+            refusals);
+
+        var replica = ValidateDependency(
+            recovery.ControlLedgerReplica,
+            deployment,
+            StorageType,
+            BlobSuffix,
+            RecoveryRegion,
+            endpointIsHostName: false,
+            ProductionAdmissionRefusal.StorageConfigurationMissing,
+            ProductionAdmissionRefusal.StorageBindingInvalid,
+            refusals);
+
+        var scratch = new List<ProductionAdmissionRefusal>();
+        var keyRingHost = IsBlank(options.DataProtection.StorageEndpoint)
+            ? null
+            : ReadHttpsOrigin(options.DataProtection.StorageEndpoint!, scratch);
+
+        if (ledger is not null && replica is not null &&
+            new[] { ledger, replica, sourceStorageHost, keyRingHost }
+                .Where(host => host is not null)
+                .GroupBy(host => host, StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() > 1))
+        {
+            // One account holding two roles is one failure domain for both.
+            refusals.Add(ProductionAdmissionRefusal.StorageBindingInvalid);
+        }
+
+        if (!TryReadRecoveryWindows(options, out _, out _, out _))
+        {
+            refusals.Add(ProductionAdmissionRefusal.RetentionOutsidePolicy);
+        }
+    }
+
+    /// <summary>
+    /// Spec 016 T06: the validated recovery windows: SQL point-in-time
+    /// retention of exactly 35 days, a backup-chain allowance of at least the
+    /// documented seven days, and a ledger retention strictly longer than both
+    /// and within the approved bound.
+    /// </summary>
+    public static bool TryReadRecoveryWindows(
+        AzureInfrastructureOptions options,
+        out int pointInTimeRestoreDays,
+        out int backupChainDays,
+        out int controlLedgerRetentionDays)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var recovery = options.Recovery;
+        backupChainDays = 0;
+        controlLedgerRetentionDays = 0;
+        return RecoveryRetentionWindow.TryReadDays(recovery.SqlPointInTimeRestoreDays, out pointInTimeRestoreDays) &&
+               pointInTimeRestoreDays == RecoveryRetentionWindow.PointInTimeRestoreDays &&
+               RecoveryRetentionWindow.TryReadDays(recovery.BackupChainDays, out backupChainDays) &&
+               RecoveryRetentionWindow.TryReadDays(recovery.ControlLedgerRetentionDays, out controlLedgerRetentionDays) &&
+               RecoveryRetentionWindow.LedgerOutlivesBackups(
+                   controlLedgerRetentionDays,
+                   pointInTimeRestoreDays,
+                   backupChainDays);
+    }
+
+    /// <summary>True only for the exact Canada East recovery profile.</summary>
+    public static bool IsRegionalRecovery(AzureInfrastructureOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return IsExactly(options.Recovery.Profile, RegionalRecoveryProfile);
     }
 
     private static void ValidateSqlConnection(
@@ -678,11 +798,15 @@ public sealed class ProductionConfigurationValidator
             options.DataProtection.StorageEndpoint, options.DataProtection.StorageResourceId,
             options.DataProtection.KeyRingContainer, options.DataProtection.KeyUri,
             options.DataProtection.ApplicationDiscriminator,
+            options.Recovery.Profile, options.Recovery.SqlPointInTimeRestoreDays,
+            options.Recovery.BackupChainDays, options.Recovery.ControlLedgerRetentionDays,
         }
         .Concat(DependencyValues(options.DocumentIntelligence.Resource))
         .Concat(DependencyValues(options.SourceStorage))
         .Concat(DependencyValues(options.KeyVault))
-        .Concat(DependencyValues(options.Sql));
+        .Concat(DependencyValues(options.Sql))
+        .Concat(DependencyValues(options.Recovery.ControlLedger))
+        .Concat(DependencyValues(options.Recovery.ControlLedgerReplica));
 
         return values.Where(value => value is not null)!;
     }

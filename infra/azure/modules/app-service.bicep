@@ -13,13 +13,20 @@
 // the deny-default egress. WebSockets are on for the one approved Interactive
 // Server questionnaire island; nothing here widens interactivity.
 //
+// Spec 016 T06: the same hardened site also serves as the manually activated
+// recovery host (AC-107, DEP-18). Zone redundancy is an explicit capability
+// input: main.bicep states it per deployment role (the primary deployment is
+// zonal; the current recovery region offers no availability zones). Every
+// other control is identical for both roles.
+//
 // No diagnostic setting is created. The platform's own forwarded-header switch
 // is off: the Portal honours exactly one trusted forwarded hop itself, and
 // refuses to start in Production if the platform switch is on.
 
-@description('Primary region. Only Canada Central is approved.')
+@description('Canada Central (primary) or Canada East (manually activated recovery host only).')
 @allowed([
   'canadacentral'
+  'canadaeast'
 ])
 param location string
 
@@ -32,6 +39,9 @@ param namePrefix string
 @minLength(2)
 @maxLength(60)
 param siteName string
+
+@description('Whether the deployment region offers availability zones. An explicit capability supplied by main.bicep per deployment role; it is never inferred from a region name.')
+param zoneRedundant bool
 
 @description('Running workers the plan starts with. Never below two.')
 @minValue(2)
@@ -78,7 +88,7 @@ resource plan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
   properties: {
     reserved: true
-    zoneRedundant: true
+    zoneRedundant: zoneRedundant
     perSiteScaling: false
     elasticScaleEnabled: false
   }

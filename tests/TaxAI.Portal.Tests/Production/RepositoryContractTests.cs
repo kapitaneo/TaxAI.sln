@@ -64,6 +64,47 @@ public sealed class RepositoryContractTests
             declared.Where(n => !n.StartsWith(AppSettingPrefix, StringComparison.Ordinal)).OrderBy(n => n, StringComparer.Ordinal));
     }
 
+    [Fact] // Spec 016 T06: the recovery keys are closed, policy-constant and digest-covered.
+    public void TheRecoveryKeysArePolicyConstantsInTheSchemaAndTheValidator()
+    {
+        using var schema = JsonDocument.Parse(File.ReadAllText(RuntimeSchemaPath));
+        var properties = schema.RootElement.GetProperty("properties");
+        string Const(string key) => properties.GetProperty(AppSettingPrefix + key).GetProperty("const").GetString()!;
+
+        string[] Enum(string key) => properties.GetProperty(AppSettingPrefix + key).GetProperty("enum").EnumerateArray().Select(e => e.GetString()!).ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.PrimaryProfile,
+                TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.RegionalRecoveryProfile,
+            },
+            Enum("Recovery__Profile"));
+        foreach (var key in new[] { "Sql__Region", "SourceStorage__Region" })
+        {
+            Assert.Equal(new[] { "canadacentral", "canadaeast" }, Enum(key));
+        }
+
+        // Document Intelligence, Key Vault and monitoring never move.
+        Assert.Equal("canadacentral", Const("DocumentIntelligence__Region"));
+        Assert.Equal("canadacentral", Const("KeyVault__Region"));
+        Assert.Equal("canadacentral", Const("Monitoring__Region"));
+        Assert.Equal(TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.PrimaryRegion, Const("Recovery__ControlLedger__Region"));
+        Assert.Equal(TaxAI.AzureInfrastructure.Configuration.ProductionConfigurationValidator.RecoveryRegion, Const("Recovery__ControlLedgerReplica__Region"));
+        Assert.Equal(
+            Tenancy.Models.RecoveryRetentionWindow.PointInTimeRestoreDays.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Const("Recovery__SqlPointInTimeRestoreDays"));
+        Assert.Equal(
+            Tenancy.Models.RecoveryRetentionWindow.BackupChainDays.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Const("Recovery__BackupChainDays"));
+        Assert.True(Tenancy.Models.RecoveryRetentionWindow.LedgerOutlivesBackups(
+            int.Parse(Const("Recovery__ControlLedgerRetentionDays"), System.Globalization.CultureInfo.InvariantCulture), 35, 7));
+
+        // Every recovery key is covered by the configuration digest.
+        var digestKeys = PortalSettingNames();
+        Assert.Equal(14, digestKeys.Count(name => name.StartsWith("TaxAi:Production:Recovery:", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public void TheRuntimeProfileSchemaIsTheSameClosedKeySet()
     {

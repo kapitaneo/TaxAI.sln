@@ -36,6 +36,7 @@ public sealed class TenancyBoundaryTests
         "IDevelopmentFixtureSeeder.cs",
         "IIdentityDirectory.cs",
         "IOpaqueIdentifierSource.cs",
+        "IRecoveryReconciler.cs",
         "IReviewRecordPurgeService.cs",
         "IReviewRecordRepository.cs",
         "MembershipVerification.cs",
@@ -54,6 +55,8 @@ public sealed class TenancyBoundaryTests
         "ProductionControlModels.cs",
         "ProductionEvidencePolicy.cs",
         "PurgeOutcome.cs",
+        "RecoveryControlContracts.cs",
+        "RecoveryControlModels.cs",
         "RetentionPolicy.cs",
         "ReviewPackageProjection.cs",
         "SessionBoundaries.cs",
@@ -386,6 +389,10 @@ public sealed class TenancyBoundaryTests
         Assert.Matches(new Regex(@"\bValidationError\b"), allExecutable);
         Assert.Matches(new Regex(@"\bTrustedFirmId\b"), allExecutable);
         Assert.Matches(new Regex(@"\bIReviewRecordRepository\b"), allExecutable);
+
+        // Spec 016 T06: the walk reaches the recovery control contracts too.
+        Assert.Matches(new Regex(@"\bIRecoveryControlStore\b"), allExecutable);
+        Assert.Matches(new Regex(@"\bRecoveryReleasePolicy\b"), allExecutable);
     }
 
     [Fact]

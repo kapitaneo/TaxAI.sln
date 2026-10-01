@@ -63,6 +63,23 @@ State changes are single conditional updates, so cleanup and a racing commit
 cannot both win. The table holds no source byte, key material, file name,
 provider identifier or taxpayer value, and no row is deleted here.
 
+Spec 016 T06 adds `Services/SqlRecoveryReconciler.cs`, the internal
+implementation of Tenancy's `IRecoveryReconciler`, registered scoped by the
+unchanged `AddTaxAiPersistence`. It adds no entity, configuration and no
+migration. It reads the SQL Server catalog's identity of the physical database
+(server, database, creation instant) as an opaque SHA-256 incarnation, so a
+restore, copy or geo-secondary is always a new incarnation; reads whether any
+taxpayer data or session exists and the newest activity instant; re-fences a
+resurrected source registration (`Staged`/`Bound` → `PurgePending`) and
+re-deletes a review record inside the trusted firm an acknowledged ledger fact
+names — never cascading into retained history, which is reported `Blocked`;
+revokes every pre-recovery authentication session, client session and unspent
+intake link by its complete scoped key; and deactivates memberships the
+current attestation no longer lists, creating or reactivating nothing.
+Expired credentials are left exactly as they were. It is resolved only by the
+host's recovery orchestrator while the environment is quarantined, never by a
+request, and it decides nothing is due.
+
 Migration `20260730000000_AddClientIntake` is additive: it creates only the
 twelve intake metadata tables. It does not alter the initial migration or any
 existing firm, identity, session, or review table. Source content remains

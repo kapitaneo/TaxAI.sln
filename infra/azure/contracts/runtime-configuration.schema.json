@@ -59,7 +59,21 @@
     "TaxAi__Production__EvidenceManifest",
     "TaxAi__Extraction__Provider",
     "TaxAi__Extraction__ContentReader",
-    "ConnectionStrings__TaxAiDatabase"
+    "ConnectionStrings__TaxAiDatabase",
+    "TaxAi__Production__Recovery__Profile",
+    "TaxAi__Production__Recovery__ControlLedger__Endpoint",
+    "TaxAi__Production__Recovery__ControlLedger__ResourceId",
+    "TaxAi__Production__Recovery__ControlLedger__Region",
+    "TaxAi__Production__Recovery__ControlLedger__PublicNetworkAccess",
+    "TaxAi__Production__Recovery__ControlLedger__PrivateEndpoint",
+    "TaxAi__Production__Recovery__ControlLedgerReplica__Endpoint",
+    "TaxAi__Production__Recovery__ControlLedgerReplica__ResourceId",
+    "TaxAi__Production__Recovery__ControlLedgerReplica__Region",
+    "TaxAi__Production__Recovery__ControlLedgerReplica__PublicNetworkAccess",
+    "TaxAi__Production__Recovery__ControlLedgerReplica__PrivateEndpoint",
+    "TaxAi__Production__Recovery__SqlPointInTimeRestoreDays",
+    "TaxAi__Production__Recovery__BackupChainDays",
+    "TaxAi__Production__Recovery__ControlLedgerRetentionDays"
   ],
   "properties": {
     "TaxAi__Production__Environment": {
@@ -154,8 +168,11 @@
       "description": "Source content storage account resource id in the configured subscription and resource group."
     },
     "TaxAi__Production__SourceStorage__Region": {
-      "const": "canadacentral",
-      "description": "Source content storage account region."
+      "enum": [
+        "canadacentral",
+        "canadaeast"
+      ],
+      "description": "Source content storage account region: canadacentral for the Primary profile; canadaeast only with RegionalRecovery (the offline check and the validator bind the two)."
     },
     "TaxAi__Production__SourceStorage__PublicNetworkAccess": {
       "const": "Disabled",
@@ -198,8 +215,11 @@
       "description": "Azure SQL logical server resource id in the configured subscription and resource group."
     },
     "TaxAi__Production__Sql__Region": {
-      "const": "canadacentral",
-      "description": "Azure SQL logical server region."
+      "enum": [
+        "canadacentral",
+        "canadaeast"
+      ],
+      "description": "Azure SQL logical server region: canadacentral for the Primary profile; canadaeast only with RegionalRecovery (the offline check and the validator bind the two)."
     },
     "TaxAi__Production__Sql__PublicNetworkAccess": {
       "const": "Disabled",
@@ -304,6 +324,69 @@
       "type": "string",
       "pattern": "^Server=tcp:[a-z0-9-]{1,63}\\.database\\.windows\\.net,1433;Database=[A-Za-z0-9_-]{1,128};Encrypt=Strict;TrustServerCertificate=False;Authentication=Active Directory Managed Identity;User Id=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       "description": "Managed-identity SQL connection with strict encryption. Carries no password."
+    },
+    "TaxAi__Production__Recovery__Profile": {
+      "enum": [
+        "Primary",
+        "RegionalRecovery"
+      ],
+      "description": "Spec 016 T06: Primary for the Canada Central host; RegionalRecovery only for the manually activated Canada East recovery host (a separately signed configuration). Document Intelligence, Key Vault and monitoring never move."
+    },
+    "TaxAi__Production__Recovery__ControlLedger__Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Spec 016 T06: the recovery control ledger's Canada Central copy; the account's own Blob endpoint, distinct from every other storage account."
+    },
+    "TaxAi__Production__Recovery__ControlLedger__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Spec 016 T06: the resource id of the control ledger's Canada Central copy in the configured subscription and resource group."
+    },
+    "TaxAi__Production__Recovery__ControlLedger__Region": {
+      "const": "canadacentral",
+      "description": "Spec 016 T06: the control ledger's Canada Central copy region."
+    },
+    "TaxAi__Production__Recovery__ControlLedger__PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "TaxAi__Production__Recovery__ControlLedger__PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "TaxAi__Production__Recovery__ControlLedgerReplica__Endpoint": {
+      "type": "string",
+      "pattern": "^https://[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/$",
+      "description": "Spec 016 T06: the recovery control ledger's authoritative, independently recoverable Canada East copy; the account's own Blob endpoint, distinct from every other storage account."
+    },
+    "TaxAi__Production__Recovery__ControlLedgerReplica__ResourceId": {
+      "type": "string",
+      "pattern": "^/subscriptions/[0-9a-f-]{36}/resourceGroups/[A-Za-z0-9._()-]{1,90}/providers/Microsoft\\.Storage/storageAccounts/[A-Za-z0-9-]{1,64}$",
+      "description": "Spec 016 T06: the resource id of the control ledger's authoritative, independently recoverable Canada East copy in the configured subscription and resource group."
+    },
+    "TaxAi__Production__Recovery__ControlLedgerReplica__Region": {
+      "const": "canadaeast",
+      "description": "Spec 016 T06: the control ledger's authoritative, independently recoverable Canada East copy region."
+    },
+    "TaxAi__Production__Recovery__ControlLedgerReplica__PublicNetworkAccess": {
+      "const": "Disabled",
+      "description": "Public network access must be disabled (FR-05)."
+    },
+    "TaxAi__Production__Recovery__ControlLedgerReplica__PrivateEndpoint": {
+      "const": "Required",
+      "description": "Private endpoint and private DNS are required (FR-05)."
+    },
+    "TaxAi__Production__Recovery__SqlPointInTimeRestoreDays": {
+      "const": "35",
+      "description": "Spec 016 T06 (FR-11, AC-111): SQL short-term point-in-time retention, the 35-day maximum."
+    },
+    "TaxAi__Production__Recovery__BackupChainDays": {
+      "const": "7",
+      "description": "Spec 016 T06 (AC-103): the documented weekly full-backup chain kept beyond the retention period."
+    },
+    "TaxAi__Production__Recovery__ControlLedgerRetentionDays": {
+      "const": "90",
+      "description": "Spec 016 T06 (FR-10, AC-103): [ASSUMED] control ledger immutability; strictly longer than 35 + 7 days."
     }
   }
 }

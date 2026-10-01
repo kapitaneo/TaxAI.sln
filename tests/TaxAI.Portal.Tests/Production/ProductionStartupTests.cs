@@ -53,6 +53,15 @@ namespace TaxAI.Portal.Tests.Production;
 /// endpoint or bound and each source-storage probe finding are refused.
 /// </para>
 /// <para>
+/// Spec 016 T06 adds recovery. The complete profile carries the recovery
+/// settings; the real Azure control ledger and evidence reader run over a
+/// controlled pair of in-memory Canadian accounts holding the stored evidence;
+/// the recovery inventory probe is controlled; and the orchestrator reconciles
+/// over a recording reconciler. A missing ledger, stored evidence that is
+/// absent, withdrawn or not approved, an unsafe recovery setting and each
+/// inventory finding are refused, and an unreleased database quarantines startup.
+/// </para>
+/// <para>
 /// All identifiers are synthetic and resolve to nothing. No network, cloud
 /// resource, database connection or taxpayer value is involved.
 /// </para>
@@ -144,6 +153,20 @@ public sealed class ProductionStartupTests
         ["TaxAi:Production:Resilience:MaximumAttempts"] = "3",
         ["TaxAi:Production:Resilience:OperationDeadline"] = "00:02:00",
         ["TaxAi:Production:Resilience:ProbeDeadline"] = "00:00:15",
+        ["TaxAi:Production:Recovery:Profile"] = "Primary",
+        ["TaxAi:Production:Recovery:ControlLedger:Endpoint"] = "https://sttaxailedcc.blob.core.windows.net/",
+        ["TaxAi:Production:Recovery:ControlLedger:ResourceId"] = ResourcePrefix + "Microsoft.Storage/storageAccounts/sttaxailedcc",
+        ["TaxAi:Production:Recovery:ControlLedger:Region"] = "canadacentral",
+        ["TaxAi:Production:Recovery:ControlLedger:PublicNetworkAccess"] = "Disabled",
+        ["TaxAi:Production:Recovery:ControlLedger:PrivateEndpoint"] = "Required",
+        ["TaxAi:Production:Recovery:ControlLedgerReplica:Endpoint"] = "https://sttaxailedce.blob.core.windows.net/",
+        ["TaxAi:Production:Recovery:ControlLedgerReplica:ResourceId"] = ResourcePrefix + "Microsoft.Storage/storageAccounts/sttaxailedce",
+        ["TaxAi:Production:Recovery:ControlLedgerReplica:Region"] = "canadaeast",
+        ["TaxAi:Production:Recovery:ControlLedgerReplica:PublicNetworkAccess"] = "Disabled",
+        ["TaxAi:Production:Recovery:ControlLedgerReplica:PrivateEndpoint"] = "Required",
+        ["TaxAi:Production:Recovery:SqlPointInTimeRestoreDays"] = "35",
+        ["TaxAi:Production:Recovery:BackupChainDays"] = "7",
+        ["TaxAi:Production:Recovery:ControlLedgerRetentionDays"] = "90",
     };
 
     private static Dictionary<string, string?> HostSettings()
@@ -442,6 +465,38 @@ public sealed class ProductionStartupTests
     private static Dictionary<string, (Scenario Scenario, ProductionAdmissionRefusal Expected)> Scenarios() =>
         new(StringComparer.Ordinal)
         {
+            // Spec 016 T06: recovery registrations, stored evidence and settings.
+            ["control ledger unregistered"] = (Scenario.Complete() with { RemoveLedger = true },
+                ProductionAdmissionRefusal.InfrastructureValidationUnregistered),
+            ["recovery inventory probe unregistered"] = (Scenario.Complete() with { RemoveInventoryProbe = true },
+                ProductionAdmissionRefusal.InfrastructureValidationUnregistered),
+            ["stored evidence absent"] = (Scenario.Complete() with { StoredEvidence = "absent" },
+                ProductionAdmissionRefusal.EvidenceManifestMissing),
+            ["stored evidence withdrawn"] = (Scenario.Complete() with { StoredEvidence = "withdrawn" },
+                ProductionAdmissionRefusal.EvidenceManifestInvalid),
+            ["stored evidence malformed"] = (Scenario.Complete() with { StoredEvidence = "malformed" },
+                ProductionAdmissionRefusal.EvidenceManifestInvalid),
+            ["stored evidence has a pending item"] = (Scenario.Complete() with { StoredEvidence = "pending" },
+                ProductionAdmissionRefusal.MandatoryEvidenceIncomplete),
+            ["stored evidence unreachable"] = (Scenario.Complete() with { ControlUnreachable = true },
+                ProductionAdmissionRefusal.EvidenceManifestInvalid),
+            ["control ledger mutable"] = (Scenario.Complete() with { InventoryFindings = [ApprovedResourceFinding.ControlLedgerNotApproved] },
+                ProductionAdmissionRefusal.StorageBindingInvalid),
+            ["control ledger unreachable"] = (Scenario.Complete() with { InventoryFindings = [ApprovedResourceFinding.ControlLedgerUnavailable] },
+                ProductionAdmissionRefusal.StorageBindingInvalid),
+            ["unknown recovery profile"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:Profile", "Anywhere"),
+                ProductionAdmissionRefusal.RecoveryRegionNotCanadaEast),
+            ["control ledger outside Canada East"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:ControlLedgerReplica:Region", "eastus"),
+                ProductionAdmissionRefusal.StorageBindingInvalid),
+            ["ledger retention not beyond backups"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:ControlLedgerRetentionDays", "42"),
+                ProductionAdmissionRefusal.RetentionOutsidePolicy),
+            ["seven-year SQL backup"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:SqlPointInTimeRestoreDays", "2555"),
+                ProductionAdmissionRefusal.RetentionOutsidePolicy),
+            ["recovery DI failover"] = (Scenario.Complete().Set("TaxAi:Production:Recovery:Profile", "RegionalRecovery")
+                    .Set("TaxAi:Production:Sql:Region", "canadaeast").Set("TaxAi:Production:SourceStorage:Region", "canadaeast")
+                    .Set("TaxAi:Production:DocumentIntelligence:Region", "canadaeast"),
+                ProductionAdmissionRefusal.DocumentIntelligenceBindingInvalid),
+
             // AC-130
             ["host environment Staging"] = (Scenario.Complete() with { EnvironmentName = "Staging" },
                 ProductionAdmissionRefusal.EnvironmentNotProduction),
@@ -711,6 +766,89 @@ public sealed class ProductionStartupTests
         Assert.IsType<DocumentIntelligence.Production.AzureDocumentIntelligenceProvider>(
             provider.GetRequiredService<IDocumentIntelligenceProvider>());
     }
+    [Fact] // Spec 016 T06: the complete profile holds the real Azure recovery adapters.
+    public void TheCompleteProfileRegistersTheRealRecoveryControlAdapters()
+    {
+        var services = new ServiceCollection();
+        typeof(Program).Assembly
+            .GetType("TaxAI.Portal.ModuleRegistration", throwOnError: true)!
+            .GetMethod("RegisterTaxAiModules", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, new object[]
+            {
+                services,
+                Scenario.Complete().Configuration(),
+                new TestEnvironment("Production"),
+                ProductionConnectionString,
+                (Func<AzureInfrastructureOptions, string, RuntimeMaterial>)((_, _) => ControlledSecrets.Load()),
+            });
+        services.AddSingleton<TimeProvider>(new FixedClock(Now));
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<TaxAI.AzureInfrastructure.Control.AzureRecoveryControlStore>(provider.GetRequiredService<IRecoveryControlStore>());
+        Assert.IsType<TaxAI.AzureInfrastructure.Control.AzureProductionEvidenceReader>(provider.GetRequiredService<IProductionEvidenceReader>());
+        Assert.NotNull(provider.GetService<IRecoveryInventoryProbe>());
+        Assert.NotNull(provider.GetService(OrchestratorType));
+        using var scope = provider.CreateScope();
+        Assert.Equal(
+            typeof(Persistence.PersistenceRegistration).Assembly,
+            scope.ServiceProvider.GetRequiredService<IRecoveryReconciler>().GetType().Assembly);
+    }
+
+    [Fact] // Spec 016 T06: the Canada East recovery profile is admitted, DI staying Canada Central.
+    public void TheSignedRegionalRecoveryProfileIsAdmitted()
+    {
+        var recovery = Scenario.Complete()
+            .Set("TaxAi:Production:Recovery:Profile", "RegionalRecovery")
+            .Set("TaxAi:Production:Sql:Region", "canadaeast")
+            .Set("TaxAi:Production:SourceStorage:Region", "canadaeast");
+
+        Assert.Equal(LaterSliceAdapters, Evaluate(recovery));
+    }
+
+    [Fact] // AC-115, AC-116: admitted configuration, unreleased database: startup is quarantined.
+    public void AnUnreleasedDatabaseQuarantinesAnOtherwiseAdmittedHost()
+    {
+        var scenario = Scenario.Complete() with
+        {
+            Reconciler = new RecordingReconciler { Extent = RecoveredDataExtent.Observed(true, Now.AddHours(-1)) },
+        };
+        var (provider, configuration) = scenario.BuildHost();
+        using var _ = provider;
+
+        Assert.Empty(EvaluateProvider(provider, configuration, "Production"));
+        var failure = Assert.Throws<TargetInvocationException>(() => RequireAdmission(provider, configuration, "Production"));
+
+        Assert.IsType<InvalidOperationException>(failure.InnerException);
+        Assert.Equal(
+            "Production startup is quarantined: recovery reconciliation for this database has not completed.",
+            failure.InnerException!.Message);
+    }
+
+    [Fact] // AC-116, AC-165: an invalid security configuration never reaches reconciliation.
+    public void AnInvalidConfigurationIsRefusedBeforeAnyReconciliation()
+    {
+        var reconciler = new RecordingReconciler();
+        var scenario = Scenario.Complete().Set("TaxAi:Production:KeyVault:PublicNetworkAccess", "Enabled") with { Reconciler = reconciler };
+        var (provider, configuration) = scenario.BuildHost();
+        using var _ = provider;
+
+        var failure = Assert.Throws<TargetInvocationException>(() => RequireAdmission(provider, configuration, "Production"));
+
+        Assert.Equal(RefusalMessage, failure.InnerException!.Message);
+        Assert.Empty(reconciler.Calls);
+    }
+
+    [Fact] // First production start: genesis is written and the host starts.
+    public void AFirstStartOnAPristineDatabaseWritesGenesisAndStarts()
+    {
+        var scenario = Scenario.Complete();
+        var (provider, configuration) = scenario.BuildHost();
+        using var _ = provider;
+
+        Assert.Null(Record.Exception(() => RequireAdmission(provider, configuration, "Production")));
+        Assert.Equal(1, scenario.Accounts.Count(ControlledControlAccounts.EastHost, TaxAI.AzureInfrastructure.Control.AzureRecoveryControlStore.LedgerContainerName));
+    }
+
     [Fact]
     public void DevelopmentHostsAreNeverEvaluatedAndNeverAdmitted()
     {
@@ -780,6 +918,9 @@ public sealed class ProductionStartupTests
             .GetProperty("ConfigurationDigest", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(snapshot)!;
     }
+
+    private static readonly Type OrchestratorType = typeof(Program).Assembly
+        .GetType("TaxAI.Portal.Production.RecoveryOrchestrator", throwOnError: true)!;
 
     private static ProductionAdmissionRefusal[] Evaluate(Scenario scenario)
     {
@@ -867,6 +1008,23 @@ public sealed class ProductionStartupTests
 
         public Func<string, string?> ManifestFactory { get; init; } = digest => Manifest(digest);
 
+        /// <summary>T06: the controlled Canadian control accounts this host reads.</summary>
+        public ControlledControlAccounts Accounts { get; init; } = new();
+
+        /// <summary>T06: what the release process stored for this binding.</summary>
+        public string StoredEvidence { get; init; } = "same";
+
+        public bool ControlUnreachable { get; init; }
+
+        public bool RemoveLedger { get; init; }
+
+        public bool RemoveInventoryProbe { get; init; }
+
+        public ApprovedResourceFinding[] InventoryFindings { get; init; } = Array.Empty<ApprovedResourceFinding>();
+
+        /// <summary>T06: the recovered database; pristine unless a scenario says otherwise.</summary>
+        public RecordingReconciler Reconciler { get; init; } = new() { Extent = RecoveredDataExtent.Observed(false, null) };
+
         public static Scenario Complete() => new();
 
         public Scenario WithFindings(params ApprovedResourceFinding[] findings) =>
@@ -884,10 +1042,39 @@ public sealed class ProductionStartupTests
         public IConfiguration Configuration()
         {
             var digest = Digest(new ConfigurationBuilder().AddInMemoryCollection(Settings).Build());
+            var manifest = ManifestFactory(digest);
             var settings = new Dictionary<string, string?>(Settings, StringComparer.Ordinal)
             {
-                ["TaxAi:Production:EvidenceManifest"] = ManifestFactory(digest),
+                ["TaxAi:Production:EvidenceManifest"] = manifest,
             };
+
+            // T06: the release process stores the same evidence in Canada.
+            var release = new ProductionReleaseBinding(
+                Settings.GetValueOrDefault("TaxAi:Production:ArtifactVersion") ?? "unset",
+                digest,
+                Guid.Parse(Subscription));
+            switch (StoredEvidence)
+            {
+                case "same" when manifest is not null:
+                    Accounts.PublishEvidence(release, manifest);
+                    break;
+                case "withdrawn" when manifest is not null:
+                    Accounts.PublishEvidence(release, manifest);
+                    Accounts.PublishEvidence(release, "{}", "withdrawn/");
+                    break;
+                case "malformed":
+                    Accounts.PublishEvidence(release, "{not json");
+                    break;
+                case "pending":
+                    Accounts.PublishEvidence(release, Manifest(digest, number => number == 17 ? "Pending" : "Approved"));
+                    break;
+            }
+
+            if (ControlUnreachable)
+            {
+                Accounts.Unreachable.Add(ControlledControlAccounts.CentralHost);
+                Accounts.Unreachable.Add(ControlledControlAccounts.EastHost);
+            }
 
             if (DriftAfterManifest)
             {
@@ -940,6 +1127,36 @@ public sealed class ProductionStartupTests
             {
                 services.AddSingleton<IApprovedResourceProbe>(
                     ResourceProbe ?? new ControlledResourceProbe(new ApprovedResourceProbeResult(Findings), ResourceProbeHangs));
+            }
+
+            // T06: the real Azure recovery adapters over the controlled accounts,
+            // a controlled inventory probe, and the orchestrator reconciling the
+            // recording reconciler. The durable reconciler stays registered.
+            var clock = new FixedClock(EvaluatedAt);
+            services.RemoveAll<IRecoveryControlStore>();
+            services.RemoveAll<IProductionEvidenceReader>();
+            services.RemoveAll<IRecoveryInventoryProbe>();
+            services.RemoveAll(OrchestratorType);
+            if (!RemoveLedger)
+            {
+                var store = Accounts.Store(clock);
+                services.AddSingleton<IRecoveryControlStore>(store);
+                services.AddSingleton<IProductionEvidenceReader>(Accounts.Reader());
+                var reconciler = Reconciler;
+                var scopes = new ServiceCollection();
+                scopes.AddScoped<IRecoveryReconciler>(_ => reconciler);
+                var scopeProvider = scopes.BuildServiceProvider();
+                services.AddSingleton(OrchestratorType, provider => Activator.CreateInstance(
+                    OrchestratorType,
+                    scopeProvider.GetRequiredService<IServiceScopeFactory>(),
+                    store,
+                    clock,
+                    provider.GetRequiredService<AzureInfrastructureOptions>())!);
+            }
+
+            if (!RemoveInventoryProbe)
+            {
+                services.AddSingleton<IRecoveryInventoryProbe>(new ControlledInventoryProbe(new ApprovedResourceProbeResult(InventoryFindings)));
             }
 
             if (RemoveProbe)
@@ -1029,6 +1246,13 @@ public sealed class ProductionStartupTests
 
             return result;
         }
+    }
+
+    /// <summary>A controlled recovery inventory probe returning a fixed result.</summary>
+    internal sealed class ControlledInventoryProbe(ApprovedResourceProbeResult result) : IRecoveryInventoryProbe
+    {
+        public Task<ApprovedResourceProbeResult> ProbeRecoveryInventoryAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(result);
     }
 
     /// <summary>
