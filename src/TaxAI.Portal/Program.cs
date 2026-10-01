@@ -161,6 +161,18 @@ app.MapGet(
             new[] { PortalIdentity.ExternalScheme }))
    .AllowAnonymous();
 
+// Spec 017 T01: the Development-only shortcut around the external identity
+// provider. It signs the one seeded synthetic user in through the same cookie
+// sign-in event and durable session store as the external challenge, so there
+// is no second authorization model. The second condition is the ordinal
+// comparison the rest of this host uses; the route is mapped for the exact
+// environment name and for no other spelling of it.
+if (app.Environment.IsDevelopment() &&
+    PortalStartupGuards.RunsInDevelopment(app.Environment.EnvironmentName))
+{
+    DevelopmentSignInEndpoints.Map(app);
+}
+
 // The two authenticated tenancy-bootstrap routes. They re-read the local user
 // and active memberships on every request, and are the only protected routes
 // allowed to run while the durable session has no active firm.

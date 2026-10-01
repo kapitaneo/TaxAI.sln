@@ -172,7 +172,13 @@ internal static class ModuleRegistration
             .AddInteractiveServerComponents(
                 options => options.DetailedErrors = false);
 
-        services.AddTaxAiPersistence(databaseConnectionString);
+        // Spec 017 T01 (D-4): only the Development host states the local
+        // database allowance, and Persistence accepts an unvalidated
+        // certificate for a loopback data source alone. Every other host passes
+        // false and keeps the strict guard.
+        services.AddTaxAiPersistence(
+            databaseConnectionString,
+            allowDevelopmentLoopbackCertificateTrust: runsInDevelopment);
 
         // Spec 016 T01/T03/T04: the production boundary is registered only for
         // the Production environment, from the closed production profile:

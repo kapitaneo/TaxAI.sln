@@ -80,6 +80,28 @@ Expired credentials are left exactly as they were. It is resolved only by the
 host's recovery orchestrator while the environment is quarantined, never by a
 request, and it decides nothing is due.
 
+Spec 017 T01 adds two things for a local Development run, and no migration.
+
+- **The Development-local database allowance.** `SqlConnectionStringGuard` keeps
+  its strict rule as the default. One explicit opt-in lets a **loopback** data
+  source (LocalDB, or a server addressed as `localhost`, `127.0.0.1`, `::1`,
+  `.` or `(local)`) present a certificate that is not validated. On that path
+  encryption is still explicit and required, a host-name override and
+  `Persist Security Info` are still refused, and the authentication rules are
+  unchanged. This module reads no environment: the opt-in arrives as the
+  boolean argument of the one additive `AddTaxAiPersistence` overload, which
+  only the Development host passes as `true`, or as the explicit
+  `--development-loopback` argument the local migration tool gives the
+  design-time factory. The original two-parameter registration is unchanged
+  and strict.
+- **One synthetic development identity.** `DevelopmentFixtureSeeder` now also
+  writes, idempotently, exactly one `PortalUsers` row and exactly one active
+  `FirmMemberships` row in the seeded firm. The user carries the fixed
+  synthetic issuer and subject declared by the public
+  `DevelopmentFixtureIdentity` constants and no credential, token or session.
+  The seeder is still invoked only from the host's Development branch, and no
+  migration inserts any row.
+
 Migration `20260730000000_AddClientIntake` is additive: it creates only the
 twelve intake metadata tables. It does not alter the initial migration or any
 existing firm, identity, session, or review table. Source content remains

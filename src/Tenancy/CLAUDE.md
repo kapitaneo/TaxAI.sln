@@ -143,3 +143,12 @@ markers; change only task-listed files; ship applicable positive and negative
 xUnit tests; run `dotnet build TaxAI.sln`, `dotnet test TaxAI.sln`, and
 `pwsh ./scripts/Invoke-SolutionTests.ps1`; create only the task's marker after
 the complete gate passes. Never merge or approve your own work.
+
+## Spec 017 T01: the development fixture gains one synthetic identity
+
+`IDevelopmentFixtureSeeder`'s signature is unchanged. Its documented contract
+now records that, in Development only, the fixture additionally contains exactly
+one synthetic user and exactly one active membership of the seeded firm, with
+no credential of any kind. Tenancy declares no new type for this: the fixed
+issuer and subject are constants of the adapter that writes them. No
+firm-scope exemption, identity contract, or session rule changes.

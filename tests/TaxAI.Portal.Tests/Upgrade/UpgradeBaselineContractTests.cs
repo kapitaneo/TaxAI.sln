@@ -89,6 +89,13 @@ public sealed class UpgradeBaselineContractTests
         // Spec 016 T06 — the recovered database's reconciler, named exactly. It
         // adds no entity, configuration or migration.
         "Persistence.Services.SqlRecoveryReconciler",
+
+        // Spec 017 T01 — the Development-local database allowance and the
+        // synthetic development identity. The two overloads are named by their
+        // exact signature, so no other addition to either type is approved.
+        "Persistence.DevelopmentFixtureIdentity",
+        "M|Persistence.PersistenceRegistration|public|static|Microsoft.Extensions.DependencyInjection.IServiceCollection|AddTaxAiPersistence|(Microsoft.Extensions.DependencyInjection.IServiceCollection services,System.String connectionString,System.Boolean allowDevelopmentLoopbackCertificateTrust)|",
+        "M|Persistence.Services.SqlConnectionStringGuard|public|static|System.String|RequireValid|(System.String connectionString,System.Boolean allowDevelopmentLoopbackCertificateTrust)|",
     ];
 
     /// <summary>
@@ -472,6 +479,10 @@ public sealed class UpgradeBaselineContractTests
                 "TaxAI.Portal.ClientIntakeEndpoints",
                 "TaxAI.Portal.CryptographicIntakeCredentialSource",
                 "TaxAI.Portal.DevelopmentEncryptedIntakeContentStore",
+
+                // Spec 017 T01 — the Development-only sign-in and its page.
+                "TaxAI.Portal.DevelopmentSignInEndpoints",
+                "TaxAI.Portal.Components.Pages.DevelopmentSignInPage",
                 "TaxAI.Portal.ExtractionConfiguration",
                 "TaxAI.Portal.ExtractionEndpoints",
                 "TaxAI.Portal.ExtractionRuntimeConfiguration",

@@ -12,6 +12,13 @@ namespace Tenancy.Contracts;
 /// specification.
 /// </para>
 /// <para>
+/// Spec 017 T01: in Development only, the fixture additionally contains exactly
+/// one synthetic user and exactly one active membership of the seeded firm, so
+/// a local host can be signed in to without an identity provider. The user
+/// carries no credential of any kind. Neither row exists in a database that
+/// only had migrations applied, and nothing outside Development creates them.
+/// </para>
+/// <para>
 /// Everything it writes is synthetic: no real name, address, email, phone,
 /// account number, or employer identifier, and no SIN field of any kind.
 /// </para>

@@ -38,6 +38,7 @@ public sealed class PortalBoundaryTests
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
         "DevelopmentEncryptedIntakeContentStore.cs",
+        "DevelopmentSignInEndpoints.cs",
         "ExtractionAvailabilityGate.cs",
         "ExtractionConfiguration.cs",
         "ExtractionEndpoints.cs",
@@ -263,6 +264,11 @@ public sealed class PortalBoundaryTests
         { "ClientIntakeEndpoints.cs", Array.Empty<string>() },
         { "CryptographicIntakeCredentialSource.cs", Array.Empty<string>() },
         { "DevelopmentEncryptedIntakeContentStore.cs", new[] { "AddRange" } },
+
+        // Spec 017 T01: the Development-only sign-in presents the seeded
+        // issuer and subject to the existing cookie sign-in event. It registers
+        // nothing; the two claims are the whole of what it adds.
+        { "DevelopmentSignInEndpoints.cs", new[] { "AddClaim" } },
         { "ExtractionAvailabilityGate.cs", Array.Empty<string>() },
         { "ExtractionConfiguration.cs", Array.Empty<string>() },
         { "ExtractionEndpoints.cs", new[] { "AddEndpointFilter" } },
@@ -445,9 +451,12 @@ public sealed class PortalBoundaryTests
                     TimeSpan.FromSeconds(1)).Count));
 
         // Each of those extensions is declared exactly once, by the module that
-        // owns it.
+        // owns it. Spec 017 T01: Persistence declares its one extension as
+        // exactly two overloads — the original, and the one that states the
+        // Development-local database allowance explicitly. The composition root
+        // still makes exactly one call to it, proven immediately below.
         Assert.Equal(
-            1,
+            2,
             ModuleSourceFiles("Persistence")
                 .Sum(path => Regex.Matches(
                     File.ReadAllText(path),

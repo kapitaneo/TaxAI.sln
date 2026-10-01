@@ -20,8 +20,14 @@ public sealed class PersistenceContractTests
         // The context, the configurations, and the port implementations are all
         // internal. The only supported way into this module is the registration
         // extension the composition root calls.
+        // Spec 017 T01 adds exactly one more export: the two constants naming
+        // the synthetic development identity the seeder writes.
         Assert.Equal(
-            new[] { "Persistence.PersistenceRegistration" },
+            new[]
+            {
+                "Persistence.DevelopmentFixtureIdentity",
+                "Persistence.PersistenceRegistration",
+            },
             PersistenceAssembly
                 .GetExportedTypes()
                 .Select(type => type.FullName!)
@@ -33,13 +39,24 @@ public sealed class PersistenceContractTests
     public void TheRegistrationExtensionTakesAConnectionStringAndReturnsTheCollection()
     {
         var method = typeof(PersistenceRegistration)
-            .GetMethod(nameof(PersistenceRegistration.AddTaxAiPersistence))!;
+            .GetMethod(
+                nameof(PersistenceRegistration.AddTaxAiPersistence),
+                new[] { typeof(IServiceCollection), typeof(string) })!;
 
         Assert.Equal(
             new[] { typeof(IServiceCollection), typeof(string) },
             method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
 
         Assert.Equal(typeof(IServiceCollection), method.ReturnType);
+
+        // Spec 017 T01: the one approved overload states the Development-local
+        // database allowance explicitly and is otherwise the same entry point.
+        var allowance = typeof(PersistenceRegistration)
+            .GetMethod(
+                nameof(PersistenceRegistration.AddTaxAiPersistence),
+                new[] { typeof(IServiceCollection), typeof(string), typeof(bool) })!;
+
+        Assert.Equal(typeof(IServiceCollection), allowance.ReturnType);
     }
 
     [Fact]
@@ -106,14 +123,28 @@ public sealed class PersistenceContractTests
     [Fact]
     public void TheRegistrationEntryPointRemainsTheSingleExtensionMethod()
     {
-        var method = Assert.Single(typeof(PersistenceRegistration).GetMethods(
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
+        // Still one entry point by name. Spec 017 T01 declares it as exactly
+        // two overloads: the original, and the one that states the
+        // Development-local database allowance. Nothing else is public.
+        var methods = typeof(PersistenceRegistration)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .OrderBy(method => method.GetParameters().Length)
+            .ToArray();
 
-        Assert.Equal(nameof(PersistenceRegistration.AddTaxAiPersistence), method.Name);
-        Assert.True(method.IsDefined(typeof(ExtensionAttribute), inherit: false));
+        Assert.Equal(2, methods.Length);
+        Assert.All(
+            methods,
+            method =>
+            {
+                Assert.Equal(nameof(PersistenceRegistration.AddTaxAiPersistence), method.Name);
+                Assert.True(method.IsDefined(typeof(ExtensionAttribute), inherit: false));
+                Assert.Equal(typeof(IServiceCollection), method.ReturnType);
+            });
         Assert.Equal(
             new[] { typeof(IServiceCollection), typeof(string) },
-            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
-        Assert.Equal(typeof(IServiceCollection), method.ReturnType);
+            methods[0].GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+        Assert.Equal(
+            new[] { typeof(IServiceCollection), typeof(string), typeof(bool) },
+            methods[1].GetParameters().Select(parameter => parameter.ParameterType).ToArray());
     }
 }

@@ -8,11 +8,15 @@ using Tenancy.Services;
 namespace Persistence.Services;
 
 /// <summary>
-/// Writes one obviously synthetic, idempotent development review fixture.
+/// Writes one obviously synthetic, idempotent development review fixture and,
+/// since spec 017 T01, exactly one synthetic development user with exactly one
+/// active membership of the seeded firm.
 /// <para>
-/// It creates no user, membership, session, credential, or privileged
-/// principal. Environment gating belongs to the host; this service performs no
-/// environment read and is invoked only from that explicit development branch.
+/// It creates no session, credential, token, or privileged principal: the
+/// user row carries only the fixed synthetic issuer and subject that the
+/// Development-only sign-in presents to the normal sign-in path. Environment
+/// gating belongs to the host; this service performs no environment read and is
+/// invoked only from that explicit development branch.
 /// </para>
 /// <para>
 /// The fixed names, structural codes, amounts, and derived identifiers are
@@ -50,6 +54,10 @@ internal sealed class DevelopmentFixtureSeeder : IDevelopmentFixtureSeeder
         DeterministicIdentifier("taxai-development-fixture-unmapped-code");
     private static readonly Guid DocumentReference =
         DeterministicIdentifier("taxai-development-fixture-document");
+    private static readonly Guid UserId =
+        DeterministicIdentifier("taxai-development-fixture-user");
+    private static readonly Guid MembershipId =
+        DeterministicIdentifier("taxai-development-fixture-membership");
 
     private readonly TaxAiDbContext _context;
 
@@ -159,6 +167,34 @@ internal sealed class DevelopmentFixtureSeeder : IDevelopmentFixtureSeeder
             WHERE NOT EXISTS
                 (SELECT 1 FROM [PersistedUnmappedBoxCodes]
                  WHERE [UnmappedBoxCodeId] = {UnmappedBoxCodeId});
+            """,
+            cancellationToken);
+
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO [PortalUsers]
+                ([UserId], [Issuer], [Subject], [IsActive], [CreatedAtUtc],
+                 [UpdatedAtUtc])
+            SELECT
+                {UserId}, {DevelopmentFixtureIdentity.Issuer},
+                {DevelopmentFixtureIdentity.Subject}, {true}, {CreatedAtUtc},
+                {CreatedAtUtc}
+            WHERE NOT EXISTS
+                (SELECT 1 FROM [PortalUsers] WHERE [UserId] = {UserId});
+            """,
+            cancellationToken);
+
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO [FirmMemberships]
+                ([MembershipId], [FirmId], [UserId], [IsActive], [CreatedAtUtc],
+                 [UpdatedAtUtc])
+            SELECT
+                {MembershipId}, {FirmId}, {UserId}, {true}, {CreatedAtUtc},
+                {CreatedAtUtc}
+            WHERE NOT EXISTS
+                (SELECT 1 FROM [FirmMemberships]
+                 WHERE [MembershipId] = {MembershipId});
             """,
             cancellationToken);
 
