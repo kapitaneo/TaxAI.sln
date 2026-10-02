@@ -70,10 +70,31 @@ in [NEXT.md](NEXT.md); repository and agent policy live in
   Development-only authenticated encrypted streaming content store, maps the
   exact accountant and client routes, streams neutral-name multipart uploads,
   and exposes the existing review URL only after verified ready association.
+- **Local end-to-end accountant demo** — one command
+  (`scripts/local/Start-LocalDemo.ps1`) prepares LocalDB, applies the
+  repository-owned migrations as an explicit developer action, generates the
+  Development settings outside the repository, writes two synthetic samples
+  into an ignored directory, and starts the host on HTTPS loopback. A
+  Development-only sign-in signs in one seeded synthetic accountant through the
+  normal durable session path; it is not mapped outside Development. A
+  firm-scoped case list shows only each case's taxpayer display name and stored
+  tax year, with the firm taken only from the revalidated session; accountant
+  pages carry navigation, and an in-scope refused correction or finalization
+  shows one fixed, value-free notice. The whole flow — sign-in, case, client
+  upload, extraction, correction, acceptance, finalization, review output — is
+  described in [docs/local-demo.md](docs/local-demo.md). A local run is never
+  production authorization, and no real taxpayer document may be used locally.
 
 ## Deliberately not shipped
 
-- No taxpayer listing or unapproved taxpayer-data surface ships.
+- No taxpayer search, cross-firm listing, or unapproved taxpayer-data surface
+  ships. The one listing is the firm-scoped case list above: no search, filter,
+  sort, paging, or global view exists.
+- No accountant-side document upload ships. Documents arrive only through the
+  client's one-time intake link.
+- No real-document reading ships for local use. The Development provider reads
+  only its own synthetic deterministic text format; a real PDF, photo, or scan
+  extracts nothing locally.
 - No raw-content preview, read, or download surface ships. The sole
   potentially SIN-bearing exception is the authenticated encrypted opaque
   source object outside web root; it is never rendered, logged, queried, or
@@ -140,6 +161,8 @@ tests/
 infra/azure/                       Runtime-configuration contract and Bicep module
 scripts/                           Full-suite execution gate and manifest
   azure/                           Offline production-configuration check
+  local/                           One-command local demo start and sample generator
+docs/                              Operations runbooks and the local demo guide
 specs/                             PRDs, architecture, task plans, and status
 ```
 
@@ -173,7 +196,9 @@ manifest.
 Each completed specification records its acceptance evidence under
 `specs/NNN-<slug>/verification.md`, naming the tests and commands that prove
 each criterion. The client intake and document upload flow is recorded in
-`specs/014-client-intake-and-document-upload-flow/verification.md`.
+`specs/014-client-intake-and-document-upload-flow/verification.md`, and the
+local end-to-end accountant demo in
+`specs/017-local-end-to-end-accountant-mvp/verification.md`.
 
 To verify the EF model without connecting to a database, supply a process-only
 synthetic SQL Server connection string that requires encryption and certificate
@@ -250,11 +275,22 @@ migration history, model snapshot, production mapping, or stored data.
 
 ## Run the application in Development
 
-Configure an external Development SQL Server connection named
-`ConnectionStrings:TaxAiDatabase`, apply the repository-owned migration, and
-configure the external OIDC settings through environment variables or user
-secrets. No connection string, client secret, key, or credential belongs in a
-tracked file.
+The quickest way is the local demo, which prepares everything and starts the
+host. [docs/local-demo.md](docs/local-demo.md) has the prerequisites and the
+twelve steps:
+
+```powershell
+pwsh ./scripts/local/Start-LocalDemo.ps1
+```
+
+It uses a Development-only sign-in and synthetic samples. It is not production
+authorization, and real taxpayer documents must not be used with it.
+
+To run the host by hand instead, configure an external Development SQL Server
+connection named `ConnectionStrings:TaxAiDatabase`, apply the repository-owned
+migrations, and configure the external OIDC settings through environment
+variables or user secrets. No connection string, client secret, key, or
+credential belongs in a tracked file.
 
 ```bash
 dotnet run --project src/TaxAI.Portal

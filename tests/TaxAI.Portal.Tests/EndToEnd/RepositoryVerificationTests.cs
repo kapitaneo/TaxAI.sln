@@ -128,6 +128,11 @@ public sealed class RepositoryVerificationTests
                      "Retention and purge",
                      "firm-scoped read-only accountant review screen",
                      "Client intake experience",
+                     // Spec 017 T04: the local demo and the two surfaces it adds.
+                     "Local end-to-end accountant demo",
+                     "Development-only sign-in",
+                     "firm-scoped case list",
+                     "docs/local-demo.md",
                  })
         {
             Assert.Contains(capability, Readme, StringComparison.OrdinalIgnoreCase);
@@ -141,7 +146,14 @@ public sealed class RepositoryVerificationTests
 
         foreach (var disclaimer in new[]
                  {
-                     "No taxpayer listing or unapproved taxpayer-data surface",
+                     // Spec 017 T04: the firm-scoped case list ships, so the old
+                     // blanket "no taxpayer listing" line would be false. What
+                     // stays unshipped is named exactly instead.
+                     "No taxpayer search, cross-firm listing, or unapproved taxpayer-data surface",
+                     "no search, filter, sort, paging, or global view exists",
+                     "No accountant-side document upload ships.",
+                     "A local run is never production authorization",
+                     "no real taxpayer document may be used locally",
                      "No raw-content preview, read, or download surface",
                      "encrypted opaque source object outside web root",
                      // Spec 016 T05: exactly one production OCR adapter ships; no LLM.
@@ -163,6 +175,16 @@ public sealed class RepositoryVerificationTests
                      "ready for production deployment",
                      "provisions firms",
                      "creates production administrators",
+                     // Spec 017 T04: the local demo may not be described as
+                     // deployment, export, or accountant upload.
+                     "accountants can upload",
+                     "accountant uploads",
+                     "exports the review",
+                     "export to",
+                     "deploys the application",
+                     "deployed to production",
+                     "search for a taxpayer",
+                     "reads real documents",
                  })
         {
             Assert.DoesNotContain(
