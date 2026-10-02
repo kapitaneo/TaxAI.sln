@@ -110,6 +110,9 @@ the same PR that introduces it, or the gate fails on it by design.
 - **`infra/azure/`**, **`scripts/azure/`** — spec 016 infrastructure-as-code and
   tooling. T01 ships the closed runtime-configuration schema, a settings-only
   Bicep module and the offline `Test-ProductionConfiguration.ps1` check.
+- **`scripts/local/`**, **`docs/local-demo.md`** — spec 017 local demo tooling
+  (the one-command start and the synthetic sample generator) and its guide.
+  Development only; never production authorization.
 - **`tests/TaxAI.Portal.Tests/`** — xUnit host, composition-root, boundary,
   security, and repository-verification suites for the portal. Adds
   `Microsoft.AspNetCore.Mvc.Testing` for in-process host testing; no network
@@ -530,11 +533,11 @@ file stays byte-identical) and to register the two new projects in
 is deployed, the pending drills are not executed, and production admission stays
 refused. The project priority is a locally runnable product.
 
-Spec 017 (Local End-to-End Accountant MVP) is approved and planned as four
-sequential tasks. **T01 (local startup and Development identity), T02 (the
-upload-to-extraction bridge and local samples) and T03 (the case list,
-navigation and refusal notices) are implemented; no later task is selected.**
-T01 delivers:
+Spec 017 (Local End-to-End Accountant MVP) is **complete**. It was delivered as
+four sequential tasks: T01 (local startup and Development identity), T02 (the
+upload-to-extraction bridge and local samples), T03 (the case list, navigation
+and refusal notices) and T04 (the vertical-slice proof and the demo guide). The
+human-runnable demo is described in `docs/local-demo.md`. T01 delivers:
 
 - `scripts/local/Start-LocalDemo.ps1` — one command that prepares LocalDB,
   applies the repository-owned migrations with the repository-local `dotnet-ef`
@@ -613,9 +616,49 @@ T03 delivers:
   and duplicate routes keep their existing responses. A refused operation
   still mutates nothing.
 
+T04 delivers the proof and the guide, and **changes no product behaviour**:
+
+- **The whole flow over HTTP, through rendered links and forms.**
+  `LocalMvpVerticalSliceTests` drives the real Development composition from the
+  Development sign-in to `/reviews/{recordId}` with two separate cookie
+  sessions. Its browser requests only an address a received response offered (an
+  `href`, a form `action`, a script `src`, a redirect `Location`), plus the two
+  a person is given: the sign-in address and the one-time client link. Sources
+  arrive only by the real multipart `POST`; the suite names no content-store
+  type. It proves the medical path stays neutral and out of the review record,
+  that an unaccepted medical document does not gate finalization, the
+  fail-closed refusals, and that the rendered review equals what the existing
+  chain produces for the same payload.
+- **The same journey through the real stores.** `LocalMvpPersistenceTests` runs
+  the real workflows through `SqlIntakeStore`, `SqlExtractionStore` and
+  `SqlReviewRecordRepository` with the real migrations, reads the case back
+  through the firm-scoped list, and reads every column of every written row.
+- **The recipient identifier is confined.** A value built at run time reaches no
+  response body, address, cookie, header, log line, record or column, in whole,
+  grouped, masked or partial form. The only place it remains is the encrypted
+  source object.
+- **What the feature did not change** (`LocalMvpRepositoryTests`): no tax file
+  or tax test, the rounding helper, the upload gate, the production validator
+  and adapters, the spec 012 review surface and fixed shell content, every
+  project file and `TaxAI.sln`, and spec 016. Each comparison runs from the
+  planning baseline `7ee2574` to **the tree spec 017 produced** — the commit
+  that recorded its final marker, or the working tree until then — so a later
+  specification that legitimately changes one of those files is not blocked.
+- `docs/local-demo.md` — prerequisites, the one command, the twelve steps, and
+  the synthetic-samples and not-production statements.
+
 **A local run is never production authorization**, and no real taxpayer document
-may be used locally. Still to come in spec 017: the vertical-slice proof and
-demo guide (T04).
+may be used locally. The browser needs the .NET HTTPS development certificate to
+be trusted; the tool does not change that machine setting.
+
+**AC-1 through AC-93, including AC-76a and AC-76b, are recorded per criterion in
+`specs/017-local-end-to-end-accountant-mvp/verification.md`**, with the record
+of one real local run.
+
+**The gates are unchanged and remain in force.** No accountant-side document
+upload, taxpayer search or cross-firm listing, review decision, export, raw
+content preview or download, real-document reading, production provider change,
+or deployment authorization ships. Spec 016 stays frozen after T06.
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

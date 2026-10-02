@@ -268,9 +268,55 @@ or deployment authorization ships.
   - T04 changed no production C# file, component, asset, reference, package,
     migration, snapshot, or schema.
 
+## Completed — spec 017, Local End-to-End Accountant MVP
+
+- Spec 017 — a developer can run TaxAI locally and complete the accountant
+  workflow in a browser:
+  - `scripts/local/Start-LocalDemo.ps1` prepares LocalDB, applies the
+    repository-owned migrations as an explicit developer action, generates the
+    Development settings outside the repository, writes two synthetic samples
+    into the ignored `artifacts/local-demo/` directory, and starts the host on
+    HTTPS loopback. The application still never migrates;
+  - a Development-only sign-in signs in one seeded synthetic accountant through
+    the existing cookie sign-in event and durable session store, so every later
+    request passes the normal revalidation. It is not mapped outside
+    Development, and no migration inserts a row;
+  - `TrustServerCertificate=True` is accepted only through an explicit opt-in
+    and only for a loopback data source, with encryption still explicit. The
+    default guard, the non-Development refusal, and the production validator
+    are unchanged;
+  - the deterministic Development provider tolerates one leading upload
+    signature line. This is a local sample convention, not PDF support, and the
+    upload gate and the production adapter are byte-identical to before;
+  - one firm-scoped case list (`GET /intake-cases`) shows only the taxpayer
+    display name and stored tax year of each case, with the firm taken only from
+    the revalidated session. There is no search, filter, sort, paging, or
+    cross-firm view;
+  - accountant navigation appears on accountant pages only, and an in-scope
+    refused correction or case finalization shows one of four fixed, value-free
+    notices. Every missing, foreign, session, and membership failure keeps its
+    existing response;
+  - the whole flow is proved over HTTP through rendered links and forms with the
+    real multipart upload, and through the real stores against the real
+    migrations; the review output equals what the existing chain produces, and
+    the recipient identifier reaches no response, cookie, log, or column;
+  - the demo is described in `docs/local-demo.md`, and AC-1…AC-93 evidence and
+    one real local run are recorded in
+    `specs/017-local-end-to-end-accountant-mvp/verification.md`;
+  - no tax file, mapping, rounding rule, project file, migration, or spec 016
+    file changed. There is no accountant-side document upload.
+
 ## Next
 
 **Spec 014 is complete.** No spec 014 task remains.
+
+**Spec 017 is complete.** No spec 017 task remains. A local run is not
+production authorization, and no real taxpayer document may be used locally.
+
+**Spec 016 is frozen after T06.** T07 to T10 are not resumed, no Azure resource
+is deployed, the pending drills are not executed, and production admission stays
+refused. The paragraphs below describe that specification as planned; they do
+not schedule it.
 
 Spec 016 (Canadian Azure Production Infrastructure) is the approved platform
 specification: `specs/016-canadian-azure-production-infrastructure/` holds the
@@ -292,12 +338,13 @@ and merged before the next. It starts from the gates below; none of them moved.
   after T01 merges.
 
 The first taxpayer-data surface is complete under spec 012's review allowlist,
-and spec 014 adds the separately approved intake surface. Both are limited to
-their approved browser allowlists.
+and spec 014 adds the separately approved intake surface. Spec 017 adds the
+approved firm-scoped case list. Each is limited to its approved browser
+allowlist.
 Any expansion, raw-document view/download, stored-package deletion, firm or
-membership provisioning, taxpayer listing, review decisions, export, or
-additional taxpayer-data surface requires another human-approved `tax-domain`
-specification.
+membership provisioning, taxpayer search or cross-firm listing, accountant-side
+document upload, review decisions, export, or additional taxpayer-data surface
+requires another human-approved `tax-domain` specification.
 
 Question F — whether the portal exposes the untrusted document-extraction
 ingress — remains reserved, and no ingress implementation ships.
@@ -313,7 +360,9 @@ operations, and production provisioning.
 - new CRA forms;
 - T1 calculation;
 - NETFILE/EFILE;
-- any unapproved taxpayer-data screen, taxpayer listing, or editing;
+- any unapproved taxpayer-data screen, taxpayer search, cross-firm listing, or
+  editing;
+- accountant-side document upload;
 - raw-document view/download, extraction, OCR, or LLM integration;
 - production deployment or provisioning;
 - microservices.
