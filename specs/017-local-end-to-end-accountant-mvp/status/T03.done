@@ -1,0 +1,54 @@
+# Spec 017 — T03 complete
+
+Task: T03 — Accountant case list, navigation, and workflow feedback.
+Branch: `feat/017-w3-t03`
+PR: #156 — https://github.com/kapitaneo/TaxAI.sln/pull/156
+Implementation commit: `033a67a`. Gate run on the tree of `033a67a`.
+
+## Gate — Windows
+
+```powershell
+dotnet build TaxAI.sln -c Release
+pwsh ./scripts/Invoke-SolutionTests.ps1 -Configuration Release
+```
+
+Result: build 0 errors, 0 warnings; test execution gate passed. Every
+registered project ran, nothing failed, nothing was skipped, every floor was
+met. The gate was run twice on the final tree with identical counts.
+
+The Release configuration was used because a locally running demo host held the
+portal's Debug output open. The gate script is unchanged.
+
+| Project | Passed | Floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 1310 | 1310 (raised from 1253) |
+| Tenancy.Tests | 395 | 395 |
+| Persistence.Tests | 347 | 347 (raised from 338) |
+| ClientIntake.Tests | 192 | 192 (raised from 188) |
+| ExtractionWorkflow.Tests | 360 | 360 |
+| DocumentIntelligence.Tests | 259 | 259 |
+| TaxAI.AzureInfrastructure.Tests | 528 | 528 |
+
+Total: 5,789 passed. No floor was lowered. `git diff --check` reported nothing.
+
+## Evidence
+
+Per-criterion evidence, the human decisions recorded for this task (the
+in-memory ordering trade-off, the render-helper refactor, the AC-78 reading,
+and the four individually authorized guard amendments outside the task's file
+list), the `[ASSUMED]` decisions, and what was not observed are in
+`specs/017-local-end-to-end-accountant-mvp/evidence/T03.md`.
+
+## Scope confirmation
+
+`IntakeEndpoints.cs`, `IntakeCaseCreatePage.razor`, `IntakeCaseIssuedPage.razor`,
+`wwwroot/intake.css`, `PortalLayout.razor`, `PortalContent.cs`, and the spec 012
+review files are byte-identical to baseline `7ee2574`. No tax file, spec 016
+file, project file, migration, or `TaxAI.sln` changed. `tasks.md` was not
+edited; T04 was not started. Not merged or self-approved; human review remains
+required.
