@@ -17,8 +17,9 @@ namespace DocumentIntelligence;
 /// registered for Development and test hosts only.
 /// </para>
 /// <para>
-/// It reads one fixed, self-describing text format. Anything else — a photo, a
-/// PDF, an empty file, a text file with the wrong header — classifies as
+/// It reads one fixed, self-describing text format, optionally preceded by one
+/// upload-signature line. Anything else — a photo, a PDF, an empty file, a text
+/// file with the wrong header — classifies as
 /// <see cref="DocumentClassification.Unsupported"/>. <b>It never guesses.</b> A
 /// document that is not recognizably one of the two supported kinds produces no
 /// tax input at all, which is what stops a picture of a driver's licence in a T4
@@ -50,6 +51,14 @@ public sealed class DeterministicDocumentIntelligenceProvider : IDocumentIntelli
     /// what makes "this adapter recognized it" a fact rather than a heuristic.
     /// </summary>
     public const string DocumentHeader = "TAXAI-DETERMINISTIC-DOCUMENT/1";
+
+    /// <summary>
+    /// The one leading line tolerated before the header (spec 017): the
+    /// signature the unchanged upload gate requires of a file declared as a PDF.
+    /// This is a Development-only sample convention, not PDF support — no PDF
+    /// structure, text layer, or image is ever read here.
+    /// </summary>
+    private const string UploadSignaturePrefix = "%PDF-";
 
     private const string KindKey = "KIND";
     private const string T4KindValue = "T4";
@@ -239,6 +248,7 @@ public sealed class DeterministicDocumentIntelligenceProvider : IDocumentIntelli
 
         var entries = new List<KeyValuePair<string, string?>>();
         var headerSeen = false;
+        var firstLineSeen = false;
         var classification = DocumentClassification.Unsupported;
 
         foreach (var rawLine in text.Split('\n'))
@@ -252,6 +262,18 @@ public sealed class DeterministicDocumentIntelligenceProvider : IDocumentIntelli
 
             if (!headerSeen)
             {
+                var isFirstLine = !firstLineSeen;
+                firstLineSeen = true;
+
+                // One upload-signature line may come first, and only first. It
+                // is skipped, never read: the very next line of substance must
+                // still be the header, so a real PDF stays unsupported.
+                if (isFirstLine &&
+                    line.StartsWith(UploadSignaturePrefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 // The header must be the first thing of substance in the file.
                 if (!string.Equals(line, DocumentHeader, StringComparison.Ordinal))
                 {

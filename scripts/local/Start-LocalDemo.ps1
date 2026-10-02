@@ -4,13 +4,14 @@
     Prepares and starts TaxAI on this machine for a local Development demo.
 
 .DESCRIPTION
-    One command, safe to run repeatedly (spec 017 T01):
+    One command, safe to run repeatedly (spec 017 T01 and T02):
 
       1. checks the pinned toolchain;
       2. prepares a local SQL Server database and applies the repository-owned
          migrations with the repository-local dotnet-ef tool;
       3. generates the Development settings the host requires, once;
-      4. starts the host in the Development environment on HTTPS loopback.
+      4. generates the synthetic sample documents, once;
+      5. starts the host in the Development environment on HTTPS loopback.
 
     The application itself never migrates. Generated settings are kept outside
     the repository, in the .NET user-secrets store under this tool's own
@@ -68,6 +69,7 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $portalProject = Join-Path $repositoryRoot 'src' 'TaxAI.Portal'
 $persistenceProject = Join-Path $repositoryRoot 'src' 'Persistence'
 $localDemoRoot = Join-Path $repositoryRoot 'artifacts' 'local-demo'
+$sampleGenerator = Join-Path $PSScriptRoot 'New-LocalDemoSamples.ps1'
 
 # This tool's own identifier in the user-secrets store. It is deliberately not
 # a UserSecretsId of any project.
@@ -275,7 +277,13 @@ if (-not $SkipDatabase) {
     }
 }
 
+# --------------------------------------------------------------------- samples
+
+# Existing samples are kept by the generator, so this is safe on every run.
+& $sampleGenerator -OutputDirectory $localDemoRoot
+
 Write-Step 'Setup is complete.'
+Write-Step 'Upload only the synthetic samples in artifacts/local-demo.'
 Write-Step "Sign in at ${origin}development/sign-in"
 
 if ($SetupOnly) {

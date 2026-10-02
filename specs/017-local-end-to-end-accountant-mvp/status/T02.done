@@ -1,0 +1,83 @@
+# Spec 017 — T02 complete
+
+Task: T02 — Real client upload to deterministic extraction.
+Branch: `feat/017-w2-t02`
+PR: #155 — https://github.com/kapitaneo/TaxAI.sln/pull/155
+Implementation commit: `2868cc1`. Gate run on the tree of `2868cc1`.
+
+## Gate — Windows
+
+```powershell
+dotnet build TaxAI.sln -c Release
+pwsh ./scripts/Invoke-SolutionTests.ps1 -Configuration Release
+```
+
+Result: build 0 errors; test execution gate passed. Every registered project
+ran, nothing failed, nothing was skipped, every floor was met.
+
+The Release configuration was used because a locally running demo host held the
+portal's Debug output open. The gate script and its manifest are unchanged.
+
+| Project | Passed | Floor |
+|---|---:|---:|
+| TaxLogicEngine.Tests | 291 | 291 |
+| TaxCases.Tests | 340 | 340 |
+| DocumentExtraction.Tests | 676 | 676 |
+| CaseProcessing.Tests | 609 | 609 |
+| CaseReview.Tests | 482 | 482 |
+| TaxAI.Portal.Tests | 1253 | 1253 (raised from 1230) |
+| Tenancy.Tests | 395 | 395 |
+| Persistence.Tests | 338 | 338 |
+| ClientIntake.Tests | 188 | 188 |
+| ExtractionWorkflow.Tests | 360 | 360 |
+| DocumentIntelligence.Tests | 259 | 259 (raised from 230) |
+| TaxAI.AzureInfrastructure.Tests | 528 | 528 |
+
+Total: 5,719 passed. No floor was lowered.
+
+## Acceptance evidence
+
+- `tests/DocumentIntelligence.Tests/DeterministicBridgeTests.cs` — AC-40 to
+  AC-43, AC-45, FR-21, FR-22.
+- `tests/TaxAI.Portal.Tests/EndToEnd/UploadExtractionBridgeTests.cs` — every
+  source travels the real multipart `POST /client-intake/documents`: AC-36,
+  AC-38, AC-39, AC-40 through the route, AC-44, AC-46.
+- `tests/TaxAI.Portal.Tests/Startup/LocalDemoSampleTests.cs` — the generator
+  run into a temporary directory: AC-50 to AC-54, FR-25 to FR-27, FR-29.
+
+## Guard amendments
+
+None. `tests/DocumentIntelligence.Tests/DeterministicProviderTests.cs` was
+listed conditionally and needed no edit: no existing assertion stated that a
+signature line followed by the header is `Unsupported`. `AmendmentAuditTests.cs`
+is not edited.
+
+## [ASSUMED] decisions (Class B, open to one-pass override)
+
+- The generated Box 12 value is three leading zeros followed by six random
+  digits, so it reads as synthetic. No rule depends on its shape and no CRA
+  property is claimed for it.
+- `Start-LocalDemo.ps1` calls the generator on every run; the generator keeps
+  samples that already exist (`-Force` replaces them).
+- The startup tool names the sample location as the repository-relative
+  ignored directory, never an absolute path.
+
+## Not observed
+
+The bridge was not exercised by hand against a running local host: the host
+running during this task was started from the pre-T02 build. The real upload
+route is covered by the in-process HTTP suite above. The human-run demo is
+T04's Definition of Done.
+
+## Scope confirmation
+
+`src/ClientIntake/Services/IntakeUploadValidator.cs` and
+`src/DocumentIntelligence/Production/*` are byte-identical to baseline
+`7ee2574`. No file under `src/TaxLogicEngine/`, `src/TaxCases/`,
+`src/DocumentExtraction/`, `src/CaseProcessing/`, `src/CaseReview/`,
+`src/ExtractionWorkflow/`, `src/ClientIntake/`, `src/Persistence/`,
+`src/Tenancy/`, `src/TaxAI.Portal/`, `src/TaxAI.AzureInfrastructure/`,
+`specs/016-canadian-azure-production-infrastructure/`, `infra/azure/`, or
+`scripts/azure/` changed. No project file, migration, or `TaxAI.sln` changed.
+`tasks.md` was not edited; T03 was not started. Not merged or self-approved;
+human review remains required.
