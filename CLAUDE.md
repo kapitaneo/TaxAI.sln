@@ -531,8 +531,9 @@ is deployed, the pending drills are not executed, and production admission stays
 refused. The project priority is a locally runnable product.
 
 Spec 017 (Local End-to-End Accountant MVP) is approved and planned as four
-sequential tasks. **T01 (local startup and Development identity) is
-implemented; no later task is selected.** T01 delivers:
+sequential tasks. **T01 (local startup and Development identity) and T02 (the
+upload-to-extraction bridge and local samples) are implemented; no later task
+is selected.** T01 delivers:
 
 - `scripts/local/Start-LocalDemo.ps1` — one command that prepares LocalDB,
   applies the repository-owned migrations with the repository-local `dotnet-ef`
@@ -553,10 +554,34 @@ implemented; no later task is selected.** T01 delivers:
   revalidation. Outside Development the path is indistinguishable from an
   unmapped one.
 
+T02 delivers:
+
+- **One tolerated leading line in the Development provider.**
+  `DeterministicDocumentIntelligenceProvider` skips a first non-empty line that
+  begins with `%PDF-`; the next non-empty line must then be its existing header
+  exactly, or the source is `Unsupported`. The line is skipped, never read. This
+  is a Development-only sample convention, **not PDF support**: no PDF
+  structure, text layer or image is parsed, decoding stays strict UTF-8 (so a
+  JPEG or PNG source gains no bridge), and the header-first form still works.
+  `IntakeUploadValidator` and `src/DocumentIntelligence/Production/` are
+  byte-identical to the baseline, and a production profile naming the
+  deterministic provider is still refused.
+- `scripts/local/New-LocalDemoSamples.ps1` — writes `t4-sample.pdf` and
+  `medical-sample.pdf` into the ignored `artifacts/local-demo/` directory;
+  `Start-LocalDemo.ps1` calls it on every run and existing samples are kept.
+  They are deterministic-format text behind the upload signature, not viewable
+  PDFs. The T4 sample's Box 12 value is assembled from random digits when the
+  tool runs: it exists only in the untracked file and is never a literal in a
+  tracked file, never printed, and never logged.
+- The proof runs through the real transport:
+  `UploadExtractionBridgeTests` sends each source through
+  `POST /client-intake/documents` and the unchanged signature gate before
+  extracting it, including the year-coherence refusal for a document printing
+  another year.
+
 **A local run is never production authorization**, and no real taxpayer document
-may be used locally. Still to come in spec 017: the upload-to-extraction bridge
-and locally generated samples (T02), the case list, navigation and refusal
-notices (T03), and the vertical-slice proof and demo guide (T04).
+may be used locally. Still to come in spec 017: the case list, navigation and
+refusal notices (T03), and the vertical-slice proof and demo guide (T04).
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

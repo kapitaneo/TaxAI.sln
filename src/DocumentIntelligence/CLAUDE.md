@@ -35,7 +35,8 @@ deletion are under its own control. `Azure.Core` carries the
 ## What ships
 
 - `DeterministicDocumentIntelligenceProvider`, `DocumentIntelligenceOptions` —
-  unchanged from spec 015; no network call, Development/test hosts only.
+  the spec 015 provider; no network call, Development/test hosts only. Spec 017
+  T02 added exactly one tolerance (below).
 - `Production/AzureDocumentIntelligenceOptions` — the validated binding: an
   HTTPS custom-subdomain endpoint matching its resource ID, `canadacentral`,
   the exact GA API/model/feature triple, a user-assigned managed identity, and
@@ -56,6 +57,27 @@ deletion are under its own control. `Azure.Core` carries the
   response is persisted, logged or cached; buffers are cleared.
 - `Production/DocumentLayoutRecognition`, `Production/LayoutResultInterpreter`
   — syntactic interpretation of the printed CRA T4 (25) slip face (below).
+
+## The Development upload bridge (spec 017 T02)
+
+The upload gate accepts a file declared as a PDF only when it begins with the
+PDF signature, and the deterministic provider reads only its own text format.
+So that a locally generated sample can travel the real upload route, the
+deterministic provider tolerates **one** leading line:
+
+- while the header has not been seen, the **first** non-empty line may begin
+  with `%PDF-` (ordinal); it is skipped, never read;
+- the **next** non-empty line must equal the existing header exactly. Anything
+  else — a second signature line, any other line in between, a real PDF — is
+  `Unsupported`;
+- decoding is still strict UTF-8 over the whole source, so JPEG and PNG sources
+  gain no bridge; the header-first form is still recognized.
+
+**This is a Development-only sample convention, not PDF support, and it must
+never become a production PDF interpretation rule.** No PDF structure, text
+layer, or image is parsed, no package was added, and nothing under
+`Production/` names the deterministic header or the signature. Do not widen it
+to another signature, a later line, or a looser header match.
 
 ## T4 slip-face vocabulary (spec 016 T05, Class A decision)
 

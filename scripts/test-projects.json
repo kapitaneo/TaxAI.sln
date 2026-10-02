@@ -19,12 +19,12 @@
     { "name": "DocumentExtraction.Tests", "minimumTests": 676, "establishedBy": "spec 015 T01" },
     { "name": "CaseProcessing.Tests", "minimumTests": 609, "establishedBy": "spec 015 T01" },
     { "name": "CaseReview.Tests", "minimumTests": 482, "establishedBy": "spec 009" },
-    { "name": "TaxAI.Portal.Tests", "minimumTests": 1230, "establishedBy": "spec 017 T01" },
+    { "name": "TaxAI.Portal.Tests", "minimumTests": 1253, "establishedBy": "spec 017 T02" },
     { "name": "Tenancy.Tests", "minimumTests": 395, "establishedBy": "spec 016 T06" },
     { "name": "Persistence.Tests", "minimumTests": 338, "establishedBy": "spec 017 T01" },
     { "name": "ClientIntake.Tests", "minimumTests": 188, "establishedBy": "spec 016 T04" },
     { "name": "ExtractionWorkflow.Tests", "minimumTests": 360, "establishedBy": "spec 016 T05" },
-    { "name": "DocumentIntelligence.Tests", "minimumTests": 230, "establishedBy": "spec 016 T05" },
+    { "name": "DocumentIntelligence.Tests", "minimumTests": 259, "establishedBy": "spec 017 T02" },
     { "name": "TaxAI.AzureInfrastructure.Tests", "minimumTests": 528, "establishedBy": "spec 016 T06" }
   ]
 }
