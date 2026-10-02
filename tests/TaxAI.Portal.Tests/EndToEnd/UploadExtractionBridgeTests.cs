@@ -159,7 +159,16 @@ public sealed class UploadExtractionBridgeTests
             accountant, uploaded.CaseId, uploaded.T4DocumentId);
 
         Assert.Equal(HttpStatusCode.NotFound, accepted.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, finalized.StatusCode);
+
+        // Spec 017 T03 (FR-42, human-authorized 2026-10-01): finalizing an
+        // in-scope case with no accepted T4 is refused with the fixed,
+        // value-free finalization notice rather than the empty 404.
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, finalized.StatusCode);
+        Assert.Contains(
+            "<p class=\"notice\" role=\"alert\">The case was not finalized. Review each document "
+            + "and resolve anything still awaiting a decision, then try again.</p>",
+            finalized.Body,
+            StringComparison.Ordinal);
 
         var after = await FindAsync(world, uploaded, uploaded.T4DocumentId);
         Assert.Empty(after!.Acceptances);

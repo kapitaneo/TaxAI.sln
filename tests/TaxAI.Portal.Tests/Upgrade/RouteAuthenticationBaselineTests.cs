@@ -128,9 +128,36 @@ public sealed class RouteAuthenticationBaselineTests
                         candidate => string.Equals(
                             candidate.Path,
                             expectedEndpoint.Path,
-                            StringComparison.Ordinal)),
+                            StringComparison.Ordinal) &&
+                            candidate.Methods.SequenceEqual(
+                                expectedEndpoint.Methods,
+                                StringComparer.Ordinal)),
                     JsonOptions));
         }
+
+        // Spec 017 T03 (AC-80): the firm-scoped case list. It shares its path
+        // with the preserved create POST above, so both are matched by path
+        // and method, and the path carries exactly those two endpoints.
+        var caseList = new EndpointContract("/intake-cases", ["GET"], "required", false);
+        Assert.Equal(
+            JsonSerializer.Serialize(caseList, JsonOptions),
+            JsonSerializer.Serialize(
+                Assert.Single(
+                    additive,
+                    candidate => string.Equals(
+                        candidate.Path,
+                        caseList.Path,
+                        StringComparison.Ordinal) &&
+                        candidate.Methods.SequenceEqual(
+                            caseList.Methods,
+                            StringComparer.Ordinal)),
+                JsonOptions));
+        Assert.Equal(
+            2,
+            additive.Count(candidate => string.Equals(
+                candidate.Path,
+                caseList.Path,
+                StringComparison.Ordinal)));
 
         var t06Applications = new[]
         {

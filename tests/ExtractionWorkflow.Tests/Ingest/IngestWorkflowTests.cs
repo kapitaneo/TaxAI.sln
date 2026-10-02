@@ -808,6 +808,9 @@ internal sealed class StubIntakeStore : IIntakeStore
             _cases.TryGetValue((firm.Value, caseId), out var storedCase) ? storedCase : null);
     }
 
+    public Task<IntakeCaseList> ListCasesAsync(TrustedFirmId f, int m, CancellationToken c) =>
+        throw new NotSupportedException();
+
     public Task<IntakeStoreWriteCode> CreateAsync(NewIntakeCase i, CancellationToken c) =>
         throw new NotSupportedException();
 

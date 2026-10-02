@@ -149,6 +149,10 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         { "/firms", "GET" },
         { "/firms/select", "POST" },
         { "/intake-cases/new", "GET" },
+
+        // Spec 017 T03: the firm-scoped case list. It shares its path with the
+        // existing create POST, so a route is identified by path and method.
+        { "/intake-cases", "GET" },
         { "/intake-cases", "POST" },
         { "/intake-cases/{caseId:guid}", "GET" },
         { "/intake-cases/{caseId:guid}/link/reissue", "POST" },
@@ -214,8 +218,24 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
         foreach (var row in RouteInventory())
         {
             var pattern = (string)row[0]!;
+            var method = (string)row[1]!;
             Assert.Equal(
                 1,
+                endpoints.Count(endpoint =>
+                    string.Equals(
+                        endpoint.RoutePattern.RawText,
+                        pattern,
+                        StringComparison.Ordinal) &&
+                    AnswersExactly(endpoint, method)));
+
+            // And nothing else is mapped at that path: every endpoint sharing
+            // the pattern is itself an inventory row.
+            Assert.Equal(
+                RouteInventory().Count(candidate =>
+                    string.Equals(
+                        (string)candidate[0]!,
+                        pattern,
+                        StringComparison.Ordinal)),
                 endpoints.Count(endpoint =>
                     string.Equals(
                         endpoint.RoutePattern.RawText,
@@ -261,13 +281,18 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [MemberData(nameof(RouteInventory))]
     public void EachApprovedRouteAnswersExactlyItsOneMethod(string pattern, string method)
     {
+        // Spec 017 T03: one path may carry two approved methods, each on its
+        // own endpoint. Exactly one endpoint answers this row's method, and it
+        // answers no other.
         var endpoint = Assert.Single(
             MappedRouteEndpoints(),
             candidate =>
                 string.Equals(
                     candidate.RoutePattern.RawText,
                     pattern,
-                    StringComparison.Ordinal));
+                    StringComparison.Ordinal) &&
+                (candidate.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods
+                    .Contains(method, StringComparer.Ordinal) ?? false));
 
         var methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods;
 
@@ -469,13 +494,17 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     [InlineData("/sign-out")]
     public void EveryStateChangingRouteRequiresAntiforgery(string pattern)
     {
+        // Spec 017 T03 (human-authorized 2026-10-01): a path may also carry a
+        // GET, so the state-changing endpoint is the one that does not answer
+        // GET. Exactly one such endpoint exists per listed path.
         var endpoint = Assert.Single(
             MappedRouteEndpoints(),
             candidate =>
                 string.Equals(
                     candidate.RoutePattern.RawText,
                     pattern,
-                    StringComparison.Ordinal));
+                    StringComparison.Ordinal) &&
+                !AnswersExactly(candidate, "GET"));
 
         var metadata = endpoint.Metadata.FirstOrDefault(item =>
             item.GetType().GetInterfaces().Any(contract =>
@@ -487,6 +516,10 @@ public sealed class ShellPageTests : IClassFixture<WebApplicationFactory<Program
     }
 
     // ---------------------------------------------------------------- helpers
+
+    private static bool AnswersExactly(RouteEndpoint endpoint, string method) =>
+        endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods is { } methods &&
+        methods.SequenceEqual(new[] { method }, StringComparer.Ordinal);
 
     /// <summary>
     /// The host's complete endpoint inventory. The client is created first

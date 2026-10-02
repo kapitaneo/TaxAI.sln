@@ -1,0 +1,39 @@
+@* One fixed notice for an in-scope refused correction or case finalization.
+
+   The text is chosen only by the closed kind. Each text is a constant: nothing
+   is interpolated, and no taxpayer value, field, code, amount, identifier, or
+   engine message can reach this markup. None and any unknown kind render
+   nothing at all. *@
+
+@if (Text is { } text)
+{
+    <p class="notice" role="alert">@text</p>
+}
+
+@code {
+    internal const string CorrectionRefusedText =
+        "The correction was not recorded. Check the chosen field and the corrected value, then try again.";
+
+    internal const string CorrectionConflictText =
+        "The correction was not recorded because this document changed. Review the current version, then try again.";
+
+    internal const string FinalizationRefusedText =
+        "The case was not finalized. Review each document and resolve anything still awaiting a decision, then try again.";
+
+    internal const string FinalizationConflictText =
+        "The case was not finalized because it changed or was already finalized. Open the case documents again, then try again.";
+
+    [Parameter]
+    [EditorRequired]
+    public WorkflowNoticeKind Kind { get; set; }
+
+    private string? Text =>
+        Kind switch
+        {
+            WorkflowNoticeKind.CorrectionRefused => CorrectionRefusedText,
+            WorkflowNoticeKind.CorrectionConflict => CorrectionConflictText,
+            WorkflowNoticeKind.FinalizationRefused => FinalizationRefusedText,
+            WorkflowNoticeKind.FinalizationConflict => FinalizationConflictText,
+            _ => null,
+        };
+}

@@ -1,0 +1,33 @@
+.case-list {
+    display: grid;
+    gap: .55rem;
+    margin: 1.5rem 0;
+    padding: 0;
+    list-style: none;
+}
+
+.case-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .45rem;
+}
+
+.case-identity {
+    display: grid;
+    gap: .2rem;
+}
+
+.case-identity span {
+    color: #334155;
+}
+
+.case-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}

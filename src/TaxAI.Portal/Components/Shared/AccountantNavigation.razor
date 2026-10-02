@@ -1,0 +1,19 @@
+@* The accountant navigation: the case list, the create page, and the existing
+   sign-out as an antiforgery form.
+
+   It is placed inside accountant pages and never in PortalLayout, which client
+   pages share: a client response must carry no accountant link or control.
+
+   Parameterless, statically server rendered, and it injects nothing. Every
+   target is a fixed existing route; no identifier is rendered here. *@
+
+@using Microsoft.AspNetCore.Components.Forms
+
+<nav class="actions" aria-label="Accountant">
+    <a class="button-link" href="/intake-cases">Cases</a>
+    <a class="button-link" href="/intake-cases/new">New case</a>
+    <form method="post" action="/sign-out">
+        <AntiforgeryToken />
+        <button type="submit" class="secondary">Sign out</button>
+    </form>
+</nav>

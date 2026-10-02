@@ -187,6 +187,10 @@ app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode(
        options => options.DisableWebSocketCompression = true);
 
+// Spec 017 T03: the firm-scoped accountant case list. One GET under the same
+// firm-scoped policy as every other accountant route; it binds no request value.
+CaseListEndpoints.Map(app);
+
 // The complete intake HTTP surface. Accountant routes re-enter R-1 on every
 // request; client routes derive scope only from a one-time link or protected
 // session cookie.

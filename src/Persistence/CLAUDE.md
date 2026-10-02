@@ -102,6 +102,17 @@ Spec 017 T01 adds two things for a local Development run, and no migration.
   The seeder is still invoked only from the host's Development branch, and no
   migration inserts any row.
 
+Spec 017 T03 adds `SqlIntakeStore.ListCasesAsync`, and no entity,
+configuration, column, index or migration. The intake case row has no creation
+column, so the stored creation instant is the case's immutable `CaseCreated`
+audit event. The read is two firm-leading queries: the selector and instant of
+the firm's case-created events, then the name and stored tax year of the
+selected cases. Ordering — newest first, then case identifier — and the bound
+are applied to that firm-scoped projection in memory, following this store's
+existing convention for ordering instants. It opens no transaction and writes
+nothing; a foreign firm's cases can change neither the rows nor the
+"more exist" signal.
+
 Migration `20260730000000_AddClientIntake` is additive: it creates only the
 twelve intake metadata tables. It does not alter the initial migration or any
 existing firm, identity, session, or review table. Source content remains

@@ -1,0 +1,54 @@
+@using TaxAI.Portal.Components.Shared
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cases | TaxAI</title>
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/intake.css" />
+    <link rel="stylesheet" href="/TaxAI.Portal.styles.css" />
+</head>
+<body>
+<LayoutView Layout="typeof(PortalLayout)">
+    <p class="topline">Accountant workspace</p>
+    <h1>Cases</h1>
+    <AccountantNavigation />
+
+    @if (Model.Cases.Count == 0)
+    {
+        <p class="empty">No cases yet.</p>
+        <p><a class="button-link" href="/intake-cases/new">Create the first case</a></p>
+    }
+    else
+    {
+        <ol class="case-list">
+            @foreach (var row in Model.Cases)
+            {
+                <li>
+                    <div class="case-identity">
+                        <strong>@row.PrimaryTaxpayerDisplayName</strong>
+                        <span>Tax year @row.TaxYear</span>
+                    </div>
+                    <div class="case-links">
+                        <a href="@($"/intake-cases/{row.CaseId:D}")">Intake progress</a>
+                        <a href="@($"/intake-cases/{row.CaseId:D}/extractions")">Documents</a>
+                    </div>
+                </li>
+            }
+        </ol>
+        @if (Model.HasMore)
+        {
+            <p class="notice">Only the most recent cases are shown. Older cases are not listed.</p>
+        }
+    }
+</LayoutView>
+</body>
+</html>
+
+@code {
+    [Parameter]
+    [EditorRequired]
+    public CaseListPageModel Model { get; set; } = default!;
+}

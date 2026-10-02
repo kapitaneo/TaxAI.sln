@@ -263,6 +263,12 @@ public sealed class ContentReaderTests
                     ? Value
                     : null);
 
+        public Task<IntakeCaseList> ListCasesAsync(
+            TrustedFirmId firm,
+            int maximumCases,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IntakeStoreWriteCode> CreateAsync(
             NewIntakeCase intakeCase,
             CancellationToken cancellationToken) =>

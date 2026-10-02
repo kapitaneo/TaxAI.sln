@@ -34,6 +34,9 @@ public sealed class PortalBoundaryTests
     /// </summary>
     private static readonly string[] ExpectedProductionFiles =
     {
+        // Spec 017 T03: the firm-scoped case list and its browser model.
+        "CaseListEndpoints.cs",
+        "CaseListPageModel.cs",
         "ClientIntakeCookie.cs",
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
@@ -60,6 +63,9 @@ public sealed class PortalBoundaryTests
         "ReviewPageModel.cs",
         "SessionTicketStore.cs",
         "TrustedIngressConfiguration.cs",
+
+        // Spec 017 T03: the closed refusal-notice vocabulary.
+        "WorkflowNoticeKind.cs",
     };
 
     /// <summary>
@@ -73,7 +79,13 @@ public sealed class PortalBoundaryTests
     /// </summary>
     private static readonly string[] ExpectedComponentFiles =
     {
+        // Spec 017 T03: accountant navigation, placed inside accountant pages
+        // and never in the shared layout.
+        "AccountantNavigation.razor",
         "App.razor",
+
+        // Spec 017 T03: the firm-scoped case list.
+        "CaseListPage.razor",
         "ClassificationDisagreementNotice.razor",
         "ClientIntakePage.razor",
         "ClientLinkConfirmationPage.razor",
@@ -91,6 +103,9 @@ public sealed class PortalBoundaryTests
         "PortalLayout.razor",
         "ReviewPage.razor",
         "Routes.razor",
+
+        // Spec 017 T03: the fixed refusal notice.
+        "WorkflowNotice.razor",
         "_Imports.razor",
     };
 
@@ -260,6 +275,11 @@ public sealed class PortalBoundaryTests
                 "AddTaxAiModules",
             }
         },
+        // Spec 017 T03: the case list maps one route and holds data-only
+        // models; the notice vocabulary is an enum. None registers anything.
+        { "CaseListEndpoints.cs", Array.Empty<string>() },
+        { "CaseListPageModel.cs", Array.Empty<string>() },
+        { "WorkflowNoticeKind.cs", Array.Empty<string>() },
         { "ClientIntakeCookie.cs", Array.Empty<string>() },
         { "ClientIntakeEndpoints.cs", Array.Empty<string>() },
         { "CryptographicIntakeCredentialSource.cs", Array.Empty<string>() },
@@ -573,6 +593,10 @@ public sealed class PortalBoundaryTests
         Assert.Equal(
             new[]
             {
+                // Spec 017 T03: the case list carries the stored tax year of
+                // each case, read from the firm-scoped list and never set here.
+                "CaseListEndpoints.cs",
+                "CaseListPageModel.cs",
                 "ClientIntakeEndpoints.cs",
                 "ExtractionEndpoints.cs",
                 "ExtractionReviewPageModel.cs",
@@ -899,6 +923,8 @@ public sealed class PortalBoundaryTests
         Assert.Equal(
             new[]
             {
+                // Spec 017 T03: component-scoped, because intake.css is pinned.
+                "CaseListPage.razor.css",
                 "PortalLayout.razor.css",
                 "ReviewPage.razor.css",
                 "intake.css",

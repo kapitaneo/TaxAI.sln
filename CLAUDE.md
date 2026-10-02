@@ -531,9 +531,10 @@ is deployed, the pending drills are not executed, and production admission stays
 refused. The project priority is a locally runnable product.
 
 Spec 017 (Local End-to-End Accountant MVP) is approved and planned as four
-sequential tasks. **T01 (local startup and Development identity) and T02 (the
-upload-to-extraction bridge and local samples) are implemented; no later task
-is selected.** T01 delivers:
+sequential tasks. **T01 (local startup and Development identity), T02 (the
+upload-to-extraction bridge and local samples) and T03 (the case list,
+navigation and refusal notices) are implemented; no later task is selected.**
+T01 delivers:
 
 - `scripts/local/Start-LocalDemo.ps1` — one command that prepares LocalDB,
   applies the repository-owned migrations with the repository-local `dotnet-ef`
@@ -579,9 +580,42 @@ T02 delivers:
   extracting it, including the year-coherence refusal for a document printing
   another year.
 
+T03 delivers:
+
+- **One firm-scoped case-list read.** `IIntakeStore.ListCasesAsync` takes a
+  `TrustedFirmId` first, a bound and a cancellation token, with no overload;
+  `FindLinkScopeAsync` and `FindClientScopeAsync` are still the only
+  firm-omitting members. `SqlIntakeStore` leads both of its queries with the
+  firm and orders newest first by the case's immutable `CaseCreated` audit
+  instant, then by case identifier. **No table, column, index or migration was
+  added.** The result carries only the case selector, the primary taxpayer
+  display name and the stored tax year.
+- **`GET /intake-cases`** (`CaseListEndpoints.cs`), under the existing
+  firm-scoped policy. The handler binds no request value: the firm comes only
+  from the revalidated session, and the bound is the constant `100`. The page
+  renders exactly the display name and stored tax year of each case, with the
+  case selector only inside links to the existing progress and documents
+  routes, an explicit empty state, and one fixed notice when the bound is
+  reached. A completed Development sign-in now lands here.
+- **Accountant navigation** (`AccountantNavigation`: the case list, the create
+  page and the existing sign-out as an antiforgery form) on the case list, the
+  intake progress page, and the two extraction pages. It is **never** in
+  `PortalLayout`, which client pages share. The progress page also links to the
+  same case's documents page; its diff from the spec 015 T05 merge is pinned
+  line-exactly.
+- **A fixed notice for an in-scope refused correction or case finalization.**
+  Only those two operations change, and only for the workflow's own `Invalid`
+  (`422`) and `Conflict` (`409`) codes: the page is rendered again from stored
+  state with one of four constant, value-free texts. The notice is chosen from
+  the operation and the result code alone; no request value selects one, so
+  nothing is reflected. A `NotFound` result, a missing or foreign selector,
+  every session or membership failure, and the extract, classification, accept
+  and duplicate routes keep their existing responses. A refused operation
+  still mutates nothing.
+
 **A local run is never production authorization**, and no real taxpayer document
-may be used locally. Still to come in spec 017: the case list, navigation and
-refusal notices (T03), and the vertical-slice proof and demo guide (T04).
+may be used locally. Still to come in spec 017: the vertical-slice proof and
+demo guide (T04).
 
 **Never assert a total project count for `TaxAI.sln`.** Repository-level tests
 must assert that a spec's own projects are each declared exactly once at their

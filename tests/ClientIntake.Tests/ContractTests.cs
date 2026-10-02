@@ -50,6 +50,9 @@ public sealed class ContractTests
                 "ClientIntake.Models.IntakeAnswerVersionRecord",
                 "ClientIntake.Models.IntakeAuditEventRecord",
                 "ClientIntake.Models.IntakeAuditKind",
+                // Spec 017 T03: the firm-scoped case-list read's result shape.
+                "ClientIntake.Models.IntakeCaseList",
+                "ClientIntake.Models.IntakeCaseListEntry",
                 "ClientIntake.Models.IntakeClientScope",
                 "ClientIntake.Models.IntakeDocumentRecord",
                 "ClientIntake.Models.IntakeExpectedItemRecord",
@@ -286,8 +289,8 @@ public sealed class ContractTests
         AssertMembers<IIntakeStore>(
             "AppendAnswersAsync", "AppendSubmissionAsync", "AppendUploadAttemptAsync",
             "AssociateReviewAsync", "CreateAsync", "FindAsync", "FindClientScopeAsync",
-            "FindForClientAsync", "FindLinkScopeAsync", "RedeemLinkAsync", "ReissueLinkAsync",
-            "RevokeLinkAsync");
+            "FindForClientAsync", "FindLinkScopeAsync", "ListCasesAsync", "RedeemLinkAsync",
+            "ReissueLinkAsync", "RevokeLinkAsync");
 
         // The exemption is exactly two members, and each is a digest lookup that
         // RETURNS a trusted scope rather than accepting one.
@@ -309,6 +312,48 @@ public sealed class ContractTests
             var method = typeof(IIntakeStore).GetMethod(name)!;
             Assert.Equal(typeof(IntakeTokenDigest), method.GetParameters()[0].ParameterType);
         }
+    }
+
+    [Fact] // spec 017 AC-68
+    public void TheCaseListReadRequiresATrustedFirmFirstWithNoOmittingOverload()
+    {
+        // One member by that name: an overload is how a firm-omitting variant
+        // arrives looking like a convenience.
+        var method = Assert.Single(
+            typeof(IIntakeStore).GetMethods(),
+            candidate => candidate.Name == "ListCasesAsync");
+
+        Assert.Equal(
+            new[] { typeof(TrustedFirmId), typeof(int), typeof(CancellationToken) },
+            method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
+        Assert.DoesNotContain(
+            method.GetParameters(),
+            parameter => parameter.IsOptional || parameter.HasDefaultValue);
+        Assert.Equal(typeof(Task<IntakeCaseList>), method.ReturnType);
+
+        // The result is exactly the minimum needed to select and open a case.
+        // No instant, status, count, or other identifier travels with it.
+        AssertProperties<IntakeCaseListEntry>(
+            "CaseId", "PrimaryTaxpayerDisplayName", "TaxYear");
+        AssertProperties<IntakeCaseList>("Cases", "HasMore");
+    }
+
+    [Fact]
+    public void TheCaseListIsAReadOnlySnapshotWithStructuralDiagnostics()
+    {
+        var source = new List<IntakeCaseListEntry>
+        {
+            new(Guid.NewGuid(), "Synthetic Taxpayer", 2025),
+        };
+        var list = new IntakeCaseList(source, HasMore: true);
+        source.Clear();
+
+        var entry = Assert.Single(list.Cases);
+        Assert.Throws<ArgumentNullException>(() => new IntakeCaseList(null!, false));
+
+        // Neither diagnostic carries the selector or the taxpayer text.
+        Assert.Equal("IntakeCaseListEntry", entry.ToString());
+        Assert.Equal("IntakeCaseList(cases: 1, more: True)", list.ToString());
     }
 
     [Fact]

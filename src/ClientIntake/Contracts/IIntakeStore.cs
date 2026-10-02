@@ -70,6 +70,17 @@ public interface IIntakeStore
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists the cases of exactly one trusted firm, newest first by the stored
+    /// case-created instant, bounded to <paramref name="maximumCases"/>. The
+    /// firm is the only scope: there is no search, filter, or paging argument,
+    /// and no overload that omits the firm.
+    /// </summary>
+    Task<IntakeCaseList> ListCasesAsync(
+        TrustedFirmId firm,
+        int maximumCases,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Reads the case a client scope names, revalidating that the same session is
     /// still live in the same database operation.
     /// </summary>
