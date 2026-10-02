@@ -212,9 +212,10 @@ dotnet build TaxAI.sln --no-incremental
 pwsh ./scripts/Invoke-SolutionTests.ps1
 ```
 
-Run on Windows in the default configuration, on the final T04 tree. Build: 0
-errors. Test execution gate passed: every registered project ran, nothing
-failed, nothing was skipped, and every floor was met.
+Run on Windows in the default configuration, on the committed T04
+implementation `446dfbf`. Build: 0 errors. Test execution gate passed: every
+registered project ran, nothing failed, nothing was skipped, and every floor
+was met.
 
 | Project | Passed | Floor |
 |---|---:|---:|
@@ -237,6 +238,14 @@ vertical-slice, 35 repository) and 2 relational tests.
 The new portal suites were also run six further times in the Release
 configuration with identical results, to look for a chance failure in the
 planted-value scans; none occurred.
+
+**One earlier run on the same commit did not pass, and is recorded rather than
+omitted.** `ClientIntakeSecurityAcceptanceTests.SinProbesAndFilenamesSurviveOnlyInsideTheEncryptedObject`
+failed once: its three-digit probe matched inside a random case identifier in a
+rendered link. That is the pre-existing chance failure spec 017 T03's evidence
+already recorded. The test is not a T04 file and was not edited; the gate was
+run again unchanged and passed with the totals above. The test should be made
+deterministic under its own authorization.
 
 ## Local run
 
