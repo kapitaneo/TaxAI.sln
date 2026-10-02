@@ -38,7 +38,7 @@ internal static class DevelopmentSignInEndpoints
     internal const string SignInPath = "/development/sign-in";
 
     /// <summary>Where a completed sign-in lands. A constant, never a request value.</summary>
-    internal const string SignedInPath = IntakeEndpoints.CreatePagePath;
+    internal const string SignedInPath = CaseListEndpoints.ListPath;
 
     internal static void Map(IEndpointRouteBuilder endpoints)
     {

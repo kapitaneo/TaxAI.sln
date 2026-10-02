@@ -274,6 +274,67 @@ internal sealed class SqlIntakeStore : IIntakeStore
             cancellationToken);
     }
 
+    public async Task<IntakeCaseList> ListCasesAsync(
+        TrustedFirmId firm,
+        int maximumCases,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(firm);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumCases, 1);
+        var firmId = firm.Value;
+
+        // The case row has no creation column: the stored creation instant is
+        // the case's immutable case-created audit event. The firm leads the
+        // predicate, and only the selector and the instant are read. Ordering
+        // follows this store's existing convention for instants and happens
+        // after the firm-scoped read.
+        var created = await _context.Set<IntakeAuditEventEntity>()
+            .AsNoTracking()
+            .Where(audit =>
+                audit.FirmId == firmId &&
+                audit.Kind == IntakeAuditKind.CaseCreated)
+            .Select(audit => new { audit.CaseId, audit.OccurredAtUtc })
+            .ToListAsync(cancellationToken);
+        var newest = created
+            .GroupBy(audit => audit.CaseId)
+            .Select(group => new
+            {
+                CaseId = group.Key,
+                CreatedAtUtc = group.Min(audit => audit.OccurredAtUtc),
+            })
+            .OrderByDescending(candidate => candidate.CreatedAtUtc)
+            .ThenBy(candidate => candidate.CaseId)
+            .Take(maximumCases + 1)
+            .Select(candidate => candidate.CaseId)
+            .ToList();
+        var hasMore = newest.Count > maximumCases;
+        var listed = newest.Take(maximumCases).ToList();
+
+        var rows = await _context.Set<IntakeCaseEntity>()
+            .AsNoTracking()
+            .Where(intakeCase =>
+                intakeCase.FirmId == firmId &&
+                listed.Contains(intakeCase.CaseId))
+            .Select(intakeCase => new
+            {
+                intakeCase.CaseId,
+                intakeCase.PrimaryTaxpayerDisplayName,
+                intakeCase.TaxYear,
+            })
+            .ToListAsync(cancellationToken);
+        var byCase = rows.ToDictionary(row => row.CaseId);
+
+        return new IntakeCaseList(
+            listed
+                .Where(byCase.ContainsKey)
+                .Select(caseId => new IntakeCaseListEntry(
+                    caseId,
+                    byCase[caseId].PrimaryTaxpayerDisplayName,
+                    byCase[caseId].TaxYear))
+                .ToArray(),
+            hasMore);
+    }
+
     public async Task<StoredIntakeCase?> FindForClientAsync(
         IntakeClientScope scope,
         CancellationToken cancellationToken)

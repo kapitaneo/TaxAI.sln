@@ -398,6 +398,61 @@ Development sign-in authorizes no taxpayer-data surface, and the OIDC
 configuration requirement, the admission gate, and every non-Development
 refusal are exactly as before.
 
+## Spec 017 T03: the case list, navigation, and refusal notices
+
+T03 adds exactly one route in every environment and changes the response of
+exactly two existing ones.
+
+- **`CaseListEndpoints.cs`** maps `GET /intake-cases` under
+  `PortalAuthorization.FirmScopedPolicy`. It shares its path with the existing
+  create `POST`, so a route is identified by path **and** method. The handler
+  binds nothing: no route value, query, form, body, header or cookie is read as
+  scope, search, filter, sort or paging input. The firm comes only from
+  `PortalAuthorization.BootstrapStateFor`; the bound is the constant `100`. It
+  reads `IIntakeStore.ListCasesAsync` directly and returns the statically
+  rendered `CaseListPage`. A store failure is the existing fixed error with no
+  partial list.
+- **The case-list browser allowlist is exactly** the primary taxpayer display
+  name and the stored tax year of each case. The opaque case selector appears
+  only inside link targets to the existing progress and documents routes. No
+  firm, participant, document, user, membership or session identifier, no
+  instant, no count, no status and no SIN in any form is rendered. When the
+  bound is reached one fixed sentence says so; it carries no number.
+- **The route inventory is now exact at twenty-eight application routes plus
+  the same five framework component endpoints** outside Development (the
+  twenty-seven that existed, plus the case list). A Development host
+  additionally maps the two Development sign-in routes, and nothing else.
+- **`AccountantNavigation`** is a parameterless, statically rendered shared
+  component: the case list, the create page, and the existing sign-out as an
+  antiforgery form. It is placed in `CaseListPage`, `IntakeCaseProgressPage`,
+  `ExtractionListPage` and `ExtractionReviewPage`, and **never in
+  `PortalLayout`**, which client pages share: no client response carries an
+  accountant link, case identifier or control. `IntakeCaseProgressPage` gains
+  exactly two lines (the navigation and the link to the case's documents page),
+  pinned line-exactly by `PreservedSurfaceTests`. New styles are component
+  scoped (`CaseListPage.razor.css`); `wwwroot/intake.css` is unchanged.
+- **The refusal notice (FR-42, FR-43).** `ExtractionEndpoints.CorrectAsync` and
+  `FinalizeAsync` render the page again — the review page for a correction,
+  the documents page for a finalization — when the existing workflow answers
+  `Invalid` (`422`) or `Conflict` (`409`). `WorkflowNoticeKind` is the closed
+  vocabulary (`None` plus exactly four entries) and `WorkflowNotice` holds the
+  four constant texts. The kind is chosen from the operation and the result
+  code and from nothing else: **no query, form or header value selects a
+  notice**, an unknown kind renders nothing, and no taxpayer value, field,
+  box code, amount, identifier or engine message can reach the text. Both
+  routes still run the scope-first availability filter, so a missing, foreign
+  or inconsistent selector is the same empty `404` before the handler runs.
+  A workflow `NotFound`, and every refusal of the extract, classification,
+  accept and duplicate routes, keep the existing empty `404`. The `503`
+  availability response is unchanged. A refused operation mutates nothing.
+- **The Development sign-in now lands on the case list.** Its redirect is still
+  a compile-time constant.
+
+The gate below is narrowed by exactly this: one firm-scoped list of the
+firm's own cases with the allowlist above. It authorizes no search, filter,
+caller paging, cross-firm view, export, accountant upload, content preview or
+download, or any further taxpayer-data surface.
+
 ## The narrowed gate — read before adding a surface
 
 The identity, trusted-firm, session, logging, and residency decisions made by
@@ -412,8 +467,8 @@ transport, and single interactive island. A global render mode, another
 interactive component, WebAssembly/npm dependency, or third-party asset remains
 forbidden without further approval.
 
-The same is true for editing or approving taxpayer values, listing taxpayers,
-exporting a record, implementing an extraction ingress, or exposing a JSON API.
+The same is true for editing or approving taxpayer values, listing taxpayers
+beyond the spec 017 T03 firm-scoped case list, exporting a record, implementing an extraction ingress, or exposing a JSON API.
 Do not reinterpret an available repository contract as authorization to map an
 endpoint. Normal portal users have no delete path, production provisioning does
 not ship, and `/health` remains byte-identical to spec 010.

@@ -50,6 +50,21 @@ public sealed class BlazorBoundaryTests
             "TaxAI.Portal.Components.Shared.IntakeStatusBadge",
             ["Status:ClientIntake.Models.ExpectedDocumentStatus"]
         },
+
+        // Spec 017 T03: the case list takes its closed model; the accountant
+        // navigation takes nothing; the notice takes only the closed kind.
+        {
+            "TaxAI.Portal.Components.Pages.CaseListPage",
+            ["Model:TaxAI.Portal.Components.Pages.CaseListPageModel"]
+        },
+        {
+            "TaxAI.Portal.Components.Shared.AccountantNavigation",
+            []
+        },
+        {
+            "TaxAI.Portal.Components.Shared.WorkflowNotice",
+            ["Kind:TaxAI.Portal.Components.Pages.WorkflowNoticeKind"]
+        },
     };
 
     [Theory]

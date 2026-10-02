@@ -40,6 +40,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
     private static readonly string[] ExpectedProductionFiles =
     {
+        // Spec 017 T03: the firm-scoped case list and its browser model.
+        "CaseListEndpoints.cs",
+        "CaseListPageModel.cs",
         "ClientIntakeCookie.cs",
         "ClientIntakeEndpoints.cs",
         "CryptographicIntakeCredentialSource.cs",
@@ -66,6 +69,9 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         "ReviewPageModel.cs",
         "SessionTicketStore.cs",
         "TrustedIngressConfiguration.cs",
+
+        // Spec 017 T03: the closed refusal-notice vocabulary.
+        "WorkflowNoticeKind.cs",
     };
 
     private readonly WebApplicationFactory<Program> _factory;
@@ -352,7 +358,15 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
 
             Assert.Equal(
                 field == "TaxpayerDisplayName"
-                    ? new[] { "IntakeEndpoints.cs", "ReviewEndpoints.cs" }
+                    ? new[]
+                    {
+                        // Spec 017 T03 (D-5, FR-33): the case list shows the
+                        // primary taxpayer display name of the firm's own cases.
+                        "CaseListEndpoints.cs",
+                        "CaseListPageModel.cs",
+                        "IntakeEndpoints.cs",
+                        "ReviewEndpoints.cs",
+                    }
                     : new[]
                     {
                         "ExtractionEndpoints.cs",
@@ -443,6 +457,8 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
             @"\bAddAuthorization\b|\bUseAuthorization\b|\[Authorize\]|\bRequireAuthorization\b|\bAllowAnonymous\b",
             new[]
             {
+                // Spec 017 T03: the case list requires the firm-scoped policy.
+                "CaseListEndpoints.cs",
                 "ClientIntakeEndpoints.cs",
 
                 // Spec 017 T01: the Development-only sign-in declares both
@@ -561,6 +577,7 @@ public sealed class PortalSecurityTests : IClassFixture<WebApplicationFactory<Pr
         Assert.Equal(
             new[]
             {
+                "CaseListEndpoints.cs",
                 "ClientIntakeEndpoints.cs",
                 "DevelopmentSignInEndpoints.cs",
                 "ExtractionEndpoints.cs",

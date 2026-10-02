@@ -49,6 +49,8 @@ public sealed class ClientIntakeBoundaryTests
         "IIntakeCredentialSource.cs",
         "IIntakeStore.cs",
         "IntakeCaseFactory.cs",
+        // Spec 017 T03 (human-authorized 2026-10-01): the case-list result shape.
+        "IntakeCaseListModels.cs",
         "IntakeCommands.cs",
         "IntakeDisplayNameGuard.cs",
         "IntakeEnums.cs",

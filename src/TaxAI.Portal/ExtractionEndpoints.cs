@@ -96,7 +96,7 @@ internal static class ExtractionEndpoints
         return await next(invocation);
     }
 
-    private static async Task<IResult> ListAsync(
+    private static Task<IResult> ListAsync(
         Guid caseId,
         HttpContext context,
         IIntakeStore intake,
@@ -104,11 +104,30 @@ internal static class ExtractionEndpoints
     {
         if (!TryScope(context, out var firm, out _))
         {
-            return IntakeHttpSecurity.NotFound(context);
+            return Task.FromResult(IntakeHttpSecurity.NotFound(context));
         }
 
-        var loaded = await LoadCaseAsync(
+        return RenderListAsync(
             firm!,
+            caseId,
+            context,
+            intake,
+            extractions,
+            WorkflowNoticeKind.None,
+            statusCode: null);
+    }
+
+    private static async Task<IResult> RenderListAsync(
+        TrustedFirmId firm,
+        Guid caseId,
+        HttpContext context,
+        IIntakeStore intake,
+        IExtractionStore extractions,
+        WorkflowNoticeKind notice,
+        int? statusCode)
+    {
+        var loaded = await LoadCaseAsync(
+            firm,
             caseId,
             intake,
             extractions,
@@ -153,10 +172,14 @@ internal static class ExtractionEndpoints
                     Array.AsReadOnly(items.ToArray()),
                     loaded.Intake.ReviewAssociation is not null ||
                         (loaded.Extractions?.CaseAcceptances.Count ?? 0) > 0),
-            });
+                Notice = notice,
+            })
+        {
+            StatusCode = statusCode,
+        };
     }
 
-    private static async Task<IResult> ReviewAsync(
+    private static Task<IResult> ReviewAsync(
         Guid caseId,
         Guid documentId,
         HttpContext context,
@@ -165,11 +188,32 @@ internal static class ExtractionEndpoints
     {
         if (!TryScope(context, out var firm, out _))
         {
-            return IntakeHttpSecurity.NotFound(context);
+            return Task.FromResult(IntakeHttpSecurity.NotFound(context));
         }
 
-        var loaded = await LoadCaseAsync(
+        return RenderReviewAsync(
             firm!,
+            caseId,
+            documentId,
+            context,
+            intake,
+            extractions,
+            WorkflowNoticeKind.None,
+            statusCode: null);
+    }
+
+    private static async Task<IResult> RenderReviewAsync(
+        TrustedFirmId firm,
+        Guid caseId,
+        Guid documentId,
+        HttpContext context,
+        IIntakeStore intake,
+        IExtractionStore extractions,
+        WorkflowNoticeKind notice,
+        int? statusCode)
+    {
+        var loaded = await LoadCaseAsync(
+            firm,
             caseId,
             intake,
             extractions,
@@ -191,7 +235,11 @@ internal static class ExtractionEndpoints
                 CaseId = caseId,
                 DocumentId = documentId,
                 Model = ProjectReview(expected!, stored),
-            });
+                Notice = notice,
+            })
+        {
+            StatusCode = statusCode,
+        };
     }
 
     private static async Task<IResult> ExtractAsync(
@@ -279,6 +327,25 @@ internal static class ExtractionEndpoints
             },
             clock.GetUtcNow(),
             context.RequestAborted);
+        if (RefusalOf(
+                result.Code,
+                WorkflowNoticeKind.CorrectionRefused,
+                WorkflowNoticeKind.CorrectionConflict) is { } refusal)
+        {
+            // An in-scope correction the existing workflow refused. The page is
+            // rendered again from stored state with one fixed notice; nothing
+            // the caller posted is read here, so nothing is reflected.
+            return await RenderReviewAsync(
+                firm!,
+                caseId,
+                documentId,
+                context,
+                context.RequestServices.GetRequiredService<IIntakeStore>(),
+                context.RequestServices.GetRequiredService<IExtractionStore>(),
+                refusal.Notice,
+                refusal.StatusCode);
+        }
+
         return MutationResult(context, caseId, documentId, result);
     }
 
@@ -360,6 +427,21 @@ internal static class ExtractionEndpoints
             new FinalizeExtractionCaseCommand { CaseId = caseId },
             clock.GetUtcNow(),
             context.RequestAborted);
+        if (RefusalOf(
+                result.Code,
+                WorkflowNoticeKind.FinalizationRefused,
+                WorkflowNoticeKind.FinalizationConflict) is { } refusal)
+        {
+            return await RenderListAsync(
+                firm!,
+                caseId,
+                context,
+                context.RequestServices.GetRequiredService<IIntakeStore>(),
+                context.RequestServices.GetRequiredService<IExtractionStore>(),
+                refusal.Notice,
+                refusal.StatusCode);
+        }
+
         if (!result.IsSuccess || result.Value is null)
         {
             return IntakeHttpSecurity.NotFound(context);
@@ -370,6 +452,24 @@ internal static class ExtractionEndpoints
             permanent: false,
             preserveMethod: false);
     }
+
+    /// <summary>
+    /// The closed notice selection (spec 017 FR-42, FR-43). Only the workflow's
+    /// own <c>Invalid</c> and <c>Conflict</c> codes have a notice; every other
+    /// code, <c>NotFound</c> included, keeps the existing empty <c>404</c>.
+    /// </summary>
+    private static (WorkflowNoticeKind Notice, int StatusCode)? RefusalOf(
+        ExtractionResultCode code,
+        WorkflowNoticeKind invalid,
+        WorkflowNoticeKind conflict) =>
+        code switch
+        {
+            ExtractionResultCode.Invalid =>
+                (invalid, StatusCodes.Status422UnprocessableEntity),
+            ExtractionResultCode.Conflict =>
+                (conflict, StatusCodes.Status409Conflict),
+            _ => null,
+        };
 
     private static IResult MutationResult<TValue>(
         HttpContext context,

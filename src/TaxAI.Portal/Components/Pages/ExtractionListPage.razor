@@ -1,5 +1,6 @@
 @using ExtractionWorkflow.Models
 @using Microsoft.AspNetCore.Components.Forms
+@using TaxAI.Portal.Components.Shared
 @using TaxCases.Models
 
 <!DOCTYPE html>
@@ -16,6 +17,8 @@
 <LayoutView Layout="typeof(PortalLayout)">
     <p class="topline">Accountant extraction review</p>
     <h1>Case documents</h1>
+    <AccountantNavigation />
+    <WorkflowNotice Kind="Notice" />
     <dl class="summary">
         <div><dt>Tax year</dt><dd>@Model.TaxYear</dd></div>
         <div><dt>Finalized</dt><dd>@(Model.IsFinalized ? "Yes" : "No")</dd></div>
@@ -68,6 +71,9 @@
     [Parameter]
     [EditorRequired]
     public ExtractionListPageModel Model { get; set; } = default!;
+
+    [Parameter]
+    public WorkflowNoticeKind Notice { get; set; }
 
     private static string CategoryLabel(DocumentCategory category) =>
         category switch

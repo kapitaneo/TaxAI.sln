@@ -1440,6 +1440,13 @@ public sealed class ClientIntakeWorkflowPersistenceTests
             CancellationToken cancellationToken) =>
             WithStoreAsync(store => store.FindAsync(firm, caseId, cancellationToken));
 
+        public Task<IntakeCaseList> ListCasesAsync(
+            TrustedFirmId firm,
+            int maximumCases,
+            CancellationToken cancellationToken) =>
+            WithStoreAsync(store =>
+                store.ListCasesAsync(firm, maximumCases, cancellationToken));
+
         public Task<StoredIntakeCase?> FindForClientAsync(
             IntakeClientScope scope,
             CancellationToken cancellationToken) =>

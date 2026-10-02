@@ -75,6 +75,10 @@ public sealed class ContractOmissionTests
         { nameof(SourceRegistration), "ResourceId" },
         { nameof(SourceRegistration), "ContentKey" },
         { nameof(SourceRegistration), "DocumentId" },
+        // Spec 017 T03 (human-authorized 2026-10-01): the case-list entry's
+        // selector and taxpayer display name.
+        { nameof(IntakeCaseListEntry), "CaseId" },
+        { nameof(IntakeCaseListEntry), "PrimaryTaxpayerDisplayName" },
     };
 
     [Theory]

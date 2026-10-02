@@ -342,6 +342,15 @@ public sealed class ProjectStructureTests
                  "TaxAI.Portal.Components.Shared.IntakeStatusBadge",
                  "TaxAI.Portal.Components.Shared.MedicalEvidencePanel",
 
+                // Spec 017 T03: the case list, accountant navigation, and the
+                // closed refusal notice.
+                 "TaxAI.Portal.Components.Pages.CaseListPage",
+                 "TaxAI.Portal.Components.Pages.CaseListPageModel",
+                 "TaxAI.Portal.Components.Pages.CaseListRowModel",
+                 "TaxAI.Portal.Components.Pages.WorkflowNoticeKind",
+                 "TaxAI.Portal.Components.Shared.AccountantNavigation",
+                 "TaxAI.Portal.Components.Shared.WorkflowNotice",
+
                 // The Razor compiler emits a type for _Imports.razor too. It is a
                 // using list, declares no member, and renders nothing.
                 "TaxAI.Portal.Components._Imports",

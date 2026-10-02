@@ -483,6 +483,16 @@ public sealed class UpgradeBaselineContractTests
                 // Spec 017 T01 — the Development-only sign-in and its page.
                 "TaxAI.Portal.DevelopmentSignInEndpoints",
                 "TaxAI.Portal.Components.Pages.DevelopmentSignInPage",
+
+                // Spec 017 T03 — the firm-scoped case list, accountant navigation,
+                // and the closed refusal-notice vocabulary and component.
+                "TaxAI.Portal.CaseListEndpoints",
+                "TaxAI.Portal.Components.Pages.CaseListPage",
+                "TaxAI.Portal.Components.Pages.CaseListPageModel",
+                "TaxAI.Portal.Components.Pages.CaseListRowModel",
+                "TaxAI.Portal.Components.Pages.WorkflowNoticeKind",
+                "TaxAI.Portal.Components.Shared.AccountantNavigation",
+                "TaxAI.Portal.Components.Shared.WorkflowNotice",
                 "TaxAI.Portal.ExtractionConfiguration",
                 "TaxAI.Portal.ExtractionEndpoints",
                 "TaxAI.Portal.ExtractionRuntimeConfiguration",

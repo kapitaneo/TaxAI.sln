@@ -17,6 +17,8 @@
 <LayoutView Layout="typeof(PortalLayout)">
     <p class="topline">Accountant extraction review</p>
     <h1>Document extraction</h1>
+    <AccountantNavigation />
+    <WorkflowNotice Kind="Notice" />
 
     <ClassificationDisagreementNotice
         DeclaredCategory="Model.DeclaredCategory"
@@ -140,6 +142,9 @@
     [Parameter]
     [EditorRequired]
     public ExtractionReviewPageModel Model { get; set; } = default!;
+
+    [Parameter]
+    public WorkflowNoticeKind Notice { get; set; }
 
     private string ListUrl =>
         $"/intake-cases/{CaseId:D}/extractions";

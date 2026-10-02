@@ -1515,6 +1515,38 @@ internal sealed class InMemoryIntakeStore : IIntakeStore
         }
     }
 
+    public Task<IntakeCaseList> ListCasesAsync(
+        TrustedFirmId firm,
+        int maximumCases,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfFailing();
+        lock (_gate)
+        {
+            var newest = _cases.Values
+                .Where(candidate => candidate.Firm.Value == firm.Value)
+                .Select(candidate => new
+                {
+                    Case = candidate,
+                    CreatedAtUtc = _audits[(candidate.Firm.Value, candidate.CaseId)]
+                        .Where(audit => audit.Kind == IntakeAuditKind.CaseCreated)
+                        .Min(audit => audit.OccurredAtUtc),
+                })
+                .OrderByDescending(candidate => candidate.CreatedAtUtc)
+                .ThenBy(candidate => candidate.Case.CaseId)
+                .Take(maximumCases + 1)
+                .Select(candidate => new IntakeCaseListEntry(
+                    candidate.Case.CaseId,
+                    candidate.Case.PrimaryTaxpayerDisplayName,
+                    candidate.Case.TaxYear))
+                .ToArray();
+            return Task.FromResult(new IntakeCaseList(
+                newest.Take(maximumCases).ToArray(),
+                newest.Length > maximumCases));
+        }
+    }
+
     public Task<StoredIntakeCase?> FindAsync(
         TrustedFirmId firm,
         Guid caseId,

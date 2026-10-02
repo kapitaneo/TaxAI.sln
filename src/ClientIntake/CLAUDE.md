@@ -67,6 +67,22 @@ Forbidden dependencies: `Persistence`, `TaxAI.Portal`, `CaseReview`,
 - The workflows read no clock, environment, current user, or HTTP context. The
   actor reference and the current instant arrive as arguments.
 
+## Spec 017 T03: the one firm-scoped list read
+
+`IIntakeStore.ListCasesAsync(TrustedFirmId, int, CancellationToken)` is the
+module's only list member. The firm is its first parameter, with no overload,
+optional argument or default that omits it, and there is no search, filter,
+sort or paging argument — the bound is the only other input. The two digest
+lookups above are still the only firm-omitting members.
+
+It returns `IntakeCaseList`: a read-only snapshot of `IntakeCaseListEntry`
+values (the case selector, the primary taxpayer display name, the stored tax
+year) and `HasMore`, which records only that the bound was reached. The
+selector and the name are `[JsonIgnore]`, both `ToString()` overrides are
+structural, and the instant the list is ordered by is deliberately not part of
+the result. `IAccountantIntakeWorkflow` is unchanged; this module still
+implements none of its ports.
+
 ## Append facts; derive current progress
 
 Answer versions, document metadata, upload attempts, submissions, associations,

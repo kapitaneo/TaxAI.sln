@@ -31,7 +31,11 @@ public sealed class DevelopmentSignInTests
 {
     private const string SignInPath = "/development/sign-in";
 
-    private const string SignedInPath = "/intake-cases/new";
+    // Spec 017 T03: a completed sign-in now lands on the case list.
+    private const string SignedInPath = "/intake-cases";
+
+    /// <summary>A firm-scoped page that reads no store, used to probe revalidation.</summary>
+    private const string ProtectedPagePath = "/intake-cases/new";
 
     private const string UnmappedPath = "/development/not-a-route";
 
@@ -134,7 +138,7 @@ public sealed class DevelopmentSignInTests
 
         world.Directory.SetUserActive(isActive: false);
 
-        using var refused = await client.GetAsync(SignedInPath);
+        using var refused = await client.GetAsync(ProtectedPagePath);
 
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
     }
@@ -150,7 +154,7 @@ public sealed class DevelopmentSignInTests
                 value => value.StartsWith(SessionCookieName + "=", StringComparison.Ordinal))
             .Split(';')[0];
 
-        var page = await client.GetStringAsync(SignedInPath);
+        var page = await client.GetStringAsync(ProtectedPagePath);
         using var signedOut = await client.PostAsync(
             "/sign-out",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -162,7 +166,7 @@ public sealed class DevelopmentSignInTests
         Assert.NotNull(Assert.Single(world.Sessions.All).RevokedAtUtc);
 
         using var replayClient = world.CreateClient(handleCookies: false);
-        using var replay = new HttpRequestMessage(HttpMethod.Get, SignedInPath);
+        using var replay = new HttpRequestMessage(HttpMethod.Get, ProtectedPagePath);
         replay.Headers.Add("Cookie", copiedCookie);
         using var replayed = await replayClient.SendAsync(replay);
 
@@ -381,7 +385,7 @@ public sealed class DevelopmentSignInTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Null(Assert.Single(world.Sessions.All).ActiveFirmId);
 
-        using var refused = await client.GetAsync(SignedInPath);
+        using var refused = await client.GetAsync(ProtectedPagePath);
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
     }
 

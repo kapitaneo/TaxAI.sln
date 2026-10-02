@@ -30,6 +30,15 @@ public sealed class PreservedSurfaceTests
     private const string ApprovedSpec016IntakeAdditionsSha256 =
         "b8824ceef756c896c5a1dc9fad2f5b5fa86be9dd86e553509c35b2f54d56a9dc";
 
+    /// <summary>
+    /// Spec 017 T03: the exact lines added to IntakeCaseProgressPage.razor.
+    /// </summary>
+    private static readonly string[] ApprovedSpec017ProgressPageAdditions =
+    {
+        "    <AccountantNavigation />",
+        "        <p><a class=\"button-link\" href=\"@($\"/intake-cases/{CaseId:D}/extractions\")\">Open case documents</a></p>",
+    };
+
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
@@ -57,11 +66,29 @@ public sealed class PreservedSurfaceTests
             "src/TaxAI.Portal/Components/Pages/ClientLinkConfirmationPage.razor",
             "src/TaxAI.Portal/Components/Pages/IntakeCaseCreatePage.razor",
             "src/TaxAI.Portal/Components/Pages/IntakeCaseIssuedPage.razor",
-            "src/TaxAI.Portal/Components/Pages/IntakeCaseProgressPage.razor",
+            // IntakeCaseProgressPage.razor is no longer byte-identical: spec 017
+            // T03 added accountant navigation and the documents link. It is
+            // still guarded, line-exactly, by the spec 017 test below.
             "src/TaxAI.Portal/Components/Shared/ClientQuestionnairePanel.razor",
             "src/TaxAI.Portal/Components/Shared/ClientQuestionnairePanel.razor.js",
             "src/TaxAI.Portal/Components/Shared/IntakeStatusBadge.razor",
             "src/TaxAI.Portal/wwwroot/intake.css");
+    }
+
+    /// <summary>
+    /// Spec 017 T03 (approved amendment table). IntakeCaseProgressPage.razor may
+    /// differ from the T05 merge only by these exact added lines, in this
+    /// order, and by no removed line: the accountant navigation and the link to
+    /// the same case's documents page. Any other edit fails here.
+    /// </summary>
+    [Fact]
+    public async Task IntakeCaseProgressPageDiffersFromTheT05MergeOnlyByTheApprovedSpec017Links()
+    {
+        var (removed, added) = await DiffFromT05Async(
+            "src/TaxAI.Portal/Components/Pages/IntakeCaseProgressPage.razor");
+
+        Assert.Empty(removed);
+        Assert.Equal(ApprovedSpec017ProgressPageAdditions, added);
     }
 
     /// <summary>
